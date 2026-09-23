@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stretch 512 Team Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  :root { --bg:#f2f5f4; --panel:#fff; --ink:#1c2b2a; --muted:#5d6f6d; --line:#d3dcda; --accent:#1f6f6b; --danger:#b3261e; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 "DM Sans", system-ui, sans-serif; }
+  [hidden] { display:none !important; }
+  h1, h2 { margin:0; line-height:1.15; }
+  input, select, button { font:inherit; }
+  input, select { padding:.55rem .7rem; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); width:100%; }
+  button { padding:.6rem 1.1rem; border:0; border-radius:6px; background:var(--accent); color:#fff; font-weight:500; cursor:pointer; }
+  button.quiet { background:transparent; color:var(--accent); border:1px solid var(--line); }
+  :focus-visible { outline:3px solid #7fc4bf; outline-offset:2px; }
+  #login { min-height:100vh; display:grid; place-items:center; padding:1.5rem; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:2rem; width:100%; max-width:380px; }
+  .card h1 { font-size:2rem; margin-bottom:.35rem; }
+  .card p { margin:0 0 1.5rem; color:var(--muted); }
+  label { display:block; font-size:.9rem; font-weight:500; margin:0 0 1rem; }
+  label input { margin-top:.3rem; }
+  #err { color:var(--danger); min-height:1.3em; margin:0 0 .75rem; font-size:.9rem; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:1rem 1.5rem; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:1.25rem; }
+  header small { color:var(--muted); display:block; }
+  main { max-width:960px; margin:0 auto; padding:2rem 1.5rem 4rem; }
+  main h2 { font-size:1.6rem; margin-bottom:.4rem; }
+  .lead { color:var(--muted); margin:0 0 2rem; }
+  .soon { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:.75rem; margin-bottom:2.5rem; }
+  .soon div { border:1px dashed var(--line); border-radius:8px; padding:.9rem 1rem; color:var(--muted); }
+  .soon b { display:block; color:var(--ink); font-weight:500; }
+  .table-wrap { overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; }
+  table { border-collapse:collapse; width:100%; min-width:720px; }
+  th { text-align:left; font-weight:500; color:var(--muted); font-size:.85rem; }
+  th, td { padding:.65rem .8rem; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:last-child td { border-bottom:0; }
+  td .status { font-size:.85rem; color:var(--accent); margin-left:.5rem; }
+</style>
+</head>
+<body>
+
+<section id="login" hidden>
+  <form class="card" id="loginForm">
+    <h1>Team Portal</h1>
+    <p>Sign in with your work email.</p>
+    <label>Email <input id="email" type="email" autocomplete="username" required></label>
+    <label>Password <input id="pw" type="password" autocomplete="current-password" required></label>
+    <div id="err" role="alert"></div>
+    <button type="submit">Sign in</button>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <div><h1>Stretch 512 Team Portal</h1></div>
+    <div style="display:flex;align-items:center;gap:1rem">
+      <div style="text-align:right"><span id="who"></span><small id="meta"></small></div>
+      <button class="quiet" id="signout">Sign out</button>
+    </div>
+  </header>
+  <main>
+    <h2 id="hello"></h2>
+    <p class="lead" id="note"></p>
+
+    <div class="soon">
+      <div><b>Time off</b>Coming next</div>
+      <div><b>Tasks</b>Coming soon</div>
+      <div><b>Bios</b>Coming soon</div>
+      <div><b>Calendar</b>Coming soon</div>
+      <div><b>Members</b>Coming soon</div>
+      <div><b>Reports</b>Coming soon</div>
+    </div>
+
+    <section id="team" hidden>
+      <h2 id="teamTitle">Team</h2>
+      <p class="lead" id="teamNote"></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Location</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://hhjhsjmgywaoubvahbrr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_YGJo51nSp2xv33-kDbbrNQ_hk8xi6DV';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let locs = [];
+
+async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) showApp(session.user); else { $('login').hidden = false; $('app').hidden = true; }
+}
+
+$('loginForm').onsubmit = async e => {
+  e.preventDefault();
+  $('err').textContent = '';
+  const { error } = await db.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pw').value });
+  if (error) { $('err').textContent = 'Sign in failed. Check your email and password.'; return; }
+  init();
+};
+
+$('signout').onclick = async () => { await db.auth.signOut(); $('pw').value = ''; init(); };
+
+async function showApp(user) {
+  $('login').hidden = true; $('app').hidden = false;
+  const [l, m] = await Promise.all([
+    db.from('locations').select('*').order('name'),
+    db.from('profiles').select('*').eq('id', user.id).maybeSingle()
+  ]);
+  locs = l.data || [];
+  const me = m.data;
+  if (!me) { $('hello').textContent = 'Account not set up'; $('note').textContent = 'Your login has no profile yet. Ask the owner for help.'; return; }
+  const loc = locs.find(x => x.id === me.location_id);
+  $('who').textContent = me.full_name || me.email;
+  $('meta').textContent = me.role + ' \u2022 ' + (me.role === 'owner' ? 'All locations' : loc ? loc.name : 'No location yet');
+  $('hello').textContent = 'Welcome' + (me.full_name ? ', ' + me.full_name.split(' ')[0] : '');
+  $('note').textContent = me.role !== 'owner' && !loc ? 'You have not been assigned to a location yet. Ask the owner to assign you.' : 'More tools will appear here as they are added.';
+  $('team').hidden = me.role === 'staff';
+  if (me.role !== 'staff') loadTeam(me);
+}
+
+async function loadTeam(me) {
+  const isOwner = me.role === 'owner';
+  $('teamTitle').textContent = isOwner ? 'Everyone' : 'Your location\u2019s team';
+  $('teamNote').textContent = isOwner ? 'Set each person\u2019s name, role, and location, then save.' : 'People at your location.';
+  const { data } = await db.from('profiles').select('*').order('email');
+  const dis = isOwner ? '' : 'disabled';
+  $('rows').innerHTML = (data || []).map(p => {
+    const self = p.id === me.id;
+    return `<tr data-id="${p.id}">
+      <td><input class="n" value="${esc(p.full_name)}" placeholder="Full name" ${dis}></td>
+      <td>${esc(p.email)}</td>
+      <td><select class="r" ${isOwner && !self ? '' : 'disabled'}>${['owner','manager','staff'].map(r => `<option ${r === p.role ? 'selected' : ''}>${r}</option>`).join('')}</select></td>
+      <td><select class="l" ${dis}><option value="">None</option>${locs.map(x => `<option value="${x.id}" ${x.id === p.location_id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></td>
+      <td>${isOwner ? '<button class="save">Save</button><span class="status"></span>' : ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="5">No one here yet.</td></tr>';
+}
+
+$('rows').onclick = async e => {
+  if (!e.target.classList.contains('save')) return;
+  const tr = e.target.closest('tr');
+  const s = tr.querySelector('.status');
+  const { error } = await db.from('profiles').update({
+    full_name: tr.querySelector('.n').value.trim() || null,
+    role: tr.querySelector('.r').value,
+    location_id: tr.querySelector('.l').value || null
+  }).eq('id', tr.dataset.id);
+  s.textContent = error ? 'Could not save' : 'Saved';
+  setTimeout(() => s.textContent = '', 2500);
+};
+
+init();
+</script>
+</body>
+</html>
