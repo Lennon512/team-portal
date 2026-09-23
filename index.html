@@ -1302,13 +1302,13 @@ async function loadPerf() {
   PF.rows = a.data || []; PF.net = {}; PF.corp = {};
   (b.data || []).forEach(x => (PF.net[x.month] = PF.net[x.month] || {})[x.kpi] = +x.value);
   (c.data || []).forEach(x => { const s = PF.corp[x.studio_id] = PF.corp[x.studio_id] || {}; (s[x.month] = s[x.month] || {})[x.kpi] = x; });
-  const own = ME.role === 'owner', sids = [...new Set(PF.rows.map(r => r.studio_id))], ms = pfMonths().reverse();
+  const own = ME.role === 'owner', sids = [...new Set(PF.rows.map(r => r.studio_id))], mine = pfMonths().reverse(), ms = [...new Set([...mine, ...Object.keys(PF.net), ...Object.values(PF.corp).flatMap(o => Object.keys(o))])].sort().reverse();
   $('pfAdd').hidden = !own; $('pfMine').hidden = !own; $('pfCorp').hidden = !own; document.querySelector('#pfTabs [data-t="master"]').hidden = !own;
   if (!own) { PF.studio = sids[0] || ''; PF.tab = 'score'; }
   $('pfStudio').innerHTML = (own ? '<option value="">All six studios</option>' : '') + locs.filter(l => sids.includes(l.id)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
   $('pfStudio').value = PF.studio;
   $('pfMonth').innerHTML = ms.map(m => `<option value="${m}">${mLbl(m, 1)}</option>`).join('');
-  if (!ms.includes(PF.month)) PF.month = ms[0] || '';
+  if (!ms.includes(PF.month)) PF.month = mine[0] || ms[0] || '';
   $('pfMonth').value = PF.month;
   if (!ms.length) { $('pfBody').innerHTML = '<p class="lead">No performance data yet.</p>'; return; }
   drawPerf();
@@ -1322,7 +1322,7 @@ function drawPerf() {
 
 function drawScore() {
   const m = PF.month, sid = PF.studio, prev = mAdd(m, -1), yoy = mAdd(m, -12), ms12 = Array.from({ length: 12 }, (_, i) => mAdd(m, i - 11)), cur = pfRows(m, sid);
-  if (!cur.length) { $('pfBody').innerHTML = '<p class="lead">No data for this month.</p>'; return; }
+  if (!cur.length) { $('pfBody').innerHTML = '<p class="lead">Your own numbers for this month have not been added yet. Use Upload my monthly sheet or Add or edit a month. Corporate\u2019s numbers for this month are on the Master card tab.</p>'; return; }
   const cp = (sid && PF.corp[sid] && PF.corp[sid][m]) || {}, name = sid ? (locs.find(l => l.id === sid) || {}).name : 'All six studios (Austin total)';
   const spark = a => { const v = a.filter(x => x !== null); if (v.length < 2) return ''; const lo = Math.min(...v), hi = Math.max(...v); return `<svg viewBox="0 0 100 28" class="spark" preserveAspectRatio="none"><polyline fill="none" stroke="#8ec9f0" stroke-width="2" points="${a.map((x, i) => x === null ? '' : (i * 100 / 11).toFixed(1) + ',' + (26 - (x - lo) / ((hi - lo) || 1) * 24).toFixed(1)).filter(Boolean).join(' ')}"/></svg>`; };
   const tile = K => {
