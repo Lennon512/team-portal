@@ -113,6 +113,13 @@
   .mt td:first-child, .mt th:first-child { position:sticky; left:0; background:var(--panel); z-index:1; }
   .cx { opacity:.55; }
   .mt td input[type=checkbox] { display:block; margin:0 auto; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:.75rem; margin:0 0 1.25rem; }
+  .sum > div { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:.8rem 1rem; }
+  .sum b { display:block; font-size:1.6rem; line-height:1.2; }
+  .sum span { color:var(--muted); font-size:.85rem; }
+  .why { white-space:normal; max-width:340px; font-size:.8rem; font-weight:400; color:#7a2b26; margin-top:.15rem; }
+  .mt th[data-sort] { cursor:pointer; text-decoration:underline dotted; }
+  .mt th.on { color:var(--ink); }
 </style>
 </head>
 <body>
@@ -204,11 +211,12 @@
   <main id="memView" hidden>
     <h2>Members</h2>
     <div class="tabs" id="memTabs"><button data-sec="risk">At-risk members</button><button data-sec="new">New members</button></div>
+    <div class="sum" id="memSum"></div>
     <div class="tabs" id="memSubs"></div>
     <div class="bar">
       <select id="memStudio" aria-label="Studio" hidden></select>
       <input id="memFind" type="search" placeholder="Find a member" aria-label="Find a member" style="width:auto;min-width:200px">
-      <select id="memSort" aria-label="Sort"><option value="attn">Needs attention first</option><option value="credits">Most unused credits</option><option value="due">Due date</option></select>
+      <select id="memSort" aria-label="Sort"><option value="attn">Needs attention first</option><option value="credits">Most unused credits</option><option value="due">Invoice date (soonest first)</option><option value="last">Last visit (oldest first)</option></select>
       <select id="memWin" aria-label="Signed up" hidden><option value="30">Signed up: last 30 days</option><option value="60" selected>Signed up: last 60 days</option><option value="90">Signed up: last 90 days</option><option value="9999">Signed up: all</option></select>
       <label style="display:flex;gap:.4rem;align-items:center;margin:0"><input type="checkbox" id="memMine"> Mine only</label>
       <button class="quiet" id="memUp" hidden>Upload reports</button>
@@ -667,11 +675,22 @@ function calc(r) {
   const label = pace === null ? '' : pace < .75 ? 'Behind' : pace >= 1.25 ? 'Ahead' : 'On pace';
   const nb = nbd !== null && nbd <= 0 && nbd >= -7;
   const attn = r.grp === 'member' && !r.frozen && (label === 'Behind' || (r.credits || 0) >= 4) && !nb && (dc === null || dc > 14);
-  return { recent, label, nb, attn };
+  const why = [];
+  if (attn) {
+    if (label === 'Behind') why.push(`Behind pace (${r.sessions_30d || 0} of ${r.plan_sessions} sessions in 30 days)`);
+    if ((r.credits || 0) >= 4) why.push(`${r.credits} unused credits`);
+    why.push('nothing booked in the next 7 days');
+    why.push(dc === null ? 'never contacted' : `no contact in ${dc} days`);
+    const k = r.next_due ? -daysAgo(r.next_due) : null;
+    if (k !== null && k >= 0 && k <= 14) why.push(k === 0 ? 'invoice due today' : `invoice due in ${k} days`);
+    why[0] = why[0][0].toUpperCase() + why[0].slice(1);
+  }
+  return { recent, label, nb, attn, why: why.join(' \u2022 ') };
 }
 
 const dcell = d => `<td>${d ? fmt(d) : '-'}</td>`;
-const nameCell = ({ r, c }) => `<td><b>${esc(r.name)}</b>${r.frozen ? '<span class="pill ice">Frozen</span>' : ''}${c.attn ? '<span class="pill warn">Needs attention</span>' : ''}</td>`;
+const nameCell = ({ r, c }) => `<td><b>${esc(r.name)}</b>${r.frozen ? '<span class="pill ice">Frozen</span>' : ''}${c.attn ? '<span class="pill warn">Needs attention</span><div class="why">' + esc(c.why) + '</div>' : ''}</td>`;
+const SORTABLE = { 'Unused credits': 'credits', 'Due': 'due', 'Last session': 'last', 'Recent visit': 'last' };
 const COLS = {
   member: [['Member', nameCell], ['Unused credits', ({ r }) => `<td>${r.credits ?? 0}</td>`], ['Due', ({ r }) => dcell(r.next_due)],
     ['Amount', ({ r }) => `<td>${r.amount != null ? '$' + Number(r.amount).toFixed(0) : '-'}</td>`], ['Last session', ({ r }) => dcell(r.last_session)],
@@ -708,25 +727,43 @@ async function loadMem() {
   drawMem();
 }
 
+const tile = (n, l, sub) => `<div><b>${n}</b>${l}${sub ? `<br><span>${sub}</span>` : ''}</div>`;
+function sumRisk() {
+  if (!mem.meta) { $('memSum').innerHTML = ''; return; }
+  const m = mem.rows.filter(r => r.grp === 'member' && !r.frozen).map(r => ({ r, c: calc(r) })), fl = m.filter(x => x.c.attn);
+  const due7 = fl.filter(x => x.r.next_due && daysAgo(x.r.next_due) <= 0 && daysAgo(x.r.next_due) >= -7).length;
+  const money = fl.reduce((n, x) => n + (+x.r.amount || 0), 0);
+  const cold = m.filter(x => { const d = daysAgo(x.r.last_session); return d === null || d > 30; }).length;
+  $('memSum').innerHTML = tile(m.length, 'Members being charged') + tile(fl.length, 'Need attention', '$' + Math.round(money).toLocaleString() + ' in upcoming invoices') + tile(due7, 'Flagged and billing within 7 days') + tile(cold, 'No visit in 30+ days');
+}
+function sumNew() {
+  if (!mem.nrows.length) { $('memSum').innerHTML = ''; return; }
+  const rs = mem.nrows.filter(r => daysAgo(r.signed_on) <= mem.win).map(r => ({ r, c: nmCalc(r) })), act = rs.filter(x => !x.r.cancelled), cx = rs.length - act.length;
+  const avg = act.length ? Math.round(act.reduce((n, x) => n + x.c.pct, 0) / act.length) : 0;
+  const old = rs.filter(x => !x.r.is_package && daysAgo(x.r.signed_on) >= 30), made = old.filter(x => x.c.m2 === 'Yes').length;
+  $('memSum').innerHTML = tile(act.length, 'Active new members', mem.win < 9999 ? 'signed up in the last ' + mem.win + ' days' : 'all signups') + tile(avg + '%', 'Average progress', 'active members') +
+    tile(cx, 'Cancelled', rs.length ? Math.round(100 * cx / rs.length) + '% of signups' : '') + tile(old.length ? made + ' of ' + old.length : '-', 'Made it to month 2', 'signed up 30+ days ago');
+}
 const mineOk = r => !mem.mine || (mem.notes[r.club_id] || {}).assigned_to === ME.id;
 
 function drawMem() {
   document.querySelectorAll('#memTabs button').forEach(b => b.classList.toggle('on', b.dataset.sec === mem.sec));
   $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[1]}</button>`).join('');
+  mem.sec === 'risk' ? sumRisk() : sumNew();
   $('memWin').hidden = mem.g !== 'list';
   if (mem.g === 'list') { $('memSort').hidden = true; return drawNew(); }
   const g = mem.g === 'attn' ? 'member' : mem.g, q = mem.find.toLowerCase();
-  $('memSort').hidden = g !== 'member';
+  $('memSort').hidden = g !== 'member'; $('memSort').value = mem.sort;
   const all = mem.rows.filter(r => r.grp === g);
   const rows = all.filter(r => (!q || r.name.toLowerCase().includes(q)) && mineOk(r)).map(r => ({ r, c: calc(r) })).filter(x => mem.g !== 'attn' || x.c.attn);
-  const by = { attn: (a, b) => (b.c.attn - a.c.attn) || (b.r.credits - a.r.credits), credits: (a, b) => b.r.credits - a.r.credits, due: (a, b) => (a.r.next_due || 'z') < (b.r.next_due || 'z') ? -1 : 1 };
+  const by = { attn: (a, b) => (b.c.attn - a.c.attn) || (b.r.credits - a.r.credits), credits: (a, b) => b.r.credits - a.r.credits, due: (a, b) => (a.r.next_due || 'z') < (b.r.next_due || 'z') ? -1 : 1, last: (a, b) => (a.r.last_session || '') < (b.r.last_session || '') ? -1 : 1 };
   rows.sort(g === 'member' ? by[mem.sort] : g === 'package' ? (a, b) => a.r.credits - b.r.credits : (a, b) => (b.r.signed_on || '') < (a.r.signed_on || '') ? -1 : 1);
   const attn = rows.filter(x => x.c.attn).length, fz = all.filter(r => r.frozen).length;
-  const blurb = { member: `${all.length} members with an invoice coming due or a freeze fee. <b>${attn}</b> need attention (behind or 4+ unused credits, nothing booked in 7 days, no contact in 14).${fz ? ' ' + fz + ' frozen.' : ''}`,
+  const blurb = { member: 'Flagged when a member is behind pace or holds 4+ unused credits, has nothing booked in the next 7 days, and has had no contact in 14 days. Click a column heading to sort.' + (fz ? ' ' + fz + ' frozen members are listed but never flagged.' : ''),
     check: `${all.length} recent signups with monthly billing but no invoice coming due. Worth a look in ClubReady.`,
     package: `${all.length} people on packages instead of memberships, fewest credits first. They need a nudge to join.` }[g];
   const cols = COLS[g];
-  $('memBody').innerHTML = mem.meta ? `<p class="lead">${blurb}</p>` + (rows.length ? `<div class="table-wrap"><table class="mt"><thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(x => `<tr data-m="${x.r.club_id}">${cols.map(c => c[1](x)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="lead">Nothing here.</p>')
+  $('memBody').innerHTML = mem.meta ? `<p class="lead">${blurb}</p>` + (rows.length ? `<div class="table-wrap"><table class="mt"><thead><tr>${cols.map(c => { const k = g === 'member' && SORTABLE[c[0]]; return k ? `<th data-sort=\"${k}\" class=\"${mem.sort === k ? 'on' : ''}\" title=\"Sort by ${c[0].toLowerCase()}\">${c[0]}${mem.sort === k ? ' \u25BE' : ''}</th>` : `<th>${c[0]}</th>`; }).join('')}</tr></thead><tbody>${rows.map(x => `<tr data-m="${x.r.club_id}">${cols.map(c => c[1](x)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="lead">Nothing here.</p>')
     : '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>';
 }
 
@@ -746,7 +783,7 @@ function drawNew() {
   const act = rows.filter(x => !x.r.cancelled), avg = act.length ? Math.round(act.reduce((n, x) => n + x.c.pct, 0) / act.length) : 0;
   const box = (r, f) => `<td><input type="checkbox" data-nt="${f}" data-id="${r.club_id}" aria-label="${f} for ${esc(r.name)}" ${(mem.nt[r.club_id] || {})[f] ? 'checked' : ''}></td>`;
   const head = ['Member', 'Signed up', 'Membership', 'Cancelled?', 'Cancel date', 'Welcome email', 'App setup', 'Flex points', 'Booked out', 'Completed', 'Feedback', 'Google review', 'Referrals', 'Month 2?', 'Assigned', 'Notes', 'Progress'];
-  $('memBody').innerHTML = `<p class="lead"><b>${rows.length}</b> new members \u2022 ${rows.length - act.length} cancelled \u2022 ${act.length} active \u2022 average progress of active members <b>${avg}%</b>. Booked out, completed, and month 2 fill in from your reports; tick the rest as your team does them.</p>` +
+  $('memBody').innerHTML = `<p class="lead">Booked out, completed, and month 2 fill in from your reports. Tick the rest as your team does them.</p>` +
     `<div class="table-wrap"><table class="mt"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>` +
     rows.map(({ r, c }) => `<tr data-m="${r.club_id}" class="${r.cancelled ? 'cx' : ''}"><td><b>${esc(r.name)}</b></td>${dcell(r.signed_on)}<td>${esc(r.membership || '')}</td><td>${r.cancelled ? '<span class="pill warn" style="margin:0">Yes</span>' : 'No'}</td>${dcell(r.cancel_date)}` +
       box(r, 'welcome') + box(r, 'app') + box(r, 'flex') + `<td>${r.sessions_booked || 0}</td><td>${r.sessions_done}${r.plan_sessions ? '/' + r.plan_sessions : ''}</td>` + box(r, 'feedback') + box(r, 'review') + box(r, 'referrals') +
@@ -893,7 +930,7 @@ $('memSort').onchange = e => { mem.sort = e.target.value; drawMem(); };
 $('memFind').oninput = e => { mem.find = e.target.value; drawMem(); };
 $('memStudio').onchange = e => { mem.studio = e.target.value; loadMem(); };
 $('memUp').onclick = upForm;
-$('memBody').onclick = e => { if (e.target.closest('input')) return; const tr = e.target.closest('[data-m]'); if (tr) memCard(tr.dataset.m); };
+$('memBody').onclick = e => { const th = e.target.closest('th[data-sort]'); if (th) { mem.sort = th.dataset.sort; drawMem(); return; } if (e.target.closest('input')) return; const tr = e.target.closest('[data-m]'); if (tr) memCard(tr.dataset.m); };
 
 $('dlgBody').addEventListener('click', async e => {
   const a = e.target.dataset.act, id = e.target.dataset.id, fail = m => { $('mErr').textContent = m; };
