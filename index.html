@@ -122,6 +122,18 @@
   .mt th.on { color:var(--ink); }
   .chip.pend { background:#fff; border:1px dashed #c98f57; }
   .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:0 1rem; }
+  #topnav { flex-basis:100%; overflow-x:auto; margin:.75rem -1.5rem -1rem; padding:.35rem 1.5rem; border-top:1px solid var(--line); }
+  nav a { white-space:nowrap; }
+  .hgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; margin:0 0 2rem; }
+  .hcard { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:1rem 1.25rem; }
+  .hcard h3 { margin:0 0 .6rem; font-size:1.05rem; }
+  .hcard p { margin:.2rem 0; }
+  .shero { aspect-ratio:16/6; background:linear-gradient(180deg,#bfdcd8,#f2ead2); border-radius:12px; overflow:hidden; margin-top:1rem; }
+  .shero img { width:100%; height:100%; object-fit:cover; display:block; }
+  .facts { display:grid; grid-template-columns:auto 1fr; gap:.4rem 1.25rem; margin:1rem 0 1.25rem; max-width:60ch; }
+  .facts dt { color:var(--muted); } .facts dd { margin:0; }
+  .studios a { padding:.45rem .9rem; border:1px solid var(--line); background:#fff; border-radius:99px; color:var(--ink); text-decoration:none; }
+  .studios a.mine { background:var(--accent); color:#fff; border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -139,11 +151,12 @@
 
 <div id="app" hidden>
   <header>
-    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap"><h1>Stretch Zone Austin</h1><nav><a href="#home" id="navHome">Home</a><a href="#team" id="navTeam">Team</a><a href="#calendar" id="navCal">Calendar</a><a href="#tasks" id="navTasks">Tasks</a><a href="#members" id="navMem">Members</a><a href="#timeoff" id="navOff">Time off</a></nav></div>
+    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap"><h1>Stretch Zone Austin</h1></div>
     <div style="display:flex;align-items:center;gap:1rem">
       <div style="text-align:right"><span id="who"></span><small id="meta"></small></div>
       <button class="quiet" id="signout">Sign out</button>
     </div>
+    <nav id="topnav"><a href="#home" id="navHome">My page</a><a href="#team" id="navTeam">Team</a><a href="#studio" id="navStudio">Studio</a><a href="#calendar" id="navCal">Calendar</a><a href="#tasks" id="navTasks">Tasks</a><a href="#members" id="navMem">Members</a><a href="#timeoff" id="navOff">Time off</a><a href="#people" id="navPeople" hidden>People</a></nav>
   </header>
   <div id="homeView">
   <section class="hero">
@@ -156,30 +169,11 @@
   </section>
   <main>
     <p class="lead" id="note" hidden></p>
+    <div class="hgrid" id="myCards"></div>
     <div class="callout">👋 Our mission is to deliver world class member experiences, change lives through practitioner assisted stretching, and build the strongest Stretch Zone market in the country!</div>
     <h2>Our six studios</h2>
     <div class="studios" id="studios"></div>
-    <h2>Your tools</h2>
-    <p class="lead">New tools land here as we build them.</p>
-    <div class="soon">
-      <a href="#timeoff"><b>Time off</b>Request and approve</a>
-      <a href="#tasks"><b>Tasks</b>Daily checklists</a>
-      <a href="#team"><b>Team</b>Meet everyone</a>
-      <a href="#calendar"><b>Calendar</b>Events and time off</a>
-      <a href="#members"><b>Members</b>Invoices, signups, packages</a>
-      <div><b>Reports</b>Coming soon</div>
-    </div>
 
-    <section id="team" hidden>
-      <h2 id="teamTitle">Team</h2>
-      <p class="lead" id="teamNote"></p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Location</th><th></th></tr></thead>
-          <tbody id="rows"></tbody>
-        </table>
-      </div>
-    </section>
   </main>
   </div>
   <main id="teamView" hidden>
@@ -231,6 +225,19 @@
     <p class="lead" style="max-width:70ch">Use this for all time off and availability requests. Sending a request does not mean it is approved until your GM or Lead confirms it with you. Texts and Slack messages are great for quick heads-ups, but this is the official request. Everyone can see approved and pending time off on the Calendar, but only you and your manager see your reason.</p>
     <div id="toBody"></div>
   </main>
+  <main id="studioView" hidden><div id="studioBody"></div></main>
+  <main id="peopleView" hidden>
+    <section id="team" hidden>
+      <h2 id="teamTitle">Team</h2>
+      <p class="lead" id="teamNote"></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Location</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
 </div>
 
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
@@ -279,8 +286,8 @@ async function showApp(user) {
   $('tag').textContent = TAGS[Math.floor(Date.now() / 864e5) % TAGS.length];
   $('note').hidden = !(me.role !== 'owner' && !loc);
   $('note').textContent = 'You have not been assigned to a studio yet. Ask the owner to add you.';
-  $('studios').innerHTML = locs.map(x => `<span class="${loc && x.id === loc.id ? 'mine' : ''}">${esc(x.name)}</span>`).join('');
-  $('team').hidden = me.role === 'staff';
+  $('studios').innerHTML = locs.map(x => `<a href="#studio/${x.id}" class="${loc && x.id === loc.id ? 'mine' : ''}">${esc(x.name)}</a>`).join('');
+  $('team').hidden = me.role === 'staff'; $('navPeople').hidden = me.role === 'staff';
   if (me.role !== 'staff') loadTeam(me);
 }
 
@@ -317,9 +324,9 @@ $('rows').onclick = async e => {
 let ME = null, people = [], urls = {}, cur = null;
 
 function route() {
-  const v = location.hash === '#team' ? 'team' : location.hash === '#calendar' ? 'cal' : location.hash.startsWith('#tasks') ? 'tasks' : location.hash === '#members' ? 'mem' : location.hash === '#timeoff' ? 'off' : 'home';
-  $('homeView').hidden = v !== 'home'; $('teamView').hidden = v !== 'team'; $('calView').hidden = v !== 'cal'; $('taskView').hidden = v !== 'tasks'; $('memView').hidden = v !== 'mem'; $('toView').hidden = v !== 'off';
-  $('navTasks').classList.toggle('on', v === 'tasks'); $('navMem').classList.toggle('on', v === 'mem'); $('navOff').classList.toggle('on', v === 'off');
+  const v = location.hash === '#team' ? 'team' : location.hash === '#calendar' ? 'cal' : location.hash.startsWith('#tasks') ? 'tasks' : location.hash === '#members' ? 'mem' : location.hash === '#timeoff' ? 'off' : location.hash.startsWith('#studio') ? 'studio' : location.hash === '#people' ? 'people' : 'home';
+  $('homeView').hidden = v !== 'home'; $('teamView').hidden = v !== 'team'; $('calView').hidden = v !== 'cal'; $('taskView').hidden = v !== 'tasks'; $('memView').hidden = v !== 'mem'; $('toView').hidden = v !== 'off'; $('studioView').hidden = v !== 'studio'; $('peopleView').hidden = v !== 'people';
+  $('navTasks').classList.toggle('on', v === 'tasks'); $('navMem').classList.toggle('on', v === 'mem'); $('navOff').classList.toggle('on', v === 'off'); $('navStudio').classList.toggle('on', v === 'studio'); $('navPeople').classList.toggle('on', v === 'people');
   $('navHome').classList.toggle('on', v === 'home'); $('navTeam').classList.toggle('on', v === 'team'); $('navCal').classList.toggle('on', v === 'cal');
   if (v === 'team' && ME) loadPeople();
   if (v === 'cal' && ME) loadCal();
@@ -327,6 +334,8 @@ function route() {
   if (v === 'mem' && ME) loadMem();
   if (v === 'off' && ME) loadTimeOff();
   if (ME && v !== 'off') timeOffBadge();
+  if (v === 'home' && ME) loadHome();
+  if (v === 'studio' && ME) loadStudio(location.hash.split('/')[1]);
 }
 addEventListener('hashchange', route);
 
@@ -1063,6 +1072,107 @@ $('toBody').onclick = async e => {
   if (error) alert('That did not work: ' + error.message);
   loadTimeOff();
 };
+
+// ---------- My page ----------
+async function homeAttn() {
+  if (!ME.location_id) return null;
+  if (mem.studio !== ME.location_id || !mem.meta) { mem.studio = ME.location_id; await loadMem(); }
+  return mem.meta ? mem.rows.filter(r => r.grp === 'member' && calc(r).attn).length : null;
+}
+
+async function loadHome() {
+  const now = new Date(), td = todayStr(), mo = ymd(new Date(now.getFullYear(), now.getMonth(), 1)), in14 = ymd(new Date(now.getTime() + 14 * DAY)), in30 = ymd(new Date(now.getTime() + 30 * DAY));
+  const [ov, mine, ev, offs2, pend, att] = await Promise.all([
+    db.rpc('task_overview', { p_month: mo, p_today: td }),
+    db.from('time_off_requests').select('id,start_date,end_date,status').eq('user_id', ME.id).gte('end_date', td).in('status', ['pending', 'approved']).order('start_date').limit(3),
+    db.from('events').select('*').or(`ends_on.gte.${td},event_date.gte.${td}`).lte('event_date', in30).order('event_date').limit(60),
+    db.from('time_off_calendar').select('*').gte('end_date', td).lte('start_date', in14).order('start_date'),
+    ME.role === 'staff' ? null : db.from('time_off_requests').select('id,user_id').eq('status', 'pending'),
+    homeAttn()]);
+  drawHome({ t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], ev: ev.data || [], offs: offs2.data || [],
+    pend: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').length : null, att, day: now.getDate() });
+}
+
+function drawHome(d) {
+  const T = d.t, pct = T && T.assigned ? Math.round(100 * T.done_month / (T.assigned * d.day)) : 0;
+  const rng = r => fmt(r.start_date) + (r.end_date !== r.start_date ? ' \u2013 ' + fmt(r.end_date) : '');
+  const evs = d.ev.filter(e => !e.location_id || !ME.location_id || e.location_id === ME.location_id).slice(0, 5);
+  const out = d.offs.filter(o => o.user_id !== ME.id && (!ME.location_id || o.location_id === ME.location_id)).slice(0, 6);
+  const card = (title, body, link) => `<div class="hcard"><h3>${title}</h3>${body}${link ? `<p style="margin-top:.75rem"><a href="${link[0]}">${link[1]}</a></p>` : ''}</div>`;
+  const none = t => `<p class="lead" style="margin:0">${t}</p>`;
+  $('myCards').innerHTML =
+    card('My tasks', T && T.assigned ? `<p>Today <b>${T.done_today}/${T.assigned}</b> \u2022 This month <b>${pct}%</b></p><div class="meter"><i style="width:${Math.min(pct, 100)}%"></i></div>` : none('No tasks assigned yet.'), ['#tasks', 'Open my tasks']) +
+    card('My time off', (d.pend ? `<p><b>${d.pend}</b> request${d.pend === 1 ? '' : 's'} waiting for your approval</p>` : '') + (d.mine.map(r => `<p>${rng(r)} <span class="pill ${r.status === 'approved' ? '' : 'ice'}" style="margin:0 0 0 .4rem">${r.status}</span></p>`).join('') || none('Nothing scheduled.')), ['#timeoff', 'Request time off']) +
+    card('Coming up', evs.map(e => `<p><b>${fmt(e.event_date)}</b> ${esc(e.title)} <span style="color:var(--muted);font-size:.85rem">${esc(e.location_id ? studio(e.location_id) : 'All Austin')}</span></p>`).join('') || none('No events in the next 30 days.'), ['#calendar', 'Open the calendar']) +
+    card('Out in the next 2 weeks', out.map(o => `<p>${esc(o.full_name.split(' ')[0])} ${rng(o)}${o.status === 'pending' ? ' (pending)' : ''}${ME.location_id ? '' : ' \u2022 ' + esc(studio(o.location_id))}</p>`).join('') || none('No one is off.'), ['#calendar', 'See the time-off calendar']) +
+    (d.att === null || d.att === undefined ? '' : card('Members', `<p><b>${d.att}</b> member${d.att === 1 ? '' : 's'} need attention</p>`, ['#members', 'Open members']));
+}
+
+// ---------- Studio page ----------
+let sd = { id: null, info: null, photo: null };
+async function loadStudio(idFromHash) {
+  sd.id = idFromHash || ME.location_id || (locs[0] || {}).id;
+  const [i] = await Promise.all([db.from('studio_info').select('*').eq('location_id', sd.id).maybeSingle(), loadPeople()]);
+  sd.info = i.data; sd.photo = null;
+  if (sd.info && sd.info.photo_path) { const { data } = await db.storage.from('studio-photos').createSignedUrl(sd.info.photo_path, 3600); sd.photo = data && data.signedUrl; }
+  drawStudio();
+}
+
+function drawStudio() {
+  const l = locs.find(x => x.id === sd.id) || {}, i = sd.info || {}, can = ME.role === 'owner' || (ME.role === 'manager' && ME.location_id === sd.id);
+  const facts = [['Address', i.address && esc(i.address)], ['Phone', i.phone && `<a href="tel:${esc(i.phone)}">${esc(i.phone)}</a>`], ['Email', i.email && `<a href="mailto:${esc(i.email)}">${esc(i.email)}</a>`], ['Hours', i.hours && esc(i.hours).replace(/\n/g, '<br>')]].filter(f => f[1]);
+  const team = people.filter(p => p.location_id === sd.id);
+  $('studioBody').innerHTML = `<div class="studios">${locs.map(x => `<a href="#studio/${x.id}" class="${x.id === sd.id ? 'mine' : ''}">${esc(x.name)}</a>`).join('')}</div>
+    <div class="shero">${sd.photo ? `<img src="${esc(sd.photo)}" alt="${esc(l.name)}">` : ''}</div>
+    <h2 style="margin:1rem 0 .4rem">${esc(l.name)}</h2>
+    <p style="white-space:pre-wrap;max-width:70ch">${esc(i.bio || 'No bio yet.')}</p>
+    ${facts.length ? '<dl class="facts">' + facts.map(f => `<dt>${f[0]}</dt><dd>${f[1]}</dd>`).join('') + '</dl>' : ''}
+    ${can ? '<button id="stEdit">Edit studio info</button>' : ''}
+    <h3 class="sub" style="margin-top:1.75rem">Our team</h3>
+    <div class="people" id="stPeople">${team.map(p => `<button class="person" data-id="${p.id}"><div class="ph">${photo(p)}</div><b>${esc(p.full_name)}</b><span>${esc(p.job_title || '')}</span></button>`).join('') || '<p class="lead">No one is listed at this studio yet.</p>'}</div>`;
+}
+
+function stForm() {
+  const i = sd.info || {};
+  $('dlgBody').innerHTML = `<h2>Edit studio info</h2>
+    <label>About this studio <textarea id="sBio" maxlength="800">${esc(i.bio)}</textarea></label>
+    <label>Address <input id="sAddr" maxlength="200" value="${esc(i.address)}"></label>
+    <label>Phone <input id="sPhone" maxlength="40" value="${esc(i.phone)}"></label>
+    <label>Email <input id="sEmail" type="email" maxlength="120" value="${esc(i.email)}"></label>
+    <label>Hours <textarea id="sHours" rows="3" maxlength="300" placeholder="Mon to Fri 7am to 7pm">${esc(i.hours)}</textarea></label>
+    <label>Photo (JPG or PNG) <input id="sPhoto" type="file" accept="image/*"></label>
+    <div class="err" id="sErr" role="alert"></div>
+    <div class="acts"><button data-act="stSave">Save</button><button class="quiet" data-act="close">Cancel</button></div>`;
+  $('dlg').showModal();
+}
+
+function crop(file, w, h) {
+  return new Promise((ok, no) => {
+    const img = new Image();
+    img.onerror = () => no(new Error('Could not read that photo. Try a JPG or PNG.'));
+    img.onload = () => {
+      let sw = img.width, sh = sw * h / w; if (sh > img.height) { sh = img.height; sw = sh * w / h; }
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, w, h);
+      URL.revokeObjectURL(img.src); c.toBlob(b => b ? ok(b) : no(new Error('Photo failed')), 'image/jpeg', .85);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function stSave() {
+  try {
+    const f = $('sPhoto').files[0]; let path = null;
+    if (f) { path = `${sd.id}/${Date.now()}.jpg`; const up = await db.storage.from('studio-photos').upload(path, await crop(f, 960, 360), { contentType: 'image/jpeg' }); if (up.error) throw up.error; }
+    const v = id => $(id).value.trim() || null, row = { location_id: sd.id, bio: v('sBio'), address: v('sAddr'), phone: v('sPhone'), email: v('sEmail'), hours: v('sHours'), updated_by: ME.id, updated_at: new Date().toISOString() };
+    if (path) row.photo_path = path;
+    const { error } = await db.from('studio_info').upsert(row, { onConflict: 'location_id' }); if (error) throw error;
+  } catch (e) { $('sErr').textContent = 'Could not save. ' + (e.message || ''); return; }
+  $('dlg').close(); loadStudio(sd.id);
+}
+
+$('studioBody').onclick = e => { const b = e.target.closest('.person'); if (b) openCard(b.dataset.id); else if (e.target.id === 'stEdit') stForm(); };
+$('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'stSave') stSave(); });
 
 init();
 </script>
