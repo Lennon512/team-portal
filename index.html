@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root { --bg:#f2f5f4; --panel:#fff; --ink:#1c2b2a; --muted:#5d6f6d; --line:#d3dcda; --accent:#1f6f6b; --danger:#b3261e; }
   * { box-sizing: border-box; }
@@ -178,6 +179,17 @@
   .lowc { background:#6b2437; color:#ffd6d6; }
   .pill { background:var(--tint); color:var(--ink); } .pill.warn { background:#c9362f; color:#fff; } .pill.ice { background:var(--lb); color:var(--navy); }
   .why { color:#ffb4a8; }
+  .kgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:.75rem; margin-top:1rem; }
+  .kt { all:unset; box-sizing:border-box; cursor:pointer; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:.8rem 1rem; display:flex; flex-direction:column; gap:.15rem; }
+  .kt:hover, .kt.on { border-color:var(--accent); }
+  .kt:focus-visible { outline:3px solid var(--accent); }
+  .kt .kn { color:var(--muted); font-size:.85rem; }
+  .kt b { font-size:1.7rem; line-height:1.2; }
+  .kt small, .kn2 small { display:block; color:var(--muted); font-size:.75rem; }
+  .kd { font-size:.8rem; color:var(--muted); }
+  .up { color:#7fdc9a; } .dn { color:#ff9b8f; }
+  .spark { width:100%; height:28px; margin:.3rem 0; }
+  .best { background:rgba(255,199,44,.2); font-weight:500; }
 </style>
 </head>
 <body>
@@ -199,7 +211,7 @@
       <h1>Stretch Zone Austin</h1>
       <div class="who"><div class="wtxt"><span id="who"></span><small id="meta"></small></div><button class="quiet" id="signout">Sign out</button></div>
     </div>
-    <nav id="topnav"><a href="#home" id="navHome">My page</a><a href="#team" id="navTeam">Team</a><a href="#studio" id="navStudio">Studio</a><a href="#calendar" id="navCal">Calendar</a><a href="#tasks" id="navTasks">Tasks</a><a href="#members" id="navMem">Members</a><a href="#timeoff" id="navOff">Time off</a><a href="#people" id="navPeople" hidden>People</a></nav>
+    <nav id="topnav"><a href="#home" id="navHome">My page</a><a href="#team" id="navTeam">Team</a><a href="#studio" id="navStudio">Studio</a><a href="#calendar" id="navCal">Calendar</a><a href="#tasks" id="navTasks">Tasks</a><a href="#members" id="navMem">Members</a><a href="#timeoff" id="navOff">Time off</a><a href="#performance" id="navPerf" hidden>Performance</a><a href="#people" id="navPeople" hidden>People</a></nav>
   </header>
   <div id="homeView">
   <section class="hero">
@@ -280,6 +292,17 @@
       </div>
     </section>
   </main>
+  <main id="perfView" hidden>
+    <h2>Performance</h2>
+    <div class="tabs" id="pfTabs"><button data-t="score">Scorecard</button><button data-t="master">Master card</button></div>
+    <div class="bar">
+      <select id="pfStudio" aria-label="Studio"></select>
+      <select id="pfMonth" aria-label="Month"></select>
+      <select id="pfRange" aria-label="History shown"><option value="12">Last 12 months</option><option value="99">All history</option></select>
+      <button class="quiet" id="pfMine" hidden>Upload my monthly sheet</button><button class="quiet" id="pfCorp" hidden>Upload corporate scorecard</button><button class="quiet" id="pfAdd" hidden>Add or edit a month</button>
+    </div>
+    <div id="pfBody"></div>
+  </main>
 </div>
 
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
@@ -328,7 +351,7 @@ async function showApp(user) {
   $('tag').textContent = TAGS[Math.floor(Date.now() / 864e5) % TAGS.length];
   $('note').hidden = !(me.role !== 'owner' && !loc);
   $('note').textContent = 'You have not been assigned to a studio yet. Ask the owner to add you.';
-  $('team').hidden = me.role === 'staff'; $('navPeople').hidden = me.role === 'staff';
+  $('team').hidden = me.role === 'staff'; $('navPeople').hidden = me.role === 'staff'; $('navPerf').hidden = me.role === 'staff';
   if (me.role !== 'staff') loadTeam(me);
 }
 
@@ -365,9 +388,9 @@ $('rows').onclick = async e => {
 let ME = null, people = [], urls = {}, cur = null;
 
 function route() {
-  const v = location.hash === '#team' ? 'team' : location.hash === '#calendar' ? 'cal' : location.hash.startsWith('#tasks') ? 'tasks' : location.hash === '#members' ? 'mem' : location.hash === '#timeoff' ? 'off' : location.hash.startsWith('#studio') ? 'studio' : location.hash === '#people' ? 'people' : 'home';
-  $('homeView').hidden = v !== 'home'; $('teamView').hidden = v !== 'team'; $('calView').hidden = v !== 'cal'; $('taskView').hidden = v !== 'tasks'; $('memView').hidden = v !== 'mem'; $('toView').hidden = v !== 'off'; $('studioView').hidden = v !== 'studio'; $('peopleView').hidden = v !== 'people';
-  $('navTasks').classList.toggle('on', v === 'tasks'); $('navMem').classList.toggle('on', v === 'mem'); $('navOff').classList.toggle('on', v === 'off'); $('navStudio').classList.toggle('on', v === 'studio'); $('navPeople').classList.toggle('on', v === 'people');
+  const v = location.hash === '#team' ? 'team' : location.hash === '#calendar' ? 'cal' : location.hash.startsWith('#tasks') ? 'tasks' : location.hash === '#members' ? 'mem' : location.hash === '#timeoff' ? 'off' : location.hash.startsWith('#studio') ? 'studio' : location.hash === '#people' ? 'people' : location.hash === '#performance' ? 'perf' : 'home';
+  $('homeView').hidden = v !== 'home'; $('teamView').hidden = v !== 'team'; $('calView').hidden = v !== 'cal'; $('taskView').hidden = v !== 'tasks'; $('memView').hidden = v !== 'mem'; $('toView').hidden = v !== 'off'; $('studioView').hidden = v !== 'studio'; $('peopleView').hidden = v !== 'people'; $('perfView').hidden = v !== 'perf';
+  $('navTasks').classList.toggle('on', v === 'tasks'); $('navMem').classList.toggle('on', v === 'mem'); $('navOff').classList.toggle('on', v === 'off'); $('navStudio').classList.toggle('on', v === 'studio'); $('navPeople').classList.toggle('on', v === 'people'); $('navPerf').classList.toggle('on', v === 'perf');
   $('navHome').classList.toggle('on', v === 'home'); $('navTeam').classList.toggle('on', v === 'team'); $('navCal').classList.toggle('on', v === 'cal');
   if (v === 'team' && ME) loadPeople();
   if (v === 'cal' && ME) loadCal();
@@ -376,6 +399,7 @@ function route() {
   if (v === 'off' && ME) loadTimeOff();
   if (ME && v !== 'off') timeOffBadge();
   if (v === 'home' && ME) loadHome();
+  if (v === 'perf' && ME) loadPerf();
   if (v === 'studio' && ME) loadStudio(location.hash.split('/')[1]);
 }
 addEventListener('hashchange', route);
@@ -1229,6 +1253,284 @@ async function stSave() {
 
 $('studioBody').onclick = e => { const b = e.target.closest('.person'); if (b) openCard(b.dataset.id); else if (e.target.id === 'stEdit') stForm(); };
 $('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'stSave') stSave(); });
+
+// ---------- Performance ----------
+const KPI = [
+  { k: 'gross_revenue', n: 'Gross revenue', f: 'usd', a: 'sum', corp: 'revenue' },
+  { k: 'draft', n: 'Draft (EFT collected)', f: 'usd', a: 'sum', corp: 'eft' },
+  { k: 'refunds', n: 'Refunds', f: 'usd', a: 'sum', dir: -1 },
+  { k: 'leads', n: 'Leads', f: 'num', a: 'sum', corp: 'leads' },
+  { k: 'scheduled', n: 'Demos scheduled', f: 'num', a: 'sum' },
+  { k: 'demos', n: 'Demos completed', f: 'num', a: 'sum', corp: 'demos' },
+  { k: 'book', n: 'Demo booking rate', s: 'Scheduled \u00F7 leads (your definition)', f: 'pct', num: 'scheduled', den: 'leads' },
+  { k: 'l2d', n: 'Lead to demo', s: 'Completed \u00F7 leads (corporate definition)', f: 'pct', num: 'demos', den: 'leads', corp: 'l2d' },
+  { k: 'show', n: 'Show rate', s: 'Completed \u00F7 scheduled', f: 'pct', num: 'demos', den: 'scheduled', corp: 'show' },
+  { k: 'agreements', n: 'Agreements', f: 'num', a: 'sum' },
+  { k: 'close', n: 'Close rate', s: 'All agreements \u00F7 demos (your definition)', f: 'pct', num: 'agreements', den: 'demos' },
+  { k: 'cash_sales', n: 'Cash sales', f: 'usd', a: 'sum' },
+  { k: 'eft_sales', n: 'EFT sales', f: 'usd', a: 'sum' },
+  { k: 'avg_eft', n: 'Average EFT', f: 'usd', a: 'avg' },
+  { k: 'staff_util', n: 'Staff utilization', f: 'dec', a: 'avg' },
+  { k: 'calls_per_day', n: 'Calls per day', f: 'dec', a: 'avg' },
+  { k: 'cancellations', n: 'Cancellations', f: 'num', a: 'sum', dir: -1 },
+  { k: 'active_members', n: 'Active members', f: 'num', a: 'sum', corp: 'members' }
+];
+const CORP = [['revenue', 'Revenue', 'usd'], ['eft', 'EFT collected', 'usd'], ['eft_rev', 'EFT / revenue', 'pct'], ['leads', 'Leads', 'num'], ['demos', 'Demos', 'num'], ['l2d', 'Lead to demo', 'pct'], ['show', 'Show %', 'pct'],
+  ['fv_close', 'First visit closing %', 'pct'], ['members', 'Total active members', 'num'], ['nmg', 'Net member gain / loss', 'dec'], ['attrition', 'Attrition %', 'pct'], ['at_risk', 'At risk %', 'pct'],
+  ['basic', '% of basic members', 'pct'], ['pps', 'Price per session', 'usd2'], ['adj_pps', 'Adj. price per session', 'usd2'], ['contacts', 'Contacts per day', 'dec']];
+const RAW = [['gross_revenue', 'Gross revenue ($)'], ['draft', 'Draft ($)'], ['refunds', 'Refunds ($)'], ['leads', 'Leads'], ['scheduled', 'Demos scheduled'], ['demos', 'Demos completed'], ['agreements', 'Agreements'],
+  ['cash_sales', 'Cash sales ($)'], ['eft_sales', 'EFT sales ($)'], ['avg_eft', 'Average EFT ($)'], ['staff_util', 'Staff utilization'], ['calls_per_day', 'Calls per day'], ['cancellations', 'Cancellations'], ['active_members', 'Active members']];
+const COLORS = ['#ffc72c', '#8ec9f0', '#f28b82', '#81c995', '#c58af9', '#ff8bcb'];
+const PF = { rows: [], net: {}, corp: {}, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null };
+
+const fv = (x, f) => x === null || x === undefined || isNaN(x) ? '-' : f === 'usd' ? '$' + Math.round(x).toLocaleString() : f === 'usd2' ? '$' + x.toFixed(2) : f === 'pct' ? (x * 100).toFixed(0) + '%' : f === 'dec' ? x.toFixed(1) : Math.round(x).toLocaleString();
+const mAdd = (m, n) => { const d = new Date(m + 'T00:00'); d.setMonth(d.getMonth() + n); return ymd(d); };
+const mLbl = (m, long) => new Date(m + 'T00:00').toLocaleDateString('en-US', long ? { month: 'long', year: 'numeric' } : { month: 'short', year: '2-digit' });
+const pfRows = (m, sid) => PF.rows.filter(r => r.month === m && (!sid || r.studio_id === sid));
+const pfMonths = () => [...new Set(PF.rows.map(r => r.month))].sort();
+function pfVal(rows, K, per) {
+  if (!rows.length) return null;
+  if (K.den) { let n = 0, d = 0; rows.forEach(r => { n += r[K.num] || 0; d += r[K.den] || 0; }); return d ? n / d : null; }
+  const v = rows.map(r => r[K.k]).filter(x => x !== null && x !== undefined);
+  if (!v.length) return null;
+  const s = v.reduce((a, b) => a + b, 0);
+  return K.a === 'sum' ? (per ? s / v.length : s) : s / v.length;
+}
+
+async function loadPerf() {
+  const [a, b, c] = await Promise.all([db.from('kpi_monthly').select('*').order('month').limit(2000), db.from('kpi_network').select('*').limit(2000), db.from('kpi_corp_studio').select('*').limit(2000)]);
+  PF.rows = a.data || []; PF.net = {}; PF.corp = {};
+  (b.data || []).forEach(x => (PF.net[x.month] = PF.net[x.month] || {})[x.kpi] = +x.value);
+  (c.data || []).forEach(x => { const s = PF.corp[x.studio_id] = PF.corp[x.studio_id] || {}; (s[x.month] = s[x.month] || {})[x.kpi] = x; });
+  const own = ME.role === 'owner', sids = [...new Set(PF.rows.map(r => r.studio_id))], ms = pfMonths().reverse();
+  $('pfAdd').hidden = !own; $('pfMine').hidden = !own; $('pfCorp').hidden = !own; document.querySelector('#pfTabs [data-t="master"]').hidden = !own;
+  if (!own) { PF.studio = sids[0] || ''; PF.tab = 'score'; }
+  $('pfStudio').innerHTML = (own ? '<option value="">All six studios</option>' : '') + locs.filter(l => sids.includes(l.id)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+  $('pfStudio').value = PF.studio;
+  $('pfMonth').innerHTML = ms.map(m => `<option value="${m}">${mLbl(m, 1)}</option>`).join('');
+  if (!ms.includes(PF.month)) PF.month = ms[0] || '';
+  $('pfMonth').value = PF.month;
+  if (!ms.length) { $('pfBody').innerHTML = '<p class="lead">No performance data yet.</p>'; return; }
+  drawPerf();
+}
+
+function drawPerf() {
+  document.querySelectorAll('#pfTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === PF.tab));
+  $('pfStudio').hidden = PF.tab !== 'score' || ME.role !== 'owner'; $('pfRange').hidden = PF.tab !== 'score';
+  if (PF.tab === 'score') drawScore(); else drawMaster();
+}
+
+function drawScore() {
+  const m = PF.month, sid = PF.studio, prev = mAdd(m, -1), yoy = mAdd(m, -12), ms12 = Array.from({ length: 12 }, (_, i) => mAdd(m, i - 11)), cur = pfRows(m, sid);
+  if (!cur.length) { $('pfBody').innerHTML = '<p class="lead">No data for this month.</p>'; return; }
+  const cp = (sid && PF.corp[sid] && PF.corp[sid][m]) || {}, name = sid ? (locs.find(l => l.id === sid) || {}).name : 'All six studios (Austin total)';
+  const spark = a => { const v = a.filter(x => x !== null); if (v.length < 2) return ''; const lo = Math.min(...v), hi = Math.max(...v); return `<svg viewBox="0 0 100 28" class="spark" preserveAspectRatio="none"><polyline fill="none" stroke="#8ec9f0" stroke-width="2" points="${a.map((x, i) => x === null ? '' : (i * 100 / 11).toFixed(1) + ',' + (26 - (x - lo) / ((hi - lo) || 1) * 24).toFixed(1)).filter(Boolean).join(' ')}"/></svg>`; };
+  const tile = K => {
+    const v = pfVal(cur, K), pts = ms12.map(x => pfVal(pfRows(x, sid), K));
+    const d = (o, lbl) => { if (v === null || o === null) return ''; const ch = K.f === 'pct' ? (v - o) * 100 : (o ? (v - o) / Math.abs(o) * 100 : null); if (ch === null) return ''; return `<span class="${Math.abs(ch) < .5 ? '' : ch * (K.dir || 1) > 0 ? 'up' : 'dn'}">${ch >= 0 ? '\u25B2' : '\u25BC'} ${Math.abs(ch).toFixed(0)}${K.f === 'pct' ? ' pts' : '%'}</span> vs ${lbl}`; };
+    const cr = K.corp && cp[K.corp];
+    return `<button class="kt ${PF.kpi === K.k ? 'on' : ''}" data-k="${K.k}"><span class="kn">${K.n}</span>${K.s ? `<small>${K.s}</small>` : ''}<b>${fv(v, K.f)}</b><span class="kd">${d(pfVal(pfRows(prev, sid), K), mLbl(prev))}</span><span class="kd">${d(pfVal(pfRows(yoy, sid), K), mLbl(yoy))}</span>${spark(pts)}${cr && cr.rank ? `<small>#${cr.rank} of ${cr.of_total} in the network</small>` : ''}</button>`;
+  };
+  $('pfBody').innerHTML = `<div class="pcard" style="margin-top:.5rem"><h3 id="pfTitle"></h3><div style="position:relative;height:320px"><canvas id="pfChart"></canvas></div><p class="lead" id="pfNote" style="margin:.6rem 0 0;font-size:.85rem"></p></div>
+    <h3 class="sub" style="margin-top:1.5rem">${esc(name)} \u2022 ${mLbl(m, 1)}</h3><p class="lead" style="margin:0">Click a card to chart it above.</p><div class="kgrid">${KPI.map(tile).join('')}</div>`;
+  drawChart();
+}
+
+function drawChart() {
+  const K = KPI.find(x => x.k === PF.kpi), own = ME.role === 'owner';
+  if (typeof Chart === 'undefined') { $('pfNote').textContent = 'The chart library did not load. Check your connection and refresh.'; return; }
+  const all = pfMonths().filter(x => x <= PF.month), ms = PF.range >= 99 ? all : all.slice(-PF.range);
+  const ln = (label, data, color, dash) => ({ label, data, borderColor: color, backgroundColor: color, tension: .25, borderDash: dash || [], pointRadius: 2, borderWidth: 2, spanGaps: false });
+  const ds = [];
+  if (!PF.studio) locs.filter(l => PF.rows.some(r => r.studio_id === l.id)).forEach((l, i) => ds.push(ln(l.name, ms.map(m => pfVal(pfRows(m, l.id), K)), COLORS[i % 6])));
+  else {
+    ds.push(ln((locs.find(l => l.id === PF.studio) || {}).name, ms.map(m => pfVal(pfRows(m, PF.studio), K)), '#ffc72c'));
+    if (own) ds.push(ln('Austin average per studio', ms.map(m => pfVal(pfRows(m), K, true)), '#8ec9f0'));
+  }
+  if (K.corp) ds.push(ln('All Stretch Zone average per studio', ms.map(m => (PF.net[m] || {})[K.corp] ?? null), '#ffffff', [6, 4]));
+  $('pfTitle').textContent = K.n + (K.s ? ' (' + K.s.toLowerCase() + ')' : '');
+  $('pfNote').textContent = K.corp ? 'Corporate averages are per studio. Months before Sep 2025 are only available for revenue.' : 'Corporate does not report this KPI.';
+  if (PF.chart) PF.chart.destroy();
+  PF.chart = new Chart($('pfChart'), { type: 'line', data: { labels: ms.map(m => mLbl(m)), datasets: ds }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { labels: { color: '#eaf3fb' } }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fv(c.parsed.y, K.f) } } },
+    scales: { x: { ticks: { color: '#9fb8d4' }, grid: { color: 'rgba(42,82,127,.5)' } }, y: { ticks: { color: '#9fb8d4', callback: v => fv(v, K.f) }, grid: { color: 'rgba(42,82,127,.5)' } } } } });
+}
+
+function drawMaster() {
+  const m = PF.month, sts = locs.filter(l => PF.rows.some(r => r.studio_id === l.id));
+  const best = (vals, dir) => { const v = vals.filter(x => x !== null); return v.length < 2 || Math.max(...v) === Math.min(...v) ? null : dir < 0 ? Math.min(...v) : Math.max(...v); };
+  const netv = (k, f) => PF.net[m] && PF.net[m][k] !== undefined ? fv(PF.net[m][k], f) : '-';
+  const a = KPI.map(K => { const vals = sts.map(s => pfVal(pfRows(m, s.id), K)), b = best(vals, K.dir || 1);
+    return `<tr><td class="kn2">${K.n}${K.s ? `<small>${K.s}</small>` : ''}</td>${vals.map(v => `<td class="${v !== null && v === b ? 'best' : ''}">${fv(v, K.f)}</td>`).join('')}<td><b>${fv(pfVal(pfRows(m), K), K.f)}</b></td><td>${fv(pfVal(pfRows(m), K, true), K.f)}</td><td>${K.corp ? netv(K.corp, K.f) : '-'}</td></tr>`; }).join('');
+  const hasCorp = sts.some(s => PF.corp[s.id] && PF.corp[s.id][m]);
+  const c = CORP.map(([k, n, f]) => `<tr><td>${n}</td>${sts.map(s => { const x = ((PF.corp[s.id] || {})[m] || {})[k]; return `<td>${x ? fv(x.value, f) + (x.rank ? `<small style="color:var(--muted)"> #${x.rank}/${x.of_total}</small>` : '') : '-'}</td>`; }).join('')}<td>${netv(k, f)}</td></tr>`).join('');
+  $('pfBody').innerHTML = `<h3 class="sub" style="margin-top:.5rem">Your KPIs \u2022 ${mLbl(m, 1)}</h3><p class="lead" style="margin:0 0 .75rem">Yellow marks the best studio for each KPI. Austin total adds the studios up. The last two columns are per studio, so you can compare against the network.</p>
+    <div class="table-wrap"><table class="mt"><thead><tr><th>KPI</th>${sts.map(s => `<th>${esc(s.name)}</th>`).join('')}<th>Austin total</th><th>Austin avg per studio</th><th>Stretch Zone avg per studio</th></tr></thead><tbody>${a}</tbody></table></div>
+    <h3 class="sub" style="margin-top:2rem">Corporate scorecard \u2022 ${mLbl(m, 1)}</h3>` + (hasCorp ? `<p class="lead" style="margin:0 0 .75rem">Corporate's own numbers and definitions, with each studio's rank in the network.</p>
+    <div class="table-wrap"><table class="mt"><thead><tr><th>Corporate KPI</th>${sts.map(s => `<th>${esc(s.name)}</th>`).join('')}<th>Stretch Zone avg</th></tr></thead><tbody>${c}</tbody></table></div>` : '<p class="lead">No corporate scorecard loaded for this month.</p>');
+}
+
+function pfForm(sid, month) {
+  sid = sid || PF.studio || (locs[0] || {}).id; month = month || mAdd(todayStr().slice(0, 7) + '-01', -1);
+  const r = PF.rows.find(x => x.studio_id === sid && x.month === month) || {};
+  $('dlgBody').innerHTML = `<h2>Add or edit a month</h2><p class="lead" style="margin:.25rem 0 1rem">Pick a studio and month. If numbers already exist they fill in below; saving replaces them.</p>
+    <div class="grid2"><label>Studio <select id="pStudio">${locs.filter(l => PF.rows.some(x => x.studio_id === l.id) || l.id === sid).map(l => `<option value="${l.id}" ${l.id === sid ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
+    <label>Month <input id="pMonth" type="month" value="${month.slice(0, 7)}"></label>
+    ${RAW.map(([k, n]) => `<label>${n} <input id="p_${k}" type="number" step="any" value="${r[k] ?? ''}"></label>`).join('')}</div>
+    <div class="err" id="pErr" role="alert"></div><div class="acts"><button data-act="pfSave">Save month</button><button class="quiet" data-act="close">Cancel</button></div>`;
+  if (!$('dlg').open) $('dlg').showModal();
+}
+async function pfSave() {
+  const row = { studio_id: $('pStudio').value, month: $('pMonth').value + '-01' };
+  if (!$('pMonth').value) { $('pErr').textContent = 'Pick a month.'; return; }
+  RAW.forEach(([k]) => { const v = $('p_' + k).value.trim(); row[k] = v === '' ? null : +v; });
+  const { error } = await db.from('kpi_monthly').upsert(row, { onConflict: 'studio_id,month' });
+  if (error) { $('pErr').textContent = 'Could not save. ' + error.message; return; }
+  $('dlg').close(); PF.month = row.month; loadPerf();
+}
+
+$('pfTabs').onclick = e => { const b = e.target.closest('button'); if (b) { PF.tab = b.dataset.t; drawPerf(); } };
+$('pfStudio').onchange = e => { PF.studio = e.target.value; drawPerf(); };
+$('pfMonth').onchange = e => { PF.month = e.target.value; drawPerf(); };
+$('pfRange').onchange = e => { PF.range = +e.target.value; if (PF.tab === 'score') drawChart(); };
+$('pfAdd').onclick = () => pfForm();
+$('pfBody').onclick = e => { const b = e.target.closest('.kt'); if (!b) return; PF.kpi = b.dataset.k; document.querySelectorAll('.kt').forEach(x => x.classList.toggle('on', x === b)); drawChart(); $('pfChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+$('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'pfSave') pfSave(); });
+$('dlgBody').addEventListener('change', e => { if (e.target.id === 'pStudio' || e.target.id === 'pMonth') { const m = $('pMonth').value; if (m) pfForm($('pStudio').value, m + '-01'); } });
+
+// ---------- Performance uploads ----------
+const CLAB = { 'Revenue': 'revenue', 'EFT Collected': 'eft', 'EFT/Rev': 'eft_rev', 'Leads': 'leads', 'Demos': 'demos', 'Lead to Demo': 'l2d', 'Show %': 'show', 'First Visit Closing %': 'fv_close', 'Total Active Members': 'members', 'NMG (Net Member Gain/Loss)': 'nmg',
+  'Attrition (%)': 'attrition', 'At Risk (%)': 'at_risk', '% of Basic Mem': 'basic', 'Price per Session': 'pps', 'Adj. Price per Session': 'adj_pps', 'Active Practitioners': 'practitioners', 'Practitioner Turnover': 'turnover' };
+const NETLAB = { 'Revenue': 'revenue', 'EFT Collected': 'eft', 'EFT/Rev': 'eft_rev', 'Leads': 'leads', 'Demos': 'demos', 'Lead to Demo': 'l2d', 'Show %': 'show', 'First Visit Closing %': 'fv_close', 'Total Active Members': 'members',
+  'NMG (Net Member Gain/Loss)': 'nmg', 'Attrition (%)': 'attrition', 'At Risk (%)': 'at_risk', 'Price per Session': 'pps', 'Adj. Price per Session': 'adj_pps', 'Contacts per Day': 'contacts' };
+const LOWER = new Set(['attrition', 'at_risk']), NORANK = new Set(['basic', 'practitioners', 'turnover']);
+const MON = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
+const pad2 = n => String(n).padStart(2, '0');
+const grid = ws => XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+const serialMonth = v => { if (typeof v !== 'number' || v < 40000) return null; const d = new Date(Date.UTC(1899, 11, 30) + v * DAY); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-01`; };
+
+function parseCorp(wb) {
+  const out = { corp: [], net: [], months: [], studios: new Set() };
+  for (const sn of wb.SheetNames) {
+    const mm = sn.trim().match(/^([A-Za-z]{3})[a-z]*[- ](\d{2})$/); if (!mm || !MON[mm[1]]) continue;
+    const g = grid(wb.Sheets[sn]), hi = g.findIndex((r, i) => i < 15 && r.includes('Franchise') && r.includes('Location') && r.includes('Revenue')); if (hi < 0) continue;
+    const month = `20${mm[2]}-${pad2(MON[mm[1]])}-01`, cols = {}, li = g[hi].indexOf('Location');
+    g[hi].forEach((h, i) => { const k = CLAB[h] || (String(h).startsWith('Contacts per') ? 'contacts' : null); if (k) cols[k] = i; });
+    const data = g.slice(hi + 1).filter(r => r[li] && /\(\d+\)\s*$/.test(String(r[li])));
+    if (!data.length) continue;
+    out.months.push(month);
+    Object.entries(cols).forEach(([k, ci]) => {
+      const pool = data.map(r => r[ci]).filter(v => typeof v === 'number' && (v !== 0 || k === 'nmg'));
+      data.forEach(r => {
+        const loc = locs.find(l => l.club_store_id === (String(r[li]).match(/\((\d+)\)\s*$/) || [])[1]), v = r[ci];
+        if (!loc || typeof v !== 'number') return;
+        out.studios.add(loc.name);
+        const ranked = !NORANK.has(k) && (v !== 0 || k === 'nmg');
+        out.corp.push({ studio_id: loc.id, month, kpi: k, value: v, rank: ranked ? 1 + pool.filter(x => LOWER.has(k) ? x < v : x > v).length : null, of_total: ranked ? pool.length : null });
+      });
+    });
+  }
+  const cs = wb.SheetNames.find(n => n.trim() === 'Charting');
+  if (cs) {
+    const g = grid(wb.Sheets[cs]), di = g.findIndex((r, i) => i < 25 && r.filter(x => typeof x === 'number' && x > 40000).length >= 6), seen = new Map();
+    if (di >= 0) {
+      const dc = g[di].map((x, i) => [i, serialMonth(x)]).filter(x => x[1]);
+      g.slice(di + 1, di + 40).forEach(r => {
+        const lab = r.find(x => typeof x === 'string' && NETLAB[x.trim()]); if (!lab) return;
+        const k = NETLAB[lab.trim()];
+        dc.forEach(([i, m]) => { const v = r[i]; if (typeof v === 'number' && (v !== 0 || k === 'nmg') && !seen.has(m + k)) seen.set(m + k, { month: m, kpi: k, value: v, source: 'corporate' }); });
+      });
+    }
+    out.net = [...seen.values()];
+  }
+  return out;
+}
+
+const NORM = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9#%]+/g, ' ').trim();
+const HMAP = { 'month': 'month', 'studio': 'studio', 'gross revenu': 'gross_revenue', 'gross revenue': 'gross_revenue', 'draft': 'draft', 'refunds': 'refunds', 'leads': 'leads', 'scheduled': 'scheduled', 'demos completed': 'demos',
+  '# of agreements': 'agreements', 'agreements': 'agreements', 'cash sales': 'cash_sales', 'eft sales': 'eft_sales', 'average eft': 'avg_eft', 'staff utilization': 'staff_util', 'calls per day': 'calls_per_day', 'cancellations': 'cancellations', 'active members': 'active_members' };
+const SCODE = { gt: 'georgetown', fp: 'fourpoints', wc: 'williamcannon', wl: 'westlake', lw: 'lakeway', rr: 'roundrock' };
+const INTC = new Set(['leads', 'scheduled', 'demos', 'agreements', 'cancellations', 'active_members']);
+const numv = v => { if (v === null || v === undefined || v === '') return null; if (typeof v === 'number') return v; const n = parseFloat(String(v).replace(/[$,%\s]/g, '')); return isNaN(n) ? null : n; };
+const monthOf = v => {
+  if (typeof v === 'number') return serialMonth(v);
+  const t = String(v ?? '').trim(); let m = t.match(/^([A-Za-z]{3})[a-z]*[- ,.]*(?:\d{1,2}[, ]+)?(\d{4}|\d{2})$/);
+  if (m && MON[m[1]]) return `${m[2].length === 2 ? '20' + m[2] : m[2]}-${pad2(MON[m[1]])}-01`;
+  m = t.match(/^(\d{4})-(\d{2})/); if (m) return `${m[1]}-${m[2]}-01`;
+  m = t.match(/^(\d{1,2})\/\d{1,2}\/(\d{4})$/); return m ? `${m[2]}-${pad2(m[1])}-01` : null;
+};
+
+function parseMine(g) {
+  const hi = g.findIndex((r, i) => i < 10 && r.some(x => HMAP[NORM(x)] === 'month') && r.some(x => HMAP[NORM(x)] === 'studio'));
+  if (hi < 0) return null;
+  const cols = {}; g[hi].forEach((h, i) => { const k = HMAP[NORM(h)]; if (k && !(k in cols)) cols[k] = i; });
+  const rows = [], skipped = [];
+  g.slice(hi + 1).forEach(r => {
+    if (r.every(x => x === null || x === '')) return;
+    const st = NORM(r[cols.studio]).replace(/ /g, ''), key = SCODE[st] || st, loc = locs.find(l => l.name.toLowerCase().replace(/[^a-z]/g, '') === key), month = monthOf(r[cols.month]);
+    if (!loc || !month) { skipped.push(String(r[cols.studio] ?? '?')); return; }
+    const row = { studio_id: loc.id, month };
+    Object.keys(HMAP).forEach(h => { const k = HMAP[h]; if (k !== 'month' && k !== 'studio' && k in cols && !(k in row)) { const v = numv(r[cols[k]]); row[k] = v === null ? null : INTC.has(k) ? Math.round(v) : v; } });
+    if (!(row.gross_revenue || row.leads || row.scheduled || row.demos)) return;   // studio not open yet
+    rows.push(row);
+  });
+  return { rows, skipped, missing: RAW.filter(([k]) => !(k in cols)).map(x => x[1]) };
+}
+
+async function readBook(f, want) {
+  const buf = await f.arrayBuffer();
+  if (!want) return XLSX.read(buf, { type: 'array', raw: true });
+  const names = XLSX.read(buf, { type: 'array', bookSheets: true }).SheetNames;
+  return XLSX.read(buf, { type: 'array', sheets: names.filter(want) });
+}
+
+function pfUpForm(title, blurb, id, extra) {
+  $('dlgBody').innerHTML = `<h2>${title}</h2><p class="lead" style="margin:.25rem 0 1rem">${blurb}</p>${extra || ''}<label>File <input id="${id}" type="file" accept=".xlsx,.xlsb,.csv"></label><div id="upInfo" style="margin-bottom:.75rem"></div>
+    <div class="err" id="pErr" role="alert"></div><div class="acts"><button data-act="${id}Save" id="upGo" disabled>Save</button><button class="quiet" data-act="close">Cancel</button></div>`;
+  $('dlg').showModal();
+}
+const upMsg = (html, err) => { $('upInfo').innerHTML = html; $('pErr').textContent = err || ''; $('upGo').disabled = !!err || !html; };
+
+function pfCorpForm() {
+  PF.pend = null; pfUpForm('Upload corporate scorecard', 'Drop in the monthly Stretch Zone scorecard (.xlsb or .xlsx). Only your six studios and the network averages are saved. Every other franchisee\u2019s rows are ignored.', 'cFile');
+  $('cFile').onchange = async () => {
+    try {
+      const f = $('cFile').files[0]; upMsg('Reading the file, this can take a few seconds...');
+      const wb = await readBook(f, n => /^[A-Za-z]{3}[a-z]*[- ]\d{2}$/.test(n.trim()) || n.trim() === 'Charting');
+      const r = PF.pend = parseCorp(wb);
+      if (!r.corp.length) return upMsg('', 'I could not find your studios. Check that this is the Stretch Zone monthly scorecard, and that all six studios have their store numbers set.');
+      upMsg(`<p>Months found: <b>${r.months.map(m => mLbl(m)).join(', ')}</b></p><p>Your studios found: <b>${r.studios.size} of ${locs.length}</b> \u2022 ${r.corp.length} numbers with network ranks</p><p>Network averages: <b>${new Set(r.net.map(x => x.month)).size} months</b> \u2022 ${r.net.length} numbers</p>`);
+    } catch (e) { upMsg('', 'That file could not be read. ' + (e.message || '')); }
+  };
+}
+
+function pfMineForm() {
+  PF.pend = null; pfUpForm('Upload my monthly sheet', 'Use a spreadsheet or CSV with the same columns as your Notion table (Month, Studio, Gross Revenue, Draft, Refunds, Leads, Scheduled, Demos Completed, # of Agreements, Cash Sales, EFT Sales, Average EFT, Staff Utilization, Calls per day, Cancellations, Active Members). Studio can be GT, FP, WC, WL, LW, RR or the full name. Existing months are updated, so uploading your whole history again is fine. <a href="#" id="pfTpl">Download a blank template</a>', 'mFile');
+  $('pfTpl').onclick = e => { e.preventDefault(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([['Month', 'Studio', ...RAW.map(x => x[1].replace(' ($)', ''))].join(',') + '\n'], { type: 'text/csv' })); a.download = 'monthly-kpis-template.csv'; a.click(); };
+  $('mFile').onchange = async () => {
+    try {
+      const wb = await readBook($('mFile').files[0]), r = parseMine(grid(wb.Sheets[wb.SheetNames[0]]));
+      if (!r) return upMsg('', 'I could not find the Month and Studio columns in the first rows of this file.');
+      const same = (a, b) => (a ?? null) === (b ?? null), ch = { n: 0, c: 0, u: 0 }, todo = [];
+      r.rows.forEach(row => { const ex = PF.rows.find(x => x.studio_id === row.studio_id && x.month === row.month); const state = !ex ? 'n' : RAW.some(([k]) => k in row && !same(ex[k], row[k])) ? 'c' : 'u'; ch[state]++; if (state !== 'u') todo.push(row); });
+      PF.pend = todo;
+      const ms = r.rows.map(x => x.month).sort();
+      upMsg(`<p><b>${r.rows.length}</b> studio-months from ${r.rows.length ? mLbl(ms[0]) + ' to ' + mLbl(ms[ms.length - 1]) : 'none'}: <b>${ch.n}</b> new, <b>${ch.c}</b> changed, ${ch.u} unchanged.</p>${r.skipped.length ? `<p class="lead">Skipped ${r.skipped.length} rows with a studio I did not recognize: ${esc([...new Set(r.skipped)].slice(0, 5).join(', '))}</p>` : ''}${r.missing.length ? `<p class="lead">Columns not found (left as they are): ${esc(r.missing.join(', '))}</p>` : ''}`, todo.length ? '' : 'Nothing new to save.');
+    } catch (e) { upMsg('', 'That file could not be read. ' + (e.message || '')); }
+  };
+}
+
+async function pfUpSave(kind) {
+  const up = async (table, rows, conflict) => { for (let i = 0; i < rows.length; i += 400) { const { error } = await db.from(table).upsert(rows.slice(i, i + 400), { onConflict: conflict }); if (error) return error; } };
+  $('upGo').disabled = true; $('upGo').textContent = 'Saving...';
+  const err = kind === 'corp' ? (await up('kpi_corp_studio', PF.pend.corp, 'studio_id,month,kpi')) || (await up('kpi_network', PF.pend.net, 'month,kpi')) : await up('kpi_monthly', PF.pend, 'studio_id,month');
+  if (err) { $('pErr').textContent = 'Could not save. ' + err.message; $('upGo').disabled = false; $('upGo').textContent = 'Save'; return; }
+  $('dlg').close(); loadPerf();
+}
+
+$('pfCorp').onclick = pfCorpForm;
+$('pfMine').onclick = pfMineForm;
+$('dlgBody').addEventListener('click', e => { const a = e.target.dataset.act; if (a === 'cFileSave') pfUpSave('corp'); else if (a === 'mFileSave') pfUpSave('mine'); });
 
 init();
 </script>
