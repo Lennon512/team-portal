@@ -134,6 +134,50 @@
   .facts dt { color:var(--muted); } .facts dd { margin:0; }
   .studios a { padding:.45rem .9rem; border:1px solid var(--line); background:#fff; border-radius:99px; color:var(--ink); text-decoration:none; }
   .studios a.mine { background:var(--accent); color:#fff; border-color:var(--accent); }
+  /* Theme: dark blue, light blue accents, yellow highlight */
+  :root { --bg:#0b2545; --panel:#0f2f57; --field:#0a2040; --ink:#eaf3fb; --muted:#9fb8d4; --line:#2a527f; --accent:#ffc72c; --danger:#ff9b8f; --lb:#8ec9f0; --tint:#1a4674; --navy:#061a33; color-scheme:dark; }
+  a { color:var(--lb); }
+  input, select, textarea { background:var(--field); color:var(--ink); }
+  button { color:var(--navy); }
+  button.quiet { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  :focus-visible, .person:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+  header { display:block; padding:0; background:var(--navy); border-bottom:1px solid var(--line); }
+  .hrow { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.85rem 1.5rem; }
+  .hrow h1 { font-size:1.25rem; white-space:nowrap; color:var(--ink); }
+  .who { display:flex; align-items:center; gap:.9rem; min-width:0; }
+  .wtxt { text-align:right; min-width:0; line-height:1.3; }
+  .wtxt span { display:block; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #topnav { margin:0; padding:.4rem 1.5rem; border-top:1px solid var(--line); overflow-x:auto; }
+  nav a { color:var(--lb); } nav a:hover { background:var(--tint); }
+  nav a.on { background:var(--accent); color:var(--navy); }
+  .hero { background:linear-gradient(180deg,#14487f 0%,#0b2545 100%); }
+  .hero h1 { color:var(--ink); } .hero #tag { color:var(--lb); }
+  .peaks { fill:var(--lb); opacity:.18; }
+  .callout { background:var(--tint); border-left:4px solid var(--accent); }
+  .studios span, .studios a, .studios button { background:var(--panel); color:var(--ink); }
+  .studios span.mine, .studios a.mine, .studios button.mine { background:var(--accent); color:var(--navy); border-color:var(--accent); }
+  .ph { background:var(--tint); color:var(--lb); }
+  dialog { background:var(--panel); } dialog::backdrop { background:rgba(3,12,26,.7); }
+  .shero { background:linear-gradient(180deg,#14487f,#0b2545); }
+  .tabs button { background:var(--panel); color:var(--ink); }
+  .tabs button.on { background:var(--accent); color:var(--navy); border-color:var(--accent); }
+  .cal .out { background:var(--field); color:#5d7ea6; }
+  .cal .today > span { background:var(--accent); color:var(--navy); }
+  .chip { background:var(--tint); color:var(--ink); }
+  .chip.ea { background:var(--lb); color:var(--navy); }
+  .chip.es { background:#2f6db0; color:#fff; }
+  .chip.off { background:var(--accent); color:var(--navy); }
+  .chip.pend { background:transparent; color:var(--accent); border:1px dashed var(--accent); }
+  .legend { display:flex; gap:1.25rem; flex-wrap:wrap; margin:.75rem 0 0; color:var(--muted); font-size:.85rem; }
+  .legend .sw { display:inline-block; width:.9rem; height:.9rem; border-radius:3px; margin-right:.4rem; vertical-align:-2px; }
+  .legend .ea { background:var(--lb); } .legend .es { background:#2f6db0; } .legend .off { background:var(--accent); } .legend .pend { border:1px dashed var(--accent); }
+  .tg .td, .tg .grp td { background:var(--tint); }
+  .meter { background:var(--line); }
+  .ov tbody tr:hover, .mt tbody tr:hover { background:var(--tint); }
+  .rvd7 { background:#ffd966; color:var(--navy); } .rvd30 { background:#f6a860; color:var(--navy); } .rvd90 { background:#e58f8f; color:var(--navy); } .rvdnone { background:#c9362f; color:#fff; }
+  .lowc { background:#6b2437; color:#ffd6d6; }
+  .pill { background:var(--tint); color:var(--ink); } .pill.warn { background:#c9362f; color:#fff; } .pill.ice { background:var(--lb); color:var(--navy); }
+  .why { color:#ffb4a8; }
 </style>
 </head>
 <body>
@@ -151,10 +195,9 @@
 
 <div id="app" hidden>
   <header>
-    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap"><h1>Stretch Zone Austin</h1></div>
-    <div style="display:flex;align-items:center;gap:1rem">
-      <div style="text-align:right"><span id="who"></span><small id="meta"></small></div>
-      <button class="quiet" id="signout">Sign out</button>
+    <div class="hrow">
+      <h1>Stretch Zone Austin</h1>
+      <div class="who"><div class="wtxt"><span id="who"></span><small id="meta"></small></div><button class="quiet" id="signout">Sign out</button></div>
     </div>
     <nav id="topnav"><a href="#home" id="navHome">My page</a><a href="#team" id="navTeam">Team</a><a href="#studio" id="navStudio">Studio</a><a href="#calendar" id="navCal">Calendar</a><a href="#tasks" id="navTasks">Tasks</a><a href="#members" id="navMem">Members</a><a href="#timeoff" id="navOff">Time off</a><a href="#people" id="navPeople" hidden>People</a></nav>
   </header>
@@ -171,8 +214,6 @@
     <p class="lead" id="note" hidden></p>
     <div class="hgrid" id="myCards"></div>
     <div class="callout">👋 Our mission is to deliver world class member experiences, change lives through practitioner assisted stretching, and build the strongest Stretch Zone market in the country!</div>
-    <h2>Our six studios</h2>
-    <div class="studios" id="studios"></div>
 
   </main>
   </div>
@@ -187,7 +228,7 @@
   </main>
   <main id="calView" hidden>
     <h2>Calendar</h2>
-    <div class="tabs" id="calTabs"><button data-t="austin">Austin events</button><button data-t="studio">Studio events</button><button data-t="off">Time off</button></div>
+    <div class="tabs" id="calTabs"><button data-t="all">All Austin</button><button data-t="austin">Austin events</button><button data-t="studio">Studio events</button><button data-t="off">Time off</button></div>
     <div class="bar">
       <button class="quiet" id="prevM" aria-label="Previous month">&lsaquo;</button>
       <b id="monthLbl"></b>
@@ -196,6 +237,7 @@
       <button id="calAdd"></button>
     </div>
     <div class="cal-wrap"><div class="cal" id="cal"></div></div>
+    <p class="legend" id="calLegend"><span><i class="sw ea"></i>Austin event</span><span><i class="sw es"></i>Studio event</span><span><i class="sw off"></i>Time off</span><span><i class="sw pend"></i>Time off, pending</span></p>
     <div id="offPanel" hidden></div>
   </main>
   <main id="taskView" hidden>
@@ -286,7 +328,6 @@ async function showApp(user) {
   $('tag').textContent = TAGS[Math.floor(Date.now() / 864e5) % TAGS.length];
   $('note').hidden = !(me.role !== 'owner' && !loc);
   $('note').textContent = 'You have not been assigned to a studio yet. Ask the owner to add you.';
-  $('studios').innerHTML = locs.map(x => `<a href="#studio/${x.id}" class="${loc && x.id === loc.id ? 'mine' : ''}">${esc(x.name)}</a>`).join('');
   $('team').hidden = me.role === 'staff'; $('navPeople').hidden = me.role === 'staff';
   if (me.role !== 'staff') loadTeam(me);
 }
@@ -422,23 +463,27 @@ $('dlgBody').onclick = async e => {
 };
 
 // ---------- Calendar ----------
-let calTab = 'austin', calMonth = new Date(), calStudio = null, events = [], offs = [];
+let calTab = 'all', calMonth = new Date(), calStudio = null, events = [], offs = [];
 calMonth.setDate(1);
 const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const fmt = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const canEdit = ev => ME.role === 'owner' || (ME.role === 'manager' && ev.location_id && ev.location_id === ME.location_id);
 
 async function loadCal() {
-  if (calStudio === null) calStudio = ME.location_id || '';
+  if (calStudio === null) calStudio = calTab === 'all' ? '' : (ME.location_id || '');
   const [e, o] = await Promise.all([db.from('events').select('*').order('event_date'), db.from('time_off_calendar').select('*')]);
   events = e.data || []; offs = o.data || [];
   drawCal();
 }
 
 function dayItems(d) {
-  if (calTab === 'off') return offs.filter(o => d >= o.start_date && d <= o.end_date && (!calStudio || o.location_id === calStudio)).map(o => ({ t: o.full_name + ' out' + (o.status === 'pending' ? ' (pending)' : ''), off: 1, pend: o.status === 'pending', oid: o.id }));
-  return events.filter(x => d >= x.event_date && d <= (x.ends_on || x.event_date) && (calTab === 'austin' ? !x.location_id : x.location_id && (!calStudio || x.location_id === calStudio)))
-    .map(x => ({ t: (x.time_label ? x.time_label + ' ' : '') + x.title, id: x.id }));
+  const inE = x => d >= x.event_date && d <= (x.ends_on || x.event_date), sf = x => !calStudio || x.location_id === calStudio;
+  const ev = x => ({ t: (x.time_label ? x.time_label + ' ' : '') + (calTab === 'all' && x.location_id ? studio(x.location_id) + ': ' : '') + x.title, id: x.id, k: x.location_id ? 'es' : 'ea' });
+  const of = o => ({ t: o.full_name + ' out' + (o.status === 'pending' ? ' (pending)' : ''), off: 1, pend: o.status === 'pending', oid: o.id });
+  const out = offs.filter(o => d >= o.start_date && d <= o.end_date && sf(o)).map(of);
+  if (calTab === 'off') return out;
+  if (calTab === 'all') return events.filter(x => inE(x) && (!x.location_id || sf(x))).map(ev).concat(out);
+  return events.filter(x => inE(x) && (calTab === 'austin' ? !x.location_id : x.location_id && sf(x))).map(ev);
 }
 
 function drawCal() {
@@ -447,8 +492,9 @@ function drawCal() {
   document.querySelectorAll('#calTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === calTab));
   $('calStudio').hidden = calTab === 'austin';
   $('calStudio').innerHTML = '<option value="">All studios</option>' + locs.map(x => `<option value="${x.id}" ${x.id === calStudio ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
-  $('calAdd').hidden = calTab === 'austin' ? ME.role !== 'owner' : calTab === 'studio' ? ME.role === 'staff' : false;
-  $('calAdd').textContent = { austin: 'Add Austin event', studio: 'Add studio event', off: 'Request time off' }[calTab];
+  $('calAdd').hidden = calTab === 'austin' ? ME.role !== 'owner' : calTab === 'off' ? false : ME.role === 'staff';
+  $('calLegend').hidden = calTab !== 'all';
+  $('calAdd').textContent = { all: 'Add event', austin: 'Add Austin event', studio: 'Add studio event', off: 'Request time off' }[calTab];
   const start = new Date(y, m, 1 - new Date(y, m, 1).getDay());
   let h = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x => `<div class="dow">${x}</div>`).join('');
   for (let i = 0; i < 42; i++) {
@@ -456,7 +502,7 @@ function drawCal() {
     if (i === 35 && d.getMonth() !== m) break;
     const k = ymd(d);
     h += `<div class="${d.getMonth() !== m ? 'out' : ''} ${k === today ? 'today' : ''}"><span>${d.getDate()}</span>` +
-      dayItems(k).map(x => `<button class="chip ${x.off ? 'off' : ''} ${x.pend ? 'pend' : ''}" ${x.id ? `data-ev="${x.id}"` : ''} ${x.oid ? `data-off="${x.oid}"` : ''}>${esc(x.t)}</button>`).join('') + '</div>';
+      dayItems(k).map(x => `<button class="chip ${x.k || ''} ${x.off ? 'off' : ''} ${x.pend ? 'pend' : ''}" ${x.id ? `data-ev="${x.id}"` : ''} ${x.oid ? `data-off="${x.oid}"` : ''}>${esc(x.t)}</button>`).join('') + '</div>';
   }
   $('cal').innerHTML = h;
 }
@@ -472,7 +518,7 @@ function showEv(id) {
 
 function eventForm(ev) {
   ev = ev || {};
-  const loc = ev.id ? ev.location_id : (calTab === 'austin' ? '' : (calStudio || ME.location_id));
+  const loc = ev.id ? ev.location_id : ((calTab === 'austin' || (calTab === 'all' && !calStudio && ME.role === 'owner')) ? '' : (calStudio || ME.location_id));
   $('dlgBody').innerHTML = `<h2>${ev.id ? 'Edit event' : 'New event'}</h2>
     <label>Title <input id="eT" maxlength="100" value="${esc(ev.title)}"></label>
     <label>Date <input id="eD" type="date" value="${esc(ev.event_date)}"></label>
@@ -537,7 +583,7 @@ $('offPanel').onclick = async e => {
   if (error) alert('That did not work: ' + error.message);
   loadCal();
 };
-$('calTabs').onclick = e => { const b = e.target.closest('button'); if (b) { calTab = b.dataset.t; loadCal(); } };
+$('calTabs').onclick = e => { const b = e.target.closest('button'); if (b) { calTab = b.dataset.t; if (calTab === 'all') calStudio = ''; else if (!calStudio) calStudio = ME.location_id || ''; loadCal(); } };
 $('prevM').onclick = () => { calMonth.setMonth(calMonth.getMonth() - 1); drawCal(); };
 $('nextM').onclick = () => { calMonth.setMonth(calMonth.getMonth() + 1); drawCal(); };
 $('calStudio').onchange = e => { calStudio = e.target.value; drawCal(); };
@@ -605,11 +651,16 @@ function renderMine() {
   $('taskBody').innerHTML = h; paintStats();
 }
 
+function mtd(done, today, n, cur = isCur(), el = elapsed()) {
+  const days = cur ? el - 1 : el, dn = cur ? done - today : done;
+  return days > 0 && n ? Math.round(100 * dn / (n * days)) : null;
+}
+
 function paintStats() {
   const ids = new Set(tk.rows.map(r => r.id)), td = todayStr(); let m = 0, t = 0;
   tk.done.forEach(k => { const [id, d] = k.split('|'); if (ids.has(id)) { m++; if (d === td) t++; } });
-  const tot = tk.rows.length * elapsed(), pct = tot ? Math.round(100 * m / tot) : 0, el = $('tkStats');
-  if (el) el.innerHTML = `<h3 style="margin:0 0 .5rem">${esc(tk.who)}</h3><div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap"><span>${isCur() ? `Today: <b>${t}/${tk.rows.length}</b> \u2022 ` : ''}Month so far: <b>${pct}%</b></span><div class="meter" style="width:220px"><i style="width:${Math.min(pct, 100)}%"></i></div></div>`;
+  const n = tk.rows.length, tp = n ? Math.round(100 * t / n) : 0, mp = mtd(m, t, n), el = $('tkStats');
+  if (el) el.innerHTML = `<h3 style="margin:0 0 .5rem">${esc(tk.who)}</h3><div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap"><span>${isCur() ? `Today <b>${tp}%</b> (${t} of ${n}) \u2022 ` : ''}Month so far <b>${mp === null ? (isCur() ? 'starts tomorrow' : '-') : mp + '%'}</b> <span style="color:var(--muted);font-size:.85rem">(complete days)</span></span><div class="meter" style="width:220px"><i style="width:${Math.min(isCur() ? tp : (mp || 0), 100)}%"></i></div></div>`;
 }
 
 async function loadOverview() {
@@ -617,12 +668,13 @@ async function loadOverview() {
   const stat = {}, pos = {}, el = elapsed();
   (ov.data || []).forEach(x => stat[x.user_id] = x);
   (pp.data || []).forEach(x => (pos[x.user_id] = pos[x.user_id] || []).push((positions.find(p => p.id === x.position_id) || {}).name));
-  const rows = (pe.data || []).filter(u => !tk.studio || u.location_id === tk.studio).map(u => { const s = stat[u.id]; return { u, s, pct: s && s.assigned && el ? Math.round(100 * s.done_month / (s.assigned * el)) : null }; })
-    .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999));
+  const rows = (pe.data || []).filter(u => !tk.studio || u.location_id === tk.studio).map(u => { const s = stat[u.id]; return { u, s, pct: s && s.assigned ? mtd(s.done_month, s.done_today, s.assigned) : null, tp: s && s.assigned ? Math.round(100 * s.done_today / s.assigned) : null }; })
+    .sort((a, b) => (a.pct ?? a.tp ?? 999) - (b.pct ?? b.tp ?? 999));
   const wp = rows.filter(r => r.pct !== null), avg = wp.length ? Math.round(wp.reduce((n, r) => n + r.pct, 0) / wp.length) : null;
-  $('taskBody').innerHTML = `<p class="lead">${avg === null ? 'No one has tasks for this month yet.' : `Average so far: <b>${avg}%</b>. Lowest first, so you can see who needs a nudge.`} Click a name to see their checklist.</p>
-    <div class="table-wrap"><table class="ov"><thead><tr><th>Name</th><th>Studio</th><th>Task sets</th><th>Today</th><th>Month so far</th></tr></thead><tbody>` +
-    rows.map(({ u, s, pct }) => `<tr data-row="${u.id}"><td>${esc(u.full_name || u.email)}</td><td>${esc(studio(u.location_id))}</td><td>${esc((pos[u.id] || []).join(', ') || 'None')}</td><td>${s ? s.done_today + '/' + s.assigned : '-'}</td><td>${pct === null ? '-' : `<div style="display:flex;gap:.6rem;align-items:center"><div class="meter" style="flex:1"><i style="width:${Math.min(pct, 100)}%"></i></div>${pct}%</div>`}</td></tr>`).join('') + '</tbody></table></div>';
+  const wt = rows.filter(r => r.tp !== null), avgT = wt.length ? Math.round(wt.reduce((n, r) => n + r.tp, 0) / wt.length) : null;
+  $('taskBody').innerHTML = `<p class="lead">${avg === null ? (avgT === null ? 'No one has tasks assigned yet.' : `Average today: <b>${avgT}%</b>. The month so far starts tomorrow.`) : `Average so far: <b>${avg}%</b>. Lowest first, so you can see who needs a nudge.`} Click a name to see their checklist.</p>
+    <div class="table-wrap"><table class="ov"><thead><tr><th>Name</th><th>Studio</th><th>Task sets</th><th>Today</th><th>Month so far (complete days)</th></tr></thead><tbody>` +
+    rows.map(({ u, s, pct, tp }) => `<tr data-row="${u.id}"><td>${esc(u.full_name || u.email)}</td><td>${esc(studio(u.location_id))}</td><td>${esc((pos[u.id] || []).join(', ') || 'None')}</td><td>${s && s.assigned ? tp + '% (' + s.done_today + '/' + s.assigned + ')' : '-'}</td><td>${pct === null ? '-' : `<div style="display:flex;gap:.6rem;align-items:center"><div class="meter" style="flex:1"><i style="width:${Math.min(pct, 100)}%"></i></div>${pct}%</div>`}</td></tr>`).join('') + '</tbody></table></div>';
 }
 
 async function loadManage() {
@@ -972,10 +1024,11 @@ $('dlgBody').addEventListener('click', async e => {
 });
 
 // ---------- Time off page ----------
-let to = { reqs: [], offs: [], msg: '', apv: [], apvLoaded: false };
+let to = { reqs: [], offs: [], msg: '', apv: [], apvLoaded: false, dir: {}, err: '' };
 const SHIFT = { full: 'Full shift', partial: 'Partial shift', flexible: 'Can adjust shift time' };
 const dayDiff = (a, b) => Math.round((new Date(b + 'T00:00') - new Date(a + 'T00:00')) / DAY);
 
+const reqLoc = r => (r.profiles && r.profiles.location_id) || (to.dir[r.user_id] || {}).location_id;
 const nameList = a => { const n = a.map(x => String(x.full_name).split(' ')[0]); return n.length < 2 ? n.join('') : n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1]; };
 const apvFor = (loc, uid) => to.apv.filter(x => x.id !== uid && (x.role === 'owner' || (x.role === 'manager' && x.location_id === loc)));
 async function loadApv() { if (!to.apvLoaded) { const { data } = await db.from('time_off_approvers').select('*'); to.apv = data || []; to.apvLoaded = true; } }
@@ -1012,22 +1065,25 @@ $('dlgBody').addEventListener('click', async e => {
 });
 
 async function loadTimeOff() {
-  const [r, o] = await Promise.all([db.from('time_off_requests').select('*, profiles(full_name, email, location_id)').order('start_date', { ascending: false }).limit(500), db.from('time_off_calendar').select('*')]);
-  to.reqs = r.data || []; to.offs = o.data || [];
+  const q = sel => db.from('time_off_requests').select(sel).order('start_date', { ascending: false }).limit(500);
+  const [r0, o, d] = await Promise.all([q('*, profiles!time_off_requests_user_id_fkey(full_name, email, location_id)'), db.from('time_off_calendar').select('*'), db.from('team_directory').select('id,full_name,location_id')]);
+  const r = r0.error ? await q('*') : r0;
+  to.reqs = r.data || []; to.offs = o.data || []; to.err = r.error ? r.error.message : '';
+  to.dir = {}; (d.data || []).forEach(x => to.dir[x.id] = x);
   await loadApv(); drawTimeOff(); timeOffBadge();
 }
 
 function drawTimeOff() {
-  const nm = r => (r.profiles && (r.profiles.full_name || r.profiles.email)) || 'Someone';
+  const nm = r => (r.profiles && (r.profiles.full_name || r.profiles.email)) || (to.dir[r.user_id] || {}).full_name || 'Someone';
   const span = r => fmt(r.start_date) + (r.end_date !== r.start_date ? ' \u2013 ' + fmt(r.end_date) : '');
   const info = toInfo;
   const pill = r => `<span class="pill ${r.status === 'approved' ? '' : r.status === 'denied' ? 'warn' : 'ice'}" style="margin:0">${r.status}</span>` + (r.status === 'pending' && dayDiff(r.created_at.slice(0, 10), r.start_date) <= 14 ? '<span class="pill warn">Within 2 weeks</span>' : '');
-  const sline = r => r.status === 'pending' ? 'Waiting on ' + (nameList(apvFor(r.profiles && r.profiles.location_id, r.user_id)) || 'a decision')
+  const sline = r => r.status === 'pending' ? 'Waiting on ' + (nameList(apvFor(reqLoc(r), r.user_id)) || 'a decision')
     : (r.status === 'approved' ? 'Approved' : 'Denied') + (r.decided_by ? ' by ' + ((to.apv.find(x => x.id === r.decided_by) || {}).full_name || 'a manager') : '') + (r.decided_at ? ' on ' + fmt(r.decided_at.slice(0, 10)) : '');
   const row = (r, who, acts) => `<div class="req"><div>${who ? '<b>' + who + '</b> ' : ''}<b>${span(r)}</b><div class="lead" style="margin:.2rem 0 0;font-size:.85rem">${info(r)}${info(r) ? '<br>' : ''}<i>${esc(sline(r))}</i></div></div><div class="acts" style="margin:0;align-items:center">${acts}</div></div>`;
   const pend = ME.role === 'staff' ? [] : to.reqs.filter(r => r.status === 'pending' && (r.user_id !== ME.id || ME.role === 'owner'));
   const mine = to.reqs.filter(r => r.user_id === ME.id);
-  $('toBody').innerHTML = (to.msg ? `<p class="lead"><b>${to.msg}</b></p>` : '') +
+  $('toBody').innerHTML = (to.err ? `<p class="err">Could not load requests: ${esc(to.err)}</p>` : '') + (to.msg ? `<p class="lead"><b>${to.msg}</b></p>` : '') +
     (pend.length ? '<h3 class="sub">Waiting for your approval</h3>' + pend.map(r => row(r, esc(nm(r)), pill(r) + `<button data-a="approved" data-id="${r.id}">Approve</button><button class="quiet" data-a="denied" data-id="${r.id}">Deny</button>`)).join('') : '') +
     `<h3 class="sub" style="margin-top:1.5rem">Request time off</h3>
     <div class="pcard"><div class="grid2">
@@ -1094,14 +1150,14 @@ async function loadHome() {
 }
 
 function drawHome(d) {
-  const T = d.t, pct = T && T.assigned ? Math.round(100 * T.done_month / (T.assigned * d.day)) : 0;
+  const T = d.t, tp = T && T.assigned ? Math.round(100 * T.done_today / T.assigned) : 0, mp = T && T.assigned ? mtd(T.done_month, T.done_today, T.assigned, true, d.day) : null;
   const rng = r => fmt(r.start_date) + (r.end_date !== r.start_date ? ' \u2013 ' + fmt(r.end_date) : '');
   const evs = d.ev.filter(e => !e.location_id || !ME.location_id || e.location_id === ME.location_id).slice(0, 5);
   const out = d.offs.filter(o => o.user_id !== ME.id && (!ME.location_id || o.location_id === ME.location_id)).slice(0, 6);
   const card = (title, body, link) => `<div class="hcard"><h3>${title}</h3>${body}${link ? `<p style="margin-top:.75rem"><a href="${link[0]}">${link[1]}</a></p>` : ''}</div>`;
   const none = t => `<p class="lead" style="margin:0">${t}</p>`;
   $('myCards').innerHTML =
-    card('My tasks', T && T.assigned ? `<p>Today <b>${T.done_today}/${T.assigned}</b> \u2022 This month <b>${pct}%</b></p><div class="meter"><i style="width:${Math.min(pct, 100)}%"></i></div>` : none('No tasks assigned yet.'), ['#tasks', 'Open my tasks']) +
+    card('My tasks', T && T.assigned ? `<p>Today <b>${tp}%</b> (${T.done_today} of ${T.assigned})</p><div class="meter"><i style="width:${Math.min(tp, 100)}%"></i></div><p style="margin-top:.6rem">Month so far <b>${mp === null ? 'starts tomorrow' : mp + '%'}</b></p>` : none('No tasks assigned yet.'), ['#tasks', 'Open my tasks']) +
     card('My time off', (d.pend ? `<p><b>${d.pend}</b> request${d.pend === 1 ? '' : 's'} waiting for your approval</p>` : '') + (d.mine.map(r => `<p>${rng(r)} <span class="pill ${r.status === 'approved' ? '' : 'ice'}" style="margin:0 0 0 .4rem">${r.status}</span></p>`).join('') || none('Nothing scheduled.')), ['#timeoff', 'Request time off']) +
     card('Coming up', evs.map(e => `<p><b>${fmt(e.event_date)}</b> ${esc(e.title)} <span style="color:var(--muted);font-size:.85rem">${esc(e.location_id ? studio(e.location_id) : 'All Austin')}</span></p>`).join('') || none('No events in the next 30 days.'), ['#calendar', 'Open the calendar']) +
     card('Out in the next 2 weeks', out.map(o => `<p>${esc(o.full_name.split(' ')[0])} ${rng(o)}${o.status === 'pending' ? ' (pending)' : ''}${ME.location_id ? '' : ' \u2022 ' + esc(studio(o.location_id))}</p>`).join('') || none('No one is off.'), ['#calendar', 'See the time-off calendar']) +
