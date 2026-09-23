@@ -50,6 +50,25 @@
   .studios { display:flex; flex-wrap:wrap; gap:.6rem; margin:.75rem 0 2.5rem; }
   .studios span { padding:.45rem .9rem; border:1px solid var(--line); background:#fff; border-radius:99px; }
   .studios span.mine { background:var(--accent); color:#fff; border-color:var(--accent); }
+  nav { display:flex; gap:.25rem; }
+  nav a { padding:.4rem .8rem; border-radius:6px; color:var(--muted); text-decoration:none; font-weight:500; }
+  nav a.on { background:#e3eeec; color:var(--accent); }
+  .soon a { border:1px solid var(--accent); border-radius:8px; padding:.9rem 1rem; color:var(--muted); text-decoration:none; }
+  .soon a b { color:var(--accent); }
+  .bar { display:flex; gap:.75rem; margin:0 0 1.5rem; flex-wrap:wrap; }
+  .bar select { width:auto; min-width:200px; }
+  .people { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:1rem; }
+  .person { all:unset; box-sizing:border-box; cursor:pointer; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:.75rem; display:block; }
+  .person:focus-visible { outline:3px solid #7fc4bf; }
+  .person b { display:block; margin-top:.6rem; }
+  .person span { color:var(--muted); font-size:.9rem; display:block; }
+  .ph { aspect-ratio:1; border-radius:8px; background:#d9e8e6; color:var(--accent); display:grid; place-items:center; font-size:2.4rem; font-weight:700; overflow:hidden; }
+  .ph img { width:100%; height:100%; object-fit:cover; }
+  dialog { border:0; border-radius:12px; padding:1.5rem; max-width:460px; width:calc(100% - 2rem); color:var(--ink); }
+  dialog::backdrop { background:rgba(20,35,34,.5); }
+  dialog .ph { max-width:220px; margin-bottom:1rem; }
+  dialog textarea { width:100%; min-height:130px; padding:.55rem .7rem; border:1px solid var(--line); border-radius:6px; font:inherit; margin-top:.3rem; }
+  .acts { display:flex; gap:.6rem; margin-top:1rem; }
 </style>
 </head>
 <body>
@@ -67,12 +86,13 @@
 
 <div id="app" hidden>
   <header>
-    <div><h1>Stretch Zone Austin</h1></div>
+    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap"><h1>Stretch Zone Austin</h1><nav><a href="#home" id="navHome">Home</a><a href="#team" id="navTeam">Team</a></nav></div>
     <div style="display:flex;align-items:center;gap:1rem">
       <div style="text-align:right"><span id="who"></span><small id="meta"></small></div>
       <button class="quiet" id="signout">Sign out</button>
     </div>
   </header>
+  <div id="homeView">
   <section class="hero">
     <svg class="peaks" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true"><path d="M0 200V120L140 60l90 50 130-80 150 110 120-50 170 90 130-70 140 60 130-40 140 70V200z"/></svg>
     <div class="hero-in">
@@ -91,7 +111,7 @@
     <div class="soon">
       <div><b>Time off</b>Coming next</div>
       <div><b>Tasks</b>Coming soon</div>
-      <div><b>Bios</b>Coming soon</div>
+      <a href="#team"><b>Team</b>Meet everyone</a>
       <div><b>Calendar</b>Coming soon</div>
       <div><b>Members</b>Coming soon</div>
       <div><b>Reports</b>Coming soon</div>
@@ -108,7 +128,19 @@
       </div>
     </section>
   </main>
+  </div>
+  <main id="teamView" hidden>
+    <h2>Meet the team</h2>
+    <p class="lead">Faces, roles, and a little about each of us. Click a card to read more.</p>
+    <div class="bar">
+      <select id="studioFilter" aria-label="Filter by studio"><option value="">All studios</option></select>
+      <button class="quiet" id="editMine">Edit my card</button>
+    </div>
+    <div class="people" id="people"></div>
+  </main>
 </div>
+
+<dialog id="dlg"><div id="dlgBody"></div></dialog>
 
 <script>
 const SUPABASE_URL = 'https://hhjhsjmgywaoubvahbrr.supabase.co';
@@ -143,6 +175,9 @@ async function showApp(user) {
   locs = l.data || [];
   const me = m.data;
   if (!me) { $('hello').textContent = 'Account not set up'; $('note').textContent = 'Your login has no profile yet. Ask the owner for help.'; return; }
+  ME = me;
+  $('studioFilter').innerHTML = '<option value="">All studios</option>' + locs.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  route();
   const loc = locs.find(x => x.id === me.location_id);
   $('who').textContent = me.full_name || me.email;
   $('meta').textContent = me.role + ' \u2022 ' + (me.role === 'owner' ? 'All locations' : loc ? loc.name : 'No location yet');
@@ -184,6 +219,98 @@ $('rows').onclick = async e => {
   }).eq('id', tr.dataset.id);
   s.textContent = error ? 'Could not save' : 'Saved';
   setTimeout(() => s.textContent = '', 2500);
+};
+
+let ME = null, people = [], urls = {}, cur = null;
+
+function route() {
+  const t = location.hash === '#team';
+  $('homeView').hidden = t; $('teamView').hidden = !t;
+  $('navHome').classList.toggle('on', !t); $('navTeam').classList.toggle('on', t);
+  if (t && ME) loadPeople();
+}
+addEventListener('hashchange', route);
+
+const studio = id => (locs.find(x => x.id === id) || {}).name || 'No studio yet';
+const photo = p => urls[p.photo_path] ? `<img src="${esc(urls[p.photo_path])}" alt="">` : esc((p.full_name || '?').trim()[0].toUpperCase());
+
+async function loadPeople() {
+  const { data } = await db.from('team_directory').select('*').order('full_name');
+  people = data || []; urls = {};
+  const paths = people.map(p => p.photo_path).filter(Boolean);
+  if (paths.length) {
+    const { data: s } = await db.storage.from('team-photos').createSignedUrls(paths, 3600);
+    (s || []).forEach(x => { if (x.signedUrl) urls[x.path] = x.signedUrl; });
+  }
+  renderPeople();
+}
+
+function renderPeople() {
+  const f = $('studioFilter').value;
+  $('people').innerHTML = people.filter(p => !f || p.location_id === f).map(p =>
+    `<button class="person" data-id="${p.id}"><div class="ph">${photo(p)}</div><b>${esc(p.full_name)}</b><span>${esc(p.job_title || '')}</span><span>${esc(studio(p.location_id))}</span></button>`
+  ).join('') || '<p class="lead">No one here yet. Names are added by the owner.</p>';
+}
+$('studioFilter').onchange = renderPeople;
+$('people').onclick = e => { const b = e.target.closest('.person'); if (b) openCard(b.dataset.id); };
+$('editMine').onclick = () => {
+  if (!people.find(p => p.id === ME.id)) { alert('Ask the owner to add your name first, then you can edit your card.'); return; }
+  openCard(ME.id, true);
+};
+
+function openCard(id, edit) {
+  const p = people.find(x => x.id === id); if (!p) return;
+  cur = id;
+  const canEdit = ME && (ME.id === id || ME.role === 'owner');
+  const sub = `<p class="lead" style="margin:.25rem 0 1rem">${esc([p.job_title, studio(p.location_id)].filter(Boolean).join(' \u2022 '))}</p>`;
+  $('dlgBody').innerHTML = edit
+    ? `<h2>${esc(p.full_name)}</h2>${sub}
+       <label>Photo <input type="file" id="fPhoto" accept="image/*"></label>
+       <label>Job title <input id="fTitle" value="${esc(p.job_title)}" maxlength="80"></label>
+       <label>Bio <textarea id="fBio" maxlength="1000" placeholder="Where you're from, what you love about stretching, a fun fact...">${esc(p.bio)}</textarea></label>
+       <div id="fErr" role="alert" style="color:var(--danger)"></div>
+       <div class="acts"><button id="fSave">Save</button><button class="quiet" id="fCancel">Cancel</button></div>`
+    : `<div class="ph">${photo(p)}</div><h2>${esc(p.full_name)}</h2>${sub}
+       <p style="white-space:pre-wrap">${esc(p.bio || 'No bio yet.')}</p>
+       <div class="acts">${canEdit ? '<button id="fEdit">Edit</button>' : ''}<button class="quiet" id="fClose">Close</button></div>`;
+  if (!$('dlg').open) $('dlg').showModal();
+}
+
+function square(file) {
+  return new Promise((ok, no) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(img.width, img.height), c = document.createElement('canvas');
+      c.width = c.height = 480;
+      c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 480, 480);
+      URL.revokeObjectURL(img.src);
+      c.toBlob(b => b ? ok(b) : no(new Error('Photo failed')), 'image/jpeg', .85);
+    };
+    img.onerror = () => no(new Error('That photo could not be read. Try a JPG or PNG.'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+$('dlgBody').onclick = async e => {
+  const id = e.target.id;
+  if (id === 'fClose') $('dlg').close();
+  else if (id === 'fEdit') openCard(cur, true);
+  else if (id === 'fCancel') openCard(cur);
+  else if (id === 'fSave') {
+    $('fSave').disabled = true; $('fErr').textContent = '';
+    try {
+      let path = null; const file = $('fPhoto').files[0];
+      if (file) {
+        const blob = await square(file);
+        path = `${cur}/${Date.now()}.jpg`;
+        const { error } = await db.storage.from('team-photos').upload(path, blob, { contentType: 'image/jpeg' });
+        if (error) throw error;
+      }
+      const { error } = await db.rpc('update_profile_card', { p_id: cur, p_title: $('fTitle').value, p_bio: $('fBio').value, p_photo_path: path });
+      if (error) throw error;
+      await loadPeople(); openCard(cur);
+    } catch (err) { $('fErr').textContent = 'Could not save. ' + (err.message || ''); $('fSave').disabled = false; }
+  }
 };
 
 init();
