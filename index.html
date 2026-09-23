@@ -190,6 +190,16 @@
   .up { color:#7fdc9a; } .dn { color:#ff9b8f; }
   .spark { width:100%; height:28px; margin:.3rem 0; }
   .best { background:rgba(255,199,44,.2); font-weight:500; }
+  :root { --pad: clamp(1rem, 3vw, 3rem); }
+  main { max-width:none; margin:0; padding:2rem var(--pad) 4rem; }
+  .hero { padding:3.5rem var(--pad) 7rem; }
+  .hero-in { max-width:none; margin:0; }
+  .hrow { padding:.85rem var(--pad); }
+  #topnav { padding:.4rem var(--pad); }
+  .lead { max-width:110ch; }
+  .menu { display:grid; gap:.6rem; }
+  .menu button { text-align:left; padding:.8rem 1rem; }
+  .menu small { display:block; color:var(--muted); font-weight:400; margin-top:.15rem; }
 </style>
 </head>
 <body>
@@ -299,7 +309,7 @@
       <select id="pfStudio" aria-label="Studio"></select>
       <select id="pfMonth" aria-label="Month"></select>
       <select id="pfRange" aria-label="History shown"><option value="12">Last 12 months</option><option value="99">All history</option></select>
-      <button class="quiet" id="pfMine" hidden>Upload my monthly sheet</button><button class="quiet" id="pfCorp" hidden>Upload corporate scorecard</button><button class="quiet" id="pfAdd" hidden>Add or edit a month</button>
+      <button class="quiet" id="pfData" hidden style="margin-left:auto">Update data</button>
     </div>
     <div id="pfBody"></div>
   </main>
@@ -1303,7 +1313,7 @@ async function loadPerf() {
   (b.data || []).forEach(x => (PF.net[x.month] = PF.net[x.month] || {})[x.kpi] = +x.value);
   (c.data || []).forEach(x => { const s = PF.corp[x.studio_id] = PF.corp[x.studio_id] || {}; (s[x.month] = s[x.month] || {})[x.kpi] = x; });
   const own = ME.role === 'owner', sids = [...new Set(PF.rows.map(r => r.studio_id))], mine = pfMonths().reverse(), ms = [...new Set([...mine, ...Object.keys(PF.net), ...Object.values(PF.corp).flatMap(o => Object.keys(o))])].sort().reverse();
-  $('pfAdd').hidden = !own; $('pfMine').hidden = !own; $('pfCorp').hidden = !own; document.querySelector('#pfTabs [data-t="master"]').hidden = !own;
+  $('pfData').hidden = !own; document.querySelector('#pfTabs [data-t="master"]').hidden = !own;
   if (!own) { PF.studio = sids[0] || ''; PF.tab = 'score'; }
   $('pfStudio').innerHTML = (own ? '<option value="">All six studios</option>' : '') + locs.filter(l => sids.includes(l.id)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
   $('pfStudio').value = PF.studio;
@@ -1393,7 +1403,7 @@ $('pfTabs').onclick = e => { const b = e.target.closest('button'); if (b) { PF.t
 $('pfStudio').onchange = e => { PF.studio = e.target.value; drawPerf(); };
 $('pfMonth').onchange = e => { PF.month = e.target.value; drawPerf(); };
 $('pfRange').onchange = e => { PF.range = +e.target.value; if (PF.tab === 'score') drawChart(); };
-$('pfAdd').onclick = () => pfForm();
+$('pfData').onclick = pfMenu;
 $('pfBody').onclick = e => { const b = e.target.closest('.kt'); if (!b) return; PF.kpi = b.dataset.k; document.querySelectorAll('.kt').forEach(x => x.classList.toggle('on', x === b)); drawChart(); $('pfChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
 $('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'pfSave') pfSave(); });
 $('dlgBody').addEventListener('change', e => { if (e.target.id === 'pStudio' || e.target.id === 'pMonth') { const m = $('pMonth').value; if (m) pfForm($('pStudio').value, m + '-01'); } });
@@ -1487,9 +1497,20 @@ async function readBook(f, want) {
 function pfUpForm(title, blurb, id, extra) {
   $('dlgBody').innerHTML = `<h2>${title}</h2><p class="lead" style="margin:.25rem 0 1rem">${blurb}</p>${extra || ''}<label>File <input id="${id}" type="file" accept=".xlsx,.xlsb,.csv"></label><div id="upInfo" style="margin-bottom:.75rem"></div>
     <div class="err" id="pErr" role="alert"></div><div class="acts"><button data-act="${id}Save" id="upGo" disabled>Save</button><button class="quiet" data-act="close">Cancel</button></div>`;
-  $('dlg').showModal();
+  if (!$('dlg').open) $('dlg').showModal();
 }
 const upMsg = (html, err) => { $('upInfo').innerHTML = html; $('pErr').textContent = err || ''; $('upGo').disabled = !!err || !html; };
+
+function pfMenu() {
+  $('dlgBody').innerHTML = `<h2>Update data</h2><p class="lead" style="margin:.25rem 0 1rem">What do you want to update?</p>
+    <div class="menu">
+      <button class="quiet" data-act="pfM1"><b>Upload my monthly sheet</b><small>Your numbers for one or many months, from a spreadsheet or CSV</small></button>
+      <button class="quiet" data-act="pfM2"><b>Upload corporate scorecard</b><small>The monthly Stretch Zone scorecard (.xlsb)</small></button>
+      <button class="quiet" data-act="pfM3"><b>Add or edit a month</b><small>Type in one studio\u2019s numbers for one month</small></button>
+    </div><div class="acts"><button class="quiet" data-act="close">Close</button></div>`;
+  if (!$('dlg').open) $('dlg').showModal();
+}
+$('dlgBody').addEventListener('click', e => { const b = e.target.closest('[data-act]'), a = b && b.dataset.act; if (a === 'pfM1') pfMineForm(); else if (a === 'pfM2') pfCorpForm(); else if (a === 'pfM3') pfForm(); });
 
 function pfCorpForm() {
   PF.pend = null; pfUpForm('Upload corporate scorecard', 'Drop in the monthly Stretch Zone scorecard (.xlsb or .xlsx). Only your six studios and the network averages are saved. Every other franchisee\u2019s rows are ignored.', 'cFile');
@@ -1528,8 +1549,6 @@ async function pfUpSave(kind) {
   $('dlg').close(); loadPerf();
 }
 
-$('pfCorp').onclick = pfCorpForm;
-$('pfMine').onclick = pfMineForm;
 $('dlgBody').addEventListener('click', e => { const a = e.target.dataset.act; if (a === 'cFileSave') pfUpSave('corp'); else if (a === 'mFileSave') pfUpSave('mine'); });
 
 init();
