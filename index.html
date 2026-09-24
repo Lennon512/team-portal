@@ -200,6 +200,9 @@
   .menu { display:grid; gap:.6rem; }
   .menu button { text-align:left; padding:.8rem 1rem; }
   .menu small { display:block; color:var(--muted); font-weight:400; margin-top:.15rem; }
+  .hcard.alert { border-color:var(--accent); }
+  .pill.need { background:var(--accent); color:var(--navy); }
+  .qty { width:8rem; }
 </style>
 </head>
 <body>
@@ -221,7 +224,7 @@
       <h1>Stretch Zone Austin</h1>
       <div class="who"><div class="wtxt"><span id="who"></span><small id="meta"></small></div><button class="quiet" id="signout">Sign out</button></div>
     </div>
-    <nav id="topnav"><a href="#home" id="navHome">My page</a><a href="#team" id="navTeam">Team</a><a href="#studio" id="navStudio">Studio</a><a href="#calendar" id="navCal">Calendar</a><a href="#tasks" id="navTasks">Tasks</a><a href="#members" id="navMem">Members</a><a href="#timeoff" id="navOff">Time off</a><a href="#performance" id="navPerf" hidden>Performance</a><a href="#people" id="navPeople" hidden>People</a></nav>
+    <nav id="topnav"><a href="#home" id="navHome">My page</a><a href="#team" id="navTeam">Team</a><a href="#studio" id="navStudio">Studio</a><a href="#calendar" id="navCal">Calendar</a><a href="#tasks" id="navTasks">Tasks</a><a href="#members" id="navMem">Members</a><a href="#timeoff" id="navOff">Time off</a><a href="#supplies" id="navSup">Supplies</a><a href="#performance" id="navPerf" hidden>Performance</a><a href="#people" id="navPeople" hidden>People</a></nav>
   </header>
   <div id="homeView">
   <section class="hero">
@@ -312,6 +315,11 @@
       <button class="quiet" id="pfData" hidden style="margin-left:auto">Update data</button>
     </div>
     <div id="pfBody"></div>
+  </main>
+  <main id="supView" hidden>
+    <div class="thead"><div><h2>Supplies</h2><p class="lead">Tap Need this when your studio is running low. Requests show up on the owner’s front page.</p></div></div>
+    <div class="bar"><select id="spStudio" aria-label="Studio" hidden></select><button class="quiet" id="spManage" hidden style="margin-left:auto">Manage supply list</button></div>
+    <div id="spBody"></div>
   </main>
 </div>
 
@@ -406,9 +414,9 @@ $('rows').onclick = async e => {
 let ME = null, people = [], urls = {}, cur = null;
 
 function route() {
-  const v = location.hash === '#team' ? 'team' : location.hash === '#calendar' ? 'cal' : location.hash.startsWith('#tasks') ? 'tasks' : location.hash === '#members' ? 'mem' : location.hash === '#timeoff' ? 'off' : location.hash.startsWith('#studio') ? 'studio' : location.hash === '#people' ? 'people' : location.hash === '#performance' ? 'perf' : 'home';
-  $('homeView').hidden = v !== 'home'; $('teamView').hidden = v !== 'team'; $('calView').hidden = v !== 'cal'; $('taskView').hidden = v !== 'tasks'; $('memView').hidden = v !== 'mem'; $('toView').hidden = v !== 'off'; $('studioView').hidden = v !== 'studio'; $('peopleView').hidden = v !== 'people'; $('perfView').hidden = v !== 'perf';
-  $('navTasks').classList.toggle('on', v === 'tasks'); $('navMem').classList.toggle('on', v === 'mem'); $('navOff').classList.toggle('on', v === 'off'); $('navStudio').classList.toggle('on', v === 'studio'); $('navPeople').classList.toggle('on', v === 'people'); $('navPerf').classList.toggle('on', v === 'perf');
+  const v = location.hash === '#team' ? 'team' : location.hash === '#calendar' ? 'cal' : location.hash.startsWith('#tasks') ? 'tasks' : location.hash === '#members' ? 'mem' : location.hash === '#timeoff' ? 'off' : location.hash.startsWith('#studio') ? 'studio' : location.hash === '#people' ? 'people' : location.hash === '#performance' ? 'perf' : location.hash === '#supplies' ? 'sup' : 'home';
+  $('homeView').hidden = v !== 'home'; $('teamView').hidden = v !== 'team'; $('calView').hidden = v !== 'cal'; $('taskView').hidden = v !== 'tasks'; $('memView').hidden = v !== 'mem'; $('toView').hidden = v !== 'off'; $('studioView').hidden = v !== 'studio'; $('peopleView').hidden = v !== 'people'; $('perfView').hidden = v !== 'perf'; $('supView').hidden = v !== 'sup';
+  $('navTasks').classList.toggle('on', v === 'tasks'); $('navMem').classList.toggle('on', v === 'mem'); $('navOff').classList.toggle('on', v === 'off'); $('navStudio').classList.toggle('on', v === 'studio'); $('navPeople').classList.toggle('on', v === 'people'); $('navPerf').classList.toggle('on', v === 'perf'); $('navSup').classList.toggle('on', v === 'sup');
   $('navHome').classList.toggle('on', v === 'home'); $('navTeam').classList.toggle('on', v === 'team'); $('navCal').classList.toggle('on', v === 'cal');
   if (v === 'team' && ME) loadPeople();
   if (v === 'cal' && ME) loadCal();
@@ -416,8 +424,10 @@ function route() {
   if (v === 'mem' && ME) loadMem();
   if (v === 'off' && ME) loadTimeOff();
   if (ME && v !== 'off') timeOffBadge();
+  if (ME) suppliesBadge();
   if (v === 'home' && ME) loadHome();
   if (v === 'perf' && ME) loadPerf();
+  if (v === 'sup' && ME) loadSupplies();
   if (v === 'studio' && ME) loadStudio(location.hash.split('/')[1]);
 }
 addEventListener('hashchange', route);
@@ -1180,15 +1190,16 @@ async function homeAttn() {
 
 async function loadHome() {
   const now = new Date(), td = todayStr(), mo = ymd(new Date(now.getFullYear(), now.getMonth(), 1)), in14 = ymd(new Date(now.getTime() + 14 * DAY)), in30 = ymd(new Date(now.getTime() + 30 * DAY));
-  const [ov, mine, ev, offs2, pend, att] = await Promise.all([
+  const [ov, mine, ev, offs2, pend, att, sup] = await Promise.all([
     db.rpc('task_overview', { p_month: mo, p_today: td }),
     db.from('time_off_requests').select('id,start_date,end_date,status').eq('user_id', ME.id).gte('end_date', td).in('status', ['pending', 'approved']).order('start_date').limit(3),
     db.from('events').select('*').or(`ends_on.gte.${td},event_date.gte.${td}`).lte('event_date', in30).order('event_date').limit(60),
     db.from('time_off_calendar').select('*').gte('end_date', td).lte('start_date', in14).order('start_date'),
     ME.role === 'staff' ? null : db.from('time_off_requests').select('id,user_id').eq('status', 'pending'),
-    homeAttn()]);
+    homeAttn(),
+    ME.role === 'owner' ? db.from('supply_requests').select('*, supply_items(name)') : null]);
   drawHome({ t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], ev: ev.data || [], offs: offs2.data || [],
-    pend: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').length : null, att, day: now.getDate() });
+    pend: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').length : null, att, day: now.getDate(), sup: sup ? (sup.data || []) : [] });
 }
 
 function drawHome(d) {
@@ -1196,9 +1207,16 @@ function drawHome(d) {
   const rng = r => fmt(r.start_date) + (r.end_date !== r.start_date ? ' \u2013 ' + fmt(r.end_date) : '');
   const evs = d.ev.filter(e => !e.location_id || !ME.location_id || e.location_id === ME.location_id).slice(0, 5);
   const out = d.offs.filter(o => o.user_id !== ME.id && (!ME.location_id || o.location_id === ME.location_id)).slice(0, 6);
-  const card = (title, body, link) => `<div class="hcard"><h3>${title}</h3>${body}${link ? `<p style="margin-top:.75rem"><a href="${link[0]}">${link[1]}</a></p>` : ''}</div>`;
+  const card = (title, body, link, cls) => `<div class="hcard ${cls || ''}"><h3>${title}</h3>${body}${link ? `<p style="margin-top:.75rem"><a href="${link[0]}">${link[1]}</a></p>` : ''}</div>`;
   const none = t => `<p class="lead" style="margin:0">${t}</p>`;
-  $('myCards').innerHTML =
+  const needs = (d.sup || []).filter(r => r.status === 'needed'), ord = (d.sup || []).filter(r => r.status === 'ordered');
+  let supCard = '';
+  if (ME.role === 'owner' && (needs.length || ord.length)) {
+    const g = {}; needs.forEach(r => { const n = (r.supply_items && r.supply_items.name) || 'Item'; (g[n] = g[n] || []).push(studio(r.studio_id) + (r.qty ? ' (' + r.qty + ')' : '')); });
+    const names = Object.keys(g);
+    supCard = card('Supplies needed', (names.slice(0, 6).map(n => `<p><b>${esc(n)}</b> <span style="color:var(--muted);font-size:.85rem">${esc(g[n].join(', '))}</span></p>`).join('') + (names.length > 6 ? `<p class="lead" style="margin:0">and ${names.length - 6} more</p>` : '') || none('Nothing needed right now.')) + (ord.length ? `<p class="lead" style="margin:.5rem 0 0">${ord.length} on order</p>` : ''), ['#supplies', 'Review and order'], names.length ? 'alert' : '');
+  }
+  $('myCards').innerHTML = supCard +
     card('My tasks', T && T.assigned ? `<p>Today <b>${tp}%</b> (${T.done_today} of ${T.assigned})</p><div class="meter"><i style="width:${Math.min(tp, 100)}%"></i></div><p style="margin-top:.6rem">Month so far <b>${mp === null ? 'starts tomorrow' : mp + '%'}</b></p>` : none('No tasks assigned yet.'), ['#tasks', 'Open my tasks']) +
     card('My time off', (d.pend ? `<p><b>${d.pend}</b> request${d.pend === 1 ? '' : 's'} waiting for your approval</p>` : '') + (d.mine.map(r => `<p>${rng(r)} <span class="pill ${r.status === 'approved' ? '' : 'ice'}" style="margin:0 0 0 .4rem">${r.status}</span></p>`).join('') || none('Nothing scheduled.')), ['#timeoff', 'Request time off']) +
     card('Coming up', evs.map(e => `<p><b>${fmt(e.event_date)}</b> ${esc(e.title)} <span style="color:var(--muted);font-size:.85rem">${esc(e.location_id ? studio(e.location_id) : 'All Austin')}</span></p>`).join('') || none('No events in the next 30 days.'), ['#calendar', 'Open the calendar']) +
@@ -1562,6 +1580,74 @@ async function pfUpSave(kind) {
 }
 
 $('dlgBody').addEventListener('click', e => { const a = e.target.dataset.act; if (a === 'cFileSave') pfUpSave('corp'); else if (a === 'mFileSave') pfUpSave('mine'); });
+
+// ---------- Supplies ----------
+let sp = { items: [], reqs: [], studio: '' };
+const okUrl = u => /^https?:\/\//i.test(u || '');
+
+async function suppliesBadge() {
+  if (!ME || ME.role !== 'owner') return;
+  const { data } = await db.from('supply_requests').select('item_id').eq('status', 'needed');
+  const n = (data || []).length;
+  $('navSup').textContent = 'Supplies' + (n ? ` (${n})` : '');
+}
+
+async function loadSupplies() {
+  const own = ME.role === 'owner';
+  if (own) { if (!sp.studio) sp.studio = (locs[0] || {}).id; } else sp.studio = ME.location_id;
+  $('spStudio').hidden = !own; $('spManage').hidden = !own;
+  if (own) $('spStudio').innerHTML = locs.map(l => `<option value="${l.id}" ${l.id === sp.studio ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
+  if (!sp.studio) { $('spBody').innerHTML = '<p class="lead">You have not been assigned to a studio yet. Ask the owner.</p>'; return; }
+  const [i, r] = await Promise.all([db.from('supply_items').select('*').eq('active', true).order('category').order('sort_order').order('name'), db.from('supply_requests').select('*')]);
+  sp.items = i.data || []; sp.reqs = r.data || []; drawSupplies();
+}
+
+function drawSupplies() {
+  const own = ME.role === 'owner', byItem = Object.fromEntries(sp.items.map(x => [x.id, x])), mine = Object.fromEntries(sp.reqs.filter(r => r.studio_id === sp.studio).map(r => [r.item_id, r]));
+  const pill = st => `<span class="pill ${st === 'ordered' ? 'ice' : 'need'}" style="margin:0">${st === 'ordered' ? 'Ordered' : 'Needed'}</span>`;
+  const link = it => okUrl(it.order_url) ? ` \u2022 <a href="${esc(it.order_url)}" target="_blank" rel="noopener">Order</a>` : '';
+  const open = sp.reqs.filter(r => byItem[r.item_id]).sort((a, b) => a.status === b.status ? 0 : a.status === 'needed' ? -1 : 1);
+  const openHtml = own ? '<h3 class="sub">Open requests, all studios</h3>' + (open.map(r => { const it = byItem[r.item_id];
+    return `<div class="req"><div><b>${esc(it.name)}</b> \u2022 ${esc(studio(r.studio_id))}${r.qty ? ' \u2022 ' + esc(r.qty) : ''}${link(it)}</div><div class="acts" style="margin:0;align-items:center">${pill(r.status)}${r.status === 'needed' ? `<button data-sp="ordered" data-s="${r.studio_id}" data-i="${r.item_id}">Mark ordered</button>` : ''}<button class="quiet" data-sp="got" data-s="${r.studio_id}" data-i="${r.item_id}">${r.status === 'ordered' ? 'Received' : 'Remove'}</button></div></div>`; }).join('') || '<p class="lead">Nothing requested right now.</p>') : '';
+  const cats = [...new Set(sp.items.map(x => x.category || 'Other'))];
+  const list = cats.map(c => `<h3 class="sub" style="margin-top:1.25rem">${esc(c)}</h3>` + sp.items.filter(x => (x.category || 'Other') === c).map(it => { const r = mine[it.id];
+    return `<div class="req"><div><b>${esc(it.name)}</b>${link(it)}${r && r.qty ? `<div class="lead" style="margin:.15rem 0 0;font-size:.85rem">${esc(r.qty)}</div>` : ''}</div><div class="acts" style="margin:0;align-items:center">${r ? pill(r.status) + `<button class="quiet" data-sp="got" data-s="${sp.studio}" data-i="${it.id}">${r.status === 'ordered' ? 'Got it' : 'Cancel'}</button>` : `<input class="qty" placeholder="How many?" maxlength="40" aria-label="How many ${esc(it.name)}"><button data-sp="need" data-i="${it.id}">Need this</button>`}</div></div>`; }).join('')).join('');
+  $('spBody').innerHTML = openHtml + `<h3 class="sub" style="margin-top:1.75rem">${esc(studio(sp.studio))} supply list</h3>` + (list || '<p class="lead">No supplies on the list yet.' + (own ? ' Click Manage supply list to add them.' : ' Ask the owner to add them.') + '</p>');
+}
+
+function spManage() {
+  $('dlgBody').innerHTML = `<h2>Manage supply list</h2><p class="lead" style="margin:.25rem 0 1rem">Every studio uses this same list.</p>
+    <label>Add supplies, one per line (Name | Category | Order link, the last two are optional)<textarea id="spNew" rows="5" placeholder="Massage oil | Treatment room | https://..."></textarea></label>
+    <div class="err" id="spErr" role="alert"></div><div class="acts"><button data-act="spAdd">Add to list</button></div>
+    <h3 class="sub" style="margin-top:1.25rem">Current list</h3>` + (sp.items.map(x => `<div class="req"><div>${esc(x.name)} <span class="lead">${esc(x.category || 'Other')}</span></div><button class="quiet sm" data-act="spRm" data-id="${x.id}">Remove</button></div>`).join('') || '<p class="lead">Nothing yet.</p>') + '<div class="acts"><button class="quiet" data-act="close">Close</button></div>';
+  if (!$('dlg').open) $('dlg').showModal();
+}
+
+$('spStudio').onchange = e => { sp.studio = e.target.value; drawSupplies(); };
+$('spManage').onclick = spManage;
+$('spBody').onclick = async e => {
+  const b = e.target.closest('[data-sp]'); if (!b) return;
+  const a = b.dataset.sp, iid = b.dataset.i, sid = b.dataset.s || sp.studio, now = new Date().toISOString();
+  const q = a === 'need' ? db.from('supply_requests').upsert({ studio_id: sid, item_id: iid, status: 'needed', qty: (b.previousElementSibling.value || '').trim() || null, requested_by: ME.id, updated_at: now }, { onConflict: 'studio_id,item_id' })
+    : a === 'ordered' ? db.from('supply_requests').update({ status: 'ordered', updated_at: now }).eq('studio_id', sid).eq('item_id', iid)
+    : db.from('supply_requests').delete().eq('studio_id', sid).eq('item_id', iid);
+  const { error } = await q; if (error) { alert('That did not work: ' + error.message); return; }
+  loadSupplies(); suppliesBadge();
+};
+$('dlgBody').addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'), a = b && b.dataset.act;
+  if (a === 'spAdd') {
+    const rows = $('spNew').value.split('\n').map(l => l.split('|').map(x => x.trim())).filter(p => p[0]).map((p, i) => ({ name: p[0], category: p[1] || null, order_url: okUrl(p[2]) ? p[2] : null, sort_order: sp.items.length + i }));
+    if (!rows.length) { $('spErr').textContent = 'Type at least one supply.'; return; }
+    const { error } = await db.from('supply_items').insert(rows);
+    if (error) { $('spErr').textContent = 'Could not save. ' + error.message; return; }
+    $('dlg').close(); loadSupplies();
+  } else if (a === 'spRm') {
+    const { error } = await db.from('supply_items').update({ active: false }).eq('id', b.dataset.id);
+    if (error) { alert(error.message); return; }
+    $('dlg').close(); loadSupplies();
+  }
+});
 
 init();
 </script>
