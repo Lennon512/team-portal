@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root { --bg:#f2f5f4; --panel:#fff; --ink:#1c2b2a; --muted:#5d6f6d; --line:#d3dcda; --accent:#1f6f6b; --danger:#b3261e; }
   * { box-sizing: border-box; }
@@ -318,6 +318,14 @@
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
 
 <script>
+function showFatal(msg) {
+  let b = document.getElementById('fatal');
+  if (!b) { b = document.createElement('div'); b.id = 'fatal'; b.setAttribute('role', 'alert'); b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99;background:#7a1f1a;color:#fff;padding:.75rem 1rem;font:14px system-ui,sans-serif'; document.body.prepend(b); }
+  b.textContent = 'Something went wrong: ' + msg + '. Please screenshot this message and send it to Claude.';
+}
+window.addEventListener('error', e => { if (!window.__stop && e.message && !/ResizeObserver/.test(e.message)) showFatal(e.message); });
+window.addEventListener('unhandledrejection', e => showFatal((e.reason && e.reason.message) || String(e.reason)));
+if (typeof supabase === 'undefined') { showFatal('the sign-in library did not load. Check your internet connection or an ad blocker, then refresh'); window.__stop = true; throw new Error('supabase library missing'); }
 const SUPABASE_URL = 'https://hhjhsjmgywaoubvahbrr.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_YGJo51nSp2xv33-kDbbrNQ_hk8xi6DV';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1348,7 +1356,11 @@ function drawScore() {
 
 function drawChart() {
   const K = KPI.find(x => x.k === PF.kpi), own = ME.role === 'owner';
-  if (typeof Chart === 'undefined') { $('pfNote').textContent = 'The chart library did not load. Check your connection and refresh.'; return; }
+  if (typeof Chart === 'undefined') {
+    if (document.readyState !== 'complete') { $('pfNote').textContent = 'Loading the chart...'; addEventListener('load', () => { if ($('pfChart')) drawChart(); }, { once: true }); }
+    else $('pfNote').textContent = 'The chart library did not load. Check your connection or an ad blocker, then refresh.';
+    return;
+  }
   const all = pfMonths().filter(x => x <= PF.month), ms = PF.range >= 99 ? all : all.slice(-PF.range);
   const ln = (label, data, color, dash) => ({ label, data, borderColor: color, backgroundColor: color, tension: .25, borderDash: dash || [], pointRadius: 2, borderWidth: 2, spanGaps: false });
   const ds = [];
