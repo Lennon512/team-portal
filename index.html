@@ -223,6 +223,15 @@
   .dg .ycol { background:rgba(255,199,44,.14); }
   .dg tr.tod td { background:var(--tint); }
   .dg tr.tot td { font-weight:600; }
+  #reset { min-height:100vh; display:grid; place-items:center; padding:1.5rem; }
+  @media (max-width:700px) {
+    .hrow { flex-wrap:wrap; row-gap:.5rem; }
+    .hrow h1 { font-size:1.1rem; }
+    .who { margin-left:auto; gap:.5rem; }
+    .wtxt { display:none; }
+    .who button { padding:.4rem .75rem; font-size:.9rem; }
+    .dp { font-size:.82rem; } .dp th, .dp td { padding:.3rem .3rem; } .dp input.cellin { width:3.6rem !important; padding:.2rem .2rem; }
+  }
 </style>
 </head>
 <body>
@@ -234,7 +243,20 @@
     <label>Email <input id="email" type="email" autocomplete="username" required></label>
     <label>Password <input id="pw" type="password" autocomplete="current-password" required></label>
     <div id="err" role="alert"></div>
+    <div id="okmsg" role="status" style="color:#7fdc9a;min-height:1.3em;margin:0 0 .75rem;font-size:.9rem"></div>
     <button type="submit">Sign in</button>
+    <p style="margin:1rem 0 0"><a href="#" id="forgot">Forgot your password?</a></p>
+  </form>
+</section>
+
+<section id="reset" hidden>
+  <form class="card" id="resetForm">
+    <h1>New password</h1>
+    <p>Choose a new password for your account.</p>
+    <label>New password <input id="rp1" type="password" autocomplete="new-password" required></label>
+    <label>Confirm password <input id="rp2" type="password" autocomplete="new-password" required></label>
+    <div id="rerr" role="alert" style="color:var(--danger);min-height:1.3em;margin:0 0 .75rem;font-size:.9rem"></div>
+    <button type="submit">Save password</button>
   </form>
 </section>
 
@@ -242,7 +264,7 @@
   <header>
     <div class="hrow">
       <h1>Stretch Zone Austin</h1>
-      <div class="who"><div class="wtxt"><span id="who"></span><small id="meta"></small></div><button class="quiet" id="signout">Sign out</button></div>
+      <div class="who"><div class="wtxt"><span id="who"></span><small id="meta"></small></div><button class="quiet" id="pwBtn">Password</button><button class="quiet" id="signout">Sign out</button></div>
     </div>
     <nav id="topnav"><a href="#home" id="navHome">My page</a><a href="#team" id="navTeam">Team</a><a href="#studio" id="navStudio">Studio</a><a href="#calendar" id="navCal">Calendar</a><a href="#tasks" id="navTasks">Tasks</a><a href="#members" id="navMem">Members</a><a href="#timeoff" id="navOff">Time off</a><a href="#dpr" id="navDpr">DPR</a><a href="#supplies" id="navSup">Supplies</a><a href="#performance" id="navPerf" hidden>Performance</a><a href="#people" id="navPeople" hidden>People</a></nav>
   </header>
@@ -346,7 +368,7 @@
     <h2>Daily production report</h2>
     <div class="bar">
       <select id="dprStudio" aria-label="Studio" hidden></select>
-      <button class="quiet" id="dprPrev" aria-label="Previous month">&lsaquo;</button><b id="dprMonth" style="align-self:center;min-width:9rem;text-align:center"></b><button class="quiet" id="dprNext" aria-label="Next month">&rsaquo;</button>
+      <span style="display:flex;align-items:center;gap:.5rem"><button class="quiet" id="dprPrev" aria-label="Previous month">&lsaquo;</button><b id="dprMonth" style="min-width:9rem;text-align:center"></b><button class="quiet" id="dprNext" aria-label="Next month">&rsaquo;</button></span>
     </div>
     <div id="dprBody"></div>
   </main>
@@ -366,14 +388,18 @@ if (typeof supabase === 'undefined') { showFatal('the sign-in library did not lo
 const SUPABASE_URL = 'https://hhjhsjmgywaoubvahbrr.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_YGJo51nSp2xv33-kDbbrNQ_hk8xi6DV';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let recovering = /type=recovery/.test(location.hash);   // arrived from a password reset email
+db.auth.onAuthStateChange(ev => { if (ev === 'PASSWORD_RECOVERY') { recovering = true; showReset(); } });
+function showReset() { $('login').hidden = true; $('app').hidden = true; $('reset').hidden = false; }
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const TAGS = ['Six studios. One team. Zero stiff necks.','Reach higher today. Then hold it for 30 seconds.','Great teams are flexible. So are we.','Today\u2019s forecast: lots of range of motion.','Stretch your limits, not your lunch break.','Lengthen your day, one member at a time.'];
 let locs = [];
 
 async function init() {
+  if (recovering) { showReset(); return; }
   const { data: { session } } = await db.auth.getSession();
-  if (session) showApp(session.user); else { $('login').hidden = false; $('app').hidden = true; }
+  if (session) showApp(session.user); else { $('login').hidden = false; $('app').hidden = true; if (/error_code=/.test(location.hash)) $('err').textContent = 'That reset link has expired or was already used. Click Forgot your password to get a new one.'; }
 }
 
 $('loginForm').onsubmit = async e => {
@@ -1905,6 +1931,40 @@ $('dprBody').onclick = async e => {
     if (error) { alert(error.message); return; } dpr.note = $('dNote').value.trim(); t.textContent = 'Saved';
   }
 };
+
+// ---------- Passwords ----------
+$('forgot').onclick = async e => {
+  e.preventDefault();
+  const em = $('email').value.trim();
+  if (!em) { $('err').textContent = 'Type your email above first, then click Forgot your password.'; return; }
+  $('err').textContent = ''; $('okmsg').textContent = 'Sending...';
+  const { error } = await db.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname });
+  if (error) { $('okmsg').textContent = ''; $('err').textContent = 'Could not send the reset email. ' + error.message; return; }
+  $('okmsg').textContent = 'If that email has an account, a reset link is on its way. Check your inbox and spam folder.';
+};
+$('resetForm').onsubmit = async e => {
+  e.preventDefault();
+  const a = $('rp1').value, b = $('rp2').value;
+  if (a.length < 8) { $('rerr').textContent = 'Use at least 8 characters.'; return; }
+  if (a !== b) { $('rerr').textContent = 'The two passwords do not match.'; return; }
+  const { error } = await db.auth.updateUser({ password: a });
+  if (error) { $('rerr').textContent = 'Could not save. ' + error.message; return; }
+  recovering = false; $('reset').hidden = true; $('rp1').value = ''; $('rp2').value = ''; history.replaceState(null, '', location.pathname); init();
+};
+$('pwBtn').onclick = () => {
+  $('dlgBody').innerHTML = `<h2>Change my password</h2><label>New password <input id="cp1" type="password" autocomplete="new-password"></label><label>Confirm password <input id="cp2" type="password" autocomplete="new-password"></label>
+    <div class="err" id="cpErr" role="alert"></div><div class="acts"><button data-act="pwSave">Save password</button><button class="quiet" data-act="close">Cancel</button></div>`;
+  $('dlg').showModal();
+};
+$('dlgBody').addEventListener('click', async e => {
+  if (e.target.dataset.act !== 'pwSave') return;
+  const a = $('cp1').value, b = $('cp2').value;
+  if (a.length < 8) { $('cpErr').textContent = 'Use at least 8 characters.'; return; }
+  if (a !== b) { $('cpErr').textContent = 'The two passwords do not match.'; return; }
+  const { error } = await db.auth.updateUser({ password: a });
+  if (error) { $('cpErr').textContent = 'Could not save. ' + error.message; return; }
+  $('dlgBody').innerHTML = '<h2>Password changed</h2><p class="lead">Use your new password next time you sign in.</p><div class="acts"><button data-act="close">Close</button></div>';
+});
 
 init();
 </script>
