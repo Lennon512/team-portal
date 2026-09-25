@@ -241,6 +241,8 @@
   .chip.cel { background:#c58af9; color:#1c1330; }
   .contact { display:flex; flex-wrap:wrap; gap:.4rem 1.25rem; margin:.6rem 0 0; font-size:.9rem; color:var(--muted); }
   .contact a { color:var(--lb); }
+  .shero.sm { aspect-ratio:auto; height:160px; }
+  .back { display:inline-block; margin-bottom:1rem; }
 </style>
 </head>
 <body>
@@ -495,7 +497,7 @@ function route() {
   if (v === 'perf' && ME) loadPerf();
   if (v === 'sup' && ME) loadSupplies();
   if (v === 'dpr' && ME) loadDpr();
-  if (v === 'studio' && ME) loadStudio(location.hash.split('/')[1]);
+  if (v === 'studio' && ME) loadStudio(location.hash.split('/')[1] || null);
 }
 addEventListener('hashchange', route);
 
@@ -1325,21 +1327,38 @@ function drawHome(d) {
 }
 
 // ---------- Studio page ----------
-let sd = { id: null, info: null, photo: null };
+let sd = { id: null, info: null, photo: null, all: null };
 async function loadStudio(idFromHash) {
-  sd.id = idFromHash || ME.location_id || (locs[0] || {}).id;
+  sd.id = idFromHash || null;
+  if (!sd.id) return loadStudioGrid();
   const [i] = await Promise.all([db.from('studio_info').select('*').eq('location_id', sd.id).maybeSingle(), loadPeople()]);
   sd.info = i.data; sd.photo = null;
   if (sd.info && sd.info.photo_path) { const { data } = await db.storage.from('studio-photos').createSignedUrl(sd.info.photo_path, 3600); sd.photo = data && data.signedUrl; }
   drawStudio();
 }
 
+async function loadStudioGrid() {
+  if (!sd.all) {
+    const [i] = await Promise.all([db.from('studio_info').select('*'), loadPeople()]);
+    sd.all = {}; (i.data || []).forEach(x => sd.all[x.location_id] = x);
+    const paths = Object.values(sd.all).map(x => x.photo_path).filter(Boolean);
+    if (paths.length) { const { data } = await db.storage.from('studio-photos').createSignedUrls(paths, 3600); (data || []).forEach(x => { if (x.signedUrl) urls[x.path] = x.signedUrl; }); }
+  }
+  drawStudioGrid();
+}
+
+function drawStudioGrid() {
+  $('studioBody').innerHTML = `<h2 style="margin:0 0 .25rem">Our studios</h2><p class="lead" style="margin:0 0 1rem">Click a studio to see its info, hours, and team.</p>
+    <div class="people">${locs.map(l => { const i = sd.all[l.id] || {}, n = people.filter(p => p.location_id === l.id).length;
+      return `<a class="person" href="#studio/${l.id}"><div class="ph">${urls[i.photo_path] ? `<img src="${esc(urls[i.photo_path])}" alt="">` : '\ud83c\udfe2'}</div><b>${esc(l.name)}</b><span>${esc(i.address || 'No info yet')}</span><span>${n} team member${n === 1 ? '' : 's'}</span></a>`; }).join('')}</div>`;
+}
+
 function drawStudio() {
   const l = locs.find(x => x.id === sd.id) || {}, i = sd.info || {}, can = ME.role === 'owner' || (ME.role === 'manager' && ME.location_id === sd.id);
   const facts = [['Address', i.address && esc(i.address)], ['Phone', i.phone && `<a href="tel:${esc(i.phone)}">${esc(i.phone)}</a>`], ['Email', i.email && `<a href="mailto:${esc(i.email)}">${esc(i.email)}</a>`], ['Hours', i.hours && esc(i.hours).replace(/\n/g, '<br>')]].filter(f => f[1]);
   const team = people.filter(p => p.location_id === sd.id);
-  $('studioBody').innerHTML = `<div class="studios">${locs.map(x => `<a href="#studio/${x.id}" class="${x.id === sd.id ? 'mine' : ''}">${esc(x.name)}</a>`).join('')}</div>
-    <div class="shero">${sd.photo ? `<img src="${esc(sd.photo)}" alt="${esc(l.name)}">` : ''}</div>
+  $('studioBody').innerHTML = `<a class="back" href="#studio">\u2190 All studios</a>
+    <div class="shero${sd.photo ? '' : ' sm'}">${sd.photo ? `<img src="${esc(sd.photo)}" alt="${esc(l.name)}">` : ''}</div>
     <h2 style="margin:1rem 0 .4rem">${esc(l.name)}</h2>
     <p style="white-space:pre-wrap;max-width:70ch">${esc(i.bio || 'No bio yet.')}</p>
     ${facts.length ? '<dl class="facts">' + facts.map(f => `<dt>${f[0]}</dt><dd>${f[1]}</dd>`).join('') + '</dl>' : ''}
@@ -1387,7 +1406,7 @@ async function stSave() {
   $('dlg').close(); loadStudio(sd.id);
 }
 
-$('studioBody').onclick = e => { const b = e.target.closest('.person'); if (b) openCard(b.dataset.id); else if (e.target.id === 'stEdit') stForm(); };
+$('studioBody').onclick = e => { const b = e.target.closest('.person'); if (b && b.dataset.id) { e.preventDefault(); openCard(b.dataset.id); } else if (e.target.id === 'stEdit') stForm(); };
 $('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'stSave') stSave(); });
 
 // ---------- Performance ----------
