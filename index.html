@@ -246,6 +246,10 @@
   .contact a { color:var(--lb); }
   .shero.sm { aspect-ratio:auto; height:160px; }
   .back { display:inline-block; margin-bottom:1rem; }
+  .netbar { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin:0 0 .75rem; }
+  .netbar input[type=search] { max-width:280px; }
+  .mt tr.yours { background:rgba(255,199,44,.12); }
+  .mt tr.yours td:first-child { font-weight:600; }
 </style>
 </head>
 <body>
@@ -310,7 +314,7 @@
   </main>
   <main id="calView" hidden>
     <h2>Calendar</h2>
-    <div class="tabs" id="calTabs"><button data-t="all">All Austin</button><button data-t="austin">Austin events</button><button data-t="studio">Studio events</button><button data-t="off">Time off</button><button data-t="cel">Celebrations</button></div>
+    <div class="tabs" id="calTabs"><button data-t="all">All Austin</button><button data-t="events">Events</button><button data-t="off">Time off</button><button data-t="cel">Celebrations</button></div>
     <div class="bar">
       <button class="quiet" id="calToday">Today</button><button class="quiet" id="prevM" aria-label="Previous month">&lsaquo;</button>
       <b id="monthLbl"></b>
@@ -365,7 +369,7 @@
   </main>
   <main id="perfView" hidden>
     <h2>Performance</h2>
-    <div class="tabs" id="pfTabs"><button data-t="score">Scorecard</button><button data-t="master">Master card</button></div>
+    <div class="tabs" id="pfTabs"><button data-t="score">Austin scorecard</button><button data-t="master">All Stretch Zone Mastercard</button></div>
     <div class="bar">
       <select id="pfStudio" aria-label="Studio"></select>
       <select id="pfMonth" aria-label="Month"></select>
@@ -620,25 +624,26 @@ function celItems(d, sf) {
 
 function dayItems(d) {
   const inE = x => d >= x.event_date && d <= (x.ends_on || x.event_date), sf = x => !calStudio || x.location_id === calStudio;
-  const ev = x => ({ t: (x.time_label ? x.time_label + ' ' : '') + (calTab === 'all' && x.location_id ? studio(x.location_id) + ': ' : '') + x.title, id: x.id, k: x.location_id ? 'es' : 'ea' });
+  const ev = x => ({ t: (x.time_label ? x.time_label + ' ' : '') + ((calTab === 'all' || calTab === 'events') && x.location_id ? studio(x.location_id) + ': ' : '') + x.title, id: x.id, k: x.location_id ? 'es' : 'ea' });
   const of = o => ({ t: o.full_name + ' out' + (o.status === 'pending' ? ' (pending)' : ''), off: 1, pend: o.status === 'pending', oid: o.id });
   if (calTab === 'cel') return celItems(d, sf);
   const out = offs.filter(o => d >= o.start_date && d <= o.end_date && sf(o)).map(of);
   if (calTab === 'off') return out;
   if (calTab === 'all') return events.filter(x => inE(x) && (!x.location_id || sf(x))).map(ev).concat(out).concat(celItems(d, sf));
-  return events.filter(x => inE(x) && (calTab === 'austin' ? !x.location_id : x.location_id && sf(x))).map(ev);
+  if (calTab === 'events') return events.filter(x => inE(x) && (!x.location_id || sf(x))).map(ev);
+  return [];
 }
 
 function drawCal() {
   const y = calMonth.getFullYear(), m = calMonth.getMonth(), today = ymd(new Date());
   $('monthLbl').textContent = calMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' });
   document.querySelectorAll('#calTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === calTab));
-  $('calStudio').hidden = calTab === 'austin';
+  $('calStudio').hidden = false;
   $('calStudio').innerHTML = '<option value="">All studios</option>' + locs.map(x => `<option value="${x.id}" ${x.id === calStudio ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
-  const canAdd = calTab === 'cel' ? false : calTab === 'austin' ? ME.role === 'owner' : calTab === 'off' ? true : ME.role !== 'staff';
+  const canAdd = calTab === 'cel' ? false : calTab === 'off' ? true : ME.role !== 'staff';
   $('calAdd').hidden = !canAdd;
   $('calLegend').hidden = calTab !== 'all';
-  $('calAdd').textContent = { all: 'Add event', austin: 'Add Austin event', studio: 'Add studio event', off: 'Request time off', cel: '' }[calTab];
+  $('calAdd').textContent = { all: 'Add event', events: 'Add event', off: 'Request time off', cel: '' }[calTab];
   $('calNote').textContent = calTab === 'cel' ? 'Pulled automatically from each person\u2019s Birthday and Start date on their team card.' : '';
   const start = new Date(y, m, 1 - new Date(y, m, 1).getDay());
   let h = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x => `<div class="dow">${x}</div>`).join('');
@@ -663,7 +668,7 @@ function showEv(id) {
 
 function eventForm(ev) {
   ev = ev || {};
-  const loc = ev.id ? ev.location_id : ((calTab === 'austin' || (calTab === 'all' && !calStudio && ME.role === 'owner')) ? '' : (calStudio || ME.location_id));
+  const loc = ev.id ? ev.location_id : ((!calStudio && ME.role === 'owner') ? '' : (calStudio || ME.location_id));
   $('dlgBody').innerHTML = `<h2>${ev.id ? 'Edit event' : 'New event'}</h2>
     <label>Title <input id="eT" maxlength="100" value="${esc(ev.title)}"></label>
     <label>Date <input id="eD" type="date" value="${esc(ev.event_date)}"></label>
@@ -737,10 +742,7 @@ $('calToday').onclick = () => { calMonth = new Date(); calMonth.setDate(1); draw
 async function showCel(id) { if (!people.length) await loadPeople(); openCard(id); }
 function quickAdd(day) {
   if (calTab === 'off') { location.hash = '#timeoff'; return; }
-  if (calTab === 'cel') return;
-  const own = ME.role === 'owner';
-  const canAdd = calTab === 'austin' ? own : ME.role !== 'staff';
-  if (!canAdd) return;
+  if (calTab === 'cel' || ME.role === 'staff') return;
   eventForm({ event_date: day });
 }
 $('cal').onclick = e => { const b = e.target.closest('[data-ev]'), o = e.target.closest('[data-off]'), c = e.target.closest('[data-cel]'); if (b) showEv(b.dataset.ev); else if (o) showOff(o.dataset.off); else if (c) showCel(c.dataset.cel); else { const cell = e.target.closest('[data-day]'); if (cell) quickAdd(cell.dataset.day); } };
@@ -1452,7 +1454,7 @@ const CORP = [['revenue', 'Revenue', 'usd'], ['eft', 'EFT collected', 'usd'], ['
 const RAW = [['gross_revenue', 'Gross revenue ($)'], ['draft', 'Draft ($)'], ['refunds', 'Refunds ($)'], ['leads', 'Leads'], ['scheduled', 'Demos scheduled'], ['demos', 'Demos completed'], ['agreements', 'Agreements'],
   ['cash_sales', 'Cash sales ($)'], ['eft_sales', 'EFT sales ($)'], ['avg_eft', 'Average EFT ($)'], ['staff_util', 'Staff utilization'], ['calls_per_day', 'Calls per day'], ['cancellations', 'Cancellations'], ['active_members', 'Active members']];
 const COLORS = ['#ffc72c', '#8ec9f0', '#f28b82', '#81c995', '#c58af9', '#ff8bcb'];
-const PF = { rows: [], net: {}, corp: {}, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null };
+const PF = { rows: [], net: {}, corp: {}, netAll: {}, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '' };
 
 const fv = (x, f) => x === null || x === undefined || isNaN(x) ? '-' : f === 'usd' ? '$' + Math.round(x).toLocaleString() : f === 'usd2' ? '$' + x.toFixed(2) : f === 'pct' ? (x * 100).toFixed(0) + '%' : f === 'dec' ? x.toFixed(1) : Math.round(x).toLocaleString();
 const mAdd = (m, n) => { const d = new Date(m + 'T00:00'); d.setMonth(d.getMonth() + n); return ymd(d); };
@@ -1488,7 +1490,7 @@ async function loadPerf() {
 function drawPerf() {
   document.querySelectorAll('#pfTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === PF.tab));
   $('pfStudio').hidden = PF.tab !== 'score' || ME.role !== 'owner'; $('pfRange').hidden = PF.tab !== 'score';
-  if (PF.tab === 'score') drawScore(); else drawMaster();
+  if (PF.tab === 'score') drawScore(); else loadMaster();
 }
 
 function drawScore() {
@@ -1531,19 +1533,38 @@ function drawChart() {
     scales: { x: { ticks: { color: '#9fb8d4' }, grid: { color: 'rgba(42,82,127,.5)' } }, y: { ticks: { color: '#9fb8d4', callback: v => fv(v, K.f) }, grid: { color: 'rgba(42,82,127,.5)' } } } } });
 }
 
-function drawMaster() {
-  const m = PF.month, sts = locs.filter(l => PF.rows.some(r => r.studio_id === l.id));
-  const best = (vals, dir) => { const v = vals.filter(x => x !== null); return v.length < 2 || Math.max(...v) === Math.min(...v) ? null : dir < 0 ? Math.min(...v) : Math.max(...v); };
-  const netv = (k, f) => PF.net[m] && PF.net[m][k] !== undefined ? fv(PF.net[m][k], f) : '-';
-  const a = KPI.map(K => { const vals = sts.map(s => pfVal(pfRows(m, s.id), K)), b = best(vals, K.dir || 1);
-    return `<tr><td class="kn2">${K.n}${K.s ? `<small>${K.s}</small>` : ''}</td>${vals.map(v => `<td class="${v !== null && v === b ? 'best' : ''}">${fv(v, K.f)}</td>`).join('')}<td><b>${fv(pfVal(pfRows(m), K), K.f)}</b></td><td>${fv(pfVal(pfRows(m), K, true), K.f)}</td><td>${K.corp ? netv(K.corp, K.f) : '-'}</td></tr>`; }).join('');
-  const hasCorp = sts.some(s => PF.corp[s.id] && PF.corp[s.id][m]);
-  const c = CORP.map(([k, n, f]) => `<tr><td>${n}</td>${sts.map(s => { const x = ((PF.corp[s.id] || {})[m] || {})[k]; return `<td>${x ? fv(x.value, f) + (x.rank ? `<small style="color:var(--muted)"> #${x.rank}/${x.of_total}</small>` : '') : '-'}</td>`; }).join('')}<td>${netv(k, f)}</td></tr>`).join('');
-  $('pfBody').innerHTML = `<h3 class="sub" style="margin-top:.5rem">Your KPIs \u2022 ${mLbl(m, 1)}</h3><p class="lead" style="margin:0 0 .75rem">Yellow marks the best studio for each KPI. Austin total adds the studios up. The last two columns are per studio, so you can compare against the network.</p>
-    <div class="table-wrap"><table class="mt"><thead><tr><th>KPI</th>${sts.map(s => `<th>${esc(s.name)}</th>`).join('')}<th>Austin total</th><th>Austin avg per studio</th><th>Stretch Zone avg per studio</th></tr></thead><tbody>${a}</tbody></table></div>
-    <h3 class="sub" style="margin-top:2rem">Corporate scorecard \u2022 ${mLbl(m, 1)}</h3>` + (hasCorp ? `<p class="lead" style="margin:0 0 .75rem">Corporate's own numbers and definitions, with each studio's rank in the network.</p>
-    <div class="table-wrap"><table class="mt"><thead><tr><th>Corporate KPI</th>${sts.map(s => `<th>${esc(s.name)}</th>`).join('')}<th>Stretch Zone avg</th></tr></thead><tbody>${c}</tbody></table></div>` : '<p class="lead">No corporate scorecard loaded for this month.</p>');
+function fmtNet(v, f) {
+  return v === null || v === undefined || v === '' || isNaN(v) ? '-' : f === 'usd' ? '$' + Math.round(v).toLocaleString() : f === 'usd2' ? '$' + (+v).toFixed(2) : f === 'pct' ? (+v * 100).toFixed(0) + '%' : f === 'dec' ? (+v).toFixed(1) : Math.round(v).toLocaleString();
 }
+
+async function loadMaster() {
+  if (ME.role !== 'owner') { $('pfBody').innerHTML = '<p class="lead">Only the owner can see the full Stretch Zone network.</p>'; return; }
+  if (!PF.netAll[PF.month]) {
+    $('pfBody').innerHTML = '<p class="lead">Loading the network...</p>';
+    const { data, error } = await db.from('kpi_network_all').select('*').eq('month', PF.month).limit(1000);
+    if (error) { $('pfBody').innerHTML = '<p class="lead">Could not load the network. ' + esc(error.message) + '</p>'; return; }
+    PF.netAll[PF.month] = data || [];
+  }
+  drawMaster();
+}
+
+function drawMaster() {
+  const rows = PF.netAll[PF.month] || [];
+  if (!rows.length) { $('pfBody').innerHTML = '<p class="lead">No network-wide scorecard loaded for ' + esc(mLbl(PF.month, 1)) + ' yet. Use Update data \u2192 Upload corporate scorecard.</p>'; return; }
+  const yours = new Set(locs.map(l => l.club_store_id).filter(Boolean));
+  const q = PF.mFind.trim().toLowerCase();
+  const filtered = rows.filter(r => !q || (r.name || '').toLowerCase().includes(q) || (r.franchise || '').toLowerCase().includes(q) || (r.tier || '').toLowerCase().includes(q));
+  const [sortTab, sortKey] = PF.mSort.split('->');
+  const sortVal = r => sortTab === 'kpis' ? r.kpis[sortKey] : r[sortKey];
+  filtered.sort((a, b) => { const av = sortVal(a), bv = sortVal(b); const an = av === null || av === undefined, bn = bv === null || bv === undefined; if (an && bn) return 0; if (an) return 1; if (bn) return -1; const cmp = av < bv ? -1 : av > bv ? 1 : 0; return PF.mDir * cmp; });
+  const th = (key, label) => `<th data-sort="${key}" class="${PF.mSort === key ? 'on' : ''}" title="Sort by ${label}">${label}${PF.mSort === key ? (PF.mDir < 0 ? ' \u25BE' : ' \u25B4') : ''}</th>`;
+  const body = filtered.map(r => `<tr class="${yours.has(r.store) ? 'yours' : ''}" style="cursor:default"><td>${esc(r.name || r.store)}</td><td>${esc(r.franchise || '')}</td><td>${esc(r.tier || '')}</td>` +
+    CORP.map(([k, , f]) => `<td>${fmtNet(r.kpis[k], f)}</td>`).join('') + '</tr>').join('');
+  $('pfBody').innerHTML = `<p class="lead" style="margin:0 0 .75rem">Every Stretch Zone location from the corporate scorecard for ${esc(mLbl(PF.month, 1))} \u2014 <b>${filtered.length}</b> of ${rows.length} locations${q ? ' matching your search' : ''}. Your six studios are highlighted. Click a column heading to sort.</p>
+    <div class="netbar"><input type="search" id="mFindBox" placeholder="Search by name, franchise, or tier" value="${esc(PF.mFind)}"></div>
+    <div class="table-wrap"><table class="mt"><thead><tr>${th('row->name', 'Location')}${th('row->franchise', 'Franchise')}${th('row->tier', 'Tier')}${CORP.map(([k, n]) => th('kpis->' + k, n)).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
 
 function pfForm(sid, month) {
   sid = sid || PF.studio || (locs[0] || {}).id; month = month || mAdd(todayStr().slice(0, 7) + '-01', -1);
@@ -1569,7 +1590,13 @@ $('pfStudio').onchange = e => { PF.studio = e.target.value; drawPerf(); };
 $('pfMonth').onchange = e => { PF.month = e.target.value; drawPerf(); };
 $('pfRange').onchange = e => { PF.range = +e.target.value; if (PF.tab === 'score') drawChart(); };
 $('pfData').onclick = pfMenu;
-$('pfBody').onclick = e => { const b = e.target.closest('.kt'); if (!b) return; PF.kpi = b.dataset.k; document.querySelectorAll('.kt').forEach(x => x.classList.toggle('on', x === b)); drawChart(); $('pfChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+$('pfBody').onclick = e => {
+  const kt = e.target.closest('.kt');
+  if (kt) { PF.kpi = kt.dataset.k; document.querySelectorAll('.kt').forEach(x => x.classList.toggle('on', x === kt)); drawChart(); $('pfChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  const th = e.target.closest('th[data-sort]');
+  if (th) { const key = th.dataset.sort; PF.mDir = PF.mSort === key ? -PF.mDir : -1; PF.mSort = key; drawMaster(); }
+};
+$('pfBody').oninput = e => { if (e.target.id === 'mFindBox') { PF.mFind = e.target.value; drawMaster(); } };
 $('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'pfSave') pfSave(); });
 $('dlgBody').addEventListener('change', e => { if (e.target.id === 'pStudio' || e.target.id === 'pMonth') { const m = $('pMonth').value; if (m) pfForm($('pStudio').value, m + '-01'); } });
 
@@ -1585,15 +1612,20 @@ const grid = ws => XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: 
 const serialMonth = v => { if (typeof v !== 'number' || v < 40000) return null; const d = new Date(Date.UTC(1899, 11, 30) + v * DAY); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-01`; };
 
 function parseCorp(wb) {
-  const out = { corp: [], net: [], months: [], studios: new Set() };
+  const out = { corp: [], net: [], months: [], studios: new Set(), allRows: [] };
   for (const sn of wb.SheetNames) {
     const mm = sn.trim().match(/^([A-Za-z]{3})[a-z]*[- ](\d{2})$/); if (!mm || !MON[mm[1]]) continue;
     const g = grid(wb.Sheets[sn]), hi = g.findIndex((r, i) => i < 15 && r.includes('Franchise') && r.includes('Location') && r.includes('Revenue')); if (hi < 0) continue;
-    const month = `20${mm[2]}-${pad2(MON[mm[1]])}-01`, cols = {}, li = g[hi].indexOf('Location');
+    const month = `20${mm[2]}-${pad2(MON[mm[1]])}-01`, cols = {}, li = g[hi].indexOf('Location'), fi = g[hi].indexOf('Franchise'), ti = g[hi].indexOf('Tier');
     g[hi].forEach((h, i) => { const k = CLAB[h] || (String(h).startsWith('Contacts per') ? 'contacts' : null); if (k) cols[k] = i; });
     const data = g.slice(hi + 1).filter(r => r[li] && /\(\d+\)\s*$/.test(String(r[li])));
     if (!data.length) continue;
     out.months.push(month);
+    data.forEach(r => {
+      const store = (String(r[li]).match(/\(([0-9]+)\)\s*$/) || [])[1]; if (!store) return;
+      const kpis = {}; Object.entries(cols).forEach(([k, ci]) => { const v = r[ci]; if (typeof v === 'number') kpis[k] = v; });
+      out.allRows.push({ month, store, name: String(r[li]).replace(/\s*\(\d+\)\s*$/, '').trim(), franchise: fi >= 0 ? String(r[fi] || '').trim() || null : null, tier: ti >= 0 ? String(r[ti] || '').trim() || null : null, kpis });
+    });
     Object.entries(cols).forEach(([k, ci]) => {
       const pool = data.map(r => r[ci]).filter(v => typeof v === 'number' && (v !== 0 || k === 'nmg'));
       data.forEach(r => {
@@ -1685,7 +1717,8 @@ function pfCorpForm() {
       const wb = await readBook(f, n => /^[A-Za-z]{3}[a-z]*[- ]\d{2}$/.test(n.trim()) || n.trim() === 'Charting');
       const r = PF.pend = parseCorp(wb);
       if (!r.corp.length) return upMsg('', 'I could not find your studios. Check that this is the Stretch Zone monthly scorecard, and that all six studios have their store numbers set.');
-      upMsg(`<p>Months found: <b>${r.months.map(m => mLbl(m)).join(', ')}</b></p><p>Your studios found: <b>${r.studios.size} of ${locs.length}</b> \u2022 ${r.corp.length} numbers with network ranks</p><p>Network averages: <b>${new Set(r.net.map(x => x.month)).size} months</b> \u2022 ${r.net.length} numbers</p>`);
+      const n = new Set(r.allRows.map(x => x.store)).size;
+      upMsg(`<p>Months found: <b>${r.months.map(m => mLbl(m)).join(', ')}</b></p><p>Your studios found: <b>${r.studios.size} of ${locs.length}</b> \u2022 ${r.corp.length} numbers with network ranks</p><p>Network averages: <b>${new Set(r.net.map(x => x.month)).size} months</b> \u2022 ${r.net.length} numbers</p><p>All Stretch Zone locations: <b>${n}</b>, for the All Stretch Zone Mastercard</p>`);
     } catch (e) { upMsg('', 'That file could not be read. ' + (e.message || '')); }
   };
 }
@@ -1709,9 +1742,9 @@ function pfMineForm() {
 async function pfUpSave(kind) {
   const up = async (table, rows, conflict) => { for (let i = 0; i < rows.length; i += 400) { const { error } = await db.from(table).upsert(rows.slice(i, i + 400), { onConflict: conflict }); if (error) return error; } };
   $('upGo').disabled = true; $('upGo').textContent = 'Saving...';
-  const err = kind === 'corp' ? (await up('kpi_corp_studio', PF.pend.corp, 'studio_id,month,kpi')) || (await up('kpi_network', PF.pend.net, 'month,kpi')) : await up('kpi_monthly', PF.pend, 'studio_id,month');
+  const err = kind === 'corp' ? (await up('kpi_corp_studio', PF.pend.corp, 'studio_id,month,kpi')) || (await up('kpi_network', PF.pend.net, 'month,kpi')) || (await up('kpi_network_all', PF.pend.allRows, 'month,store')) : await up('kpi_monthly', PF.pend, 'studio_id,month');
   if (err) { $('pErr').textContent = 'Could not save. ' + err.message; $('upGo').disabled = false; $('upGo').textContent = 'Save'; return; }
-  $('dlg').close(); loadPerf();
+  $('dlg').close(); PF.netAll = {}; loadPerf();
 }
 
 $('dlgBody').addEventListener('click', e => { const a = e.target.dataset.act; if (a === 'cFileSave') pfUpSave('corp'); else if (a === 'mFileSave') pfUpSave('mine'); });
