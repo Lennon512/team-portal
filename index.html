@@ -238,6 +238,9 @@
   .hsplit > div:first-child { border-right:1px solid var(--line); padding-right:1rem; }
   @media (max-width:640px) { .hsplit { grid-template-columns:1fr; } .hsplit > div:first-child { border-right:0; border-bottom:1px solid var(--line); padding-right:0; padding-bottom:.75rem; } }
   .pill.ok { background:#2f6b45; color:#dff5e6; }
+  .chip.cel { background:#c58af9; color:#1c1330; }
+  .contact { display:flex; flex-wrap:wrap; gap:.4rem 1.25rem; margin:.6rem 0 0; font-size:.9rem; color:var(--muted); }
+  .contact a { color:var(--lb); }
 </style>
 </head>
 <body>
@@ -302,7 +305,7 @@
   </main>
   <main id="calView" hidden>
     <h2>Calendar</h2>
-    <div class="tabs" id="calTabs"><button data-t="all">All Austin</button><button data-t="austin">Austin events</button><button data-t="studio">Studio events</button><button data-t="off">Time off</button></div>
+    <div class="tabs" id="calTabs"><button data-t="all">All Austin</button><button data-t="austin">Austin events</button><button data-t="studio">Studio events</button><button data-t="off">Time off</button><button data-t="cel">Celebrations</button></div>
     <div class="bar">
       <button class="quiet" id="prevM" aria-label="Previous month">&lsaquo;</button>
       <b id="monthLbl"></b>
@@ -310,6 +313,7 @@
       <select id="calStudio" aria-label="Studio" hidden></select>
       <button id="calAdd"></button>
     </div>
+    <p class="lead" id="calNote" style="margin:0 0 .5rem"></p>
     <div class="cal-wrap"><div class="cal" id="cal"></div></div>
     <p class="legend" id="calLegend"><span><i class="sw ea"></i>Austin event</span><span><i class="sw es"></i>Studio event</span><span><i class="sw off"></i>Time off</span><span><i class="sw pend"></i>Time off, pending</span></p>
     <div id="offPanel" hidden></div>
@@ -527,15 +531,23 @@ function openCard(id, edit) {
   cur = id;
   const canEdit = ME && (ME.id === id || ME.role === 'owner');
   const sub = `<p class="lead" style="margin:.25rem 0 1rem">${esc([p.job_title, studio(p.location_id)].filter(Boolean).join(' \u2022 '))}</p>`;
+  const yrs = d => { const a = new Date(d + 'T00:00'), b = new Date(); let y = b.getFullYear() - a.getFullYear(); if (b.getMonth() < a.getMonth() || (b.getMonth() === a.getMonth() && b.getDate() < a.getDate())) y--; return y; };
+  const bday = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  const contact = [p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : '', p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : '',
+    p.birthday ? 'Birthday ' + bday(p.birthday) : '', p.start_date ? `Here since ${fmt(p.start_date)}${yrs(p.start_date) > 0 ? ' (' + yrs(p.start_date) + ' yr' + (yrs(p.start_date) === 1 ? '' : 's') + ')' : ''}` : ''].filter(Boolean);
   $('dlgBody').innerHTML = edit
     ? `<h2>${esc(p.full_name)}</h2>${sub}
        <label>Photo <input type="file" id="fPhoto" accept="image/*"></label>
        <label>Job title <input id="fTitle" value="${esc(p.job_title)}" maxlength="80"></label>
+       <div class="grid2"><label>Phone <input id="fPhone" type="tel" value="${esc(p.phone)}" maxlength="30"></label>
+       <label>Birthday <input id="fBday" type="date" value="${esc(p.birthday)}"></label>
+       <label>Start date <input id="fStart" type="date" value="${esc(p.start_date)}"></label></div>
        <label>Bio <textarea id="fBio" maxlength="1000" placeholder="Where you're from, what you love about stretching, a fun fact...">${esc(p.bio)}</textarea></label>
        <div id="fErr" role="alert" style="color:var(--danger)"></div>
        <div class="acts"><button id="fSave">Save</button><button class="quiet" id="fCancel">Cancel</button></div>`
     : `<div class="ph">${photo(p)}</div><h2>${esc(p.full_name)}</h2>${sub}
-       <p style="white-space:pre-wrap">${esc(p.bio || 'No bio yet.')}</p>
+       ${contact.length ? `<div class="contact">${contact.join('<span>\u2022</span>')}</div>` : ''}
+       <p style="white-space:pre-wrap;margin-top:.75rem">${esc(p.bio || 'No bio yet.')}</p>
        <div class="acts">${canEdit ? '<button id="fEdit">Edit</button>' : ''}${(ME.id === id || ME.role === 'owner' || (ME.role === 'manager' && p.location_id === ME.location_id)) ? `<button class="quiet" data-tasks="${id}">View tasks</button>` : ''}<button class="quiet" id="fClose">Close</button></div>`;
   if (!$('dlg').open) $('dlg').showModal();
 }
@@ -570,7 +582,7 @@ $('dlgBody').onclick = async e => {
         const { error } = await db.storage.from('team-photos').upload(path, blob, { contentType: 'image/jpeg' });
         if (error) throw error;
       }
-      const { error } = await db.rpc('update_profile_card', { p_id: cur, p_title: $('fTitle').value, p_bio: $('fBio').value, p_photo_path: path });
+      const { error } = await db.rpc('update_profile_card', { p_id: cur, p_title: $('fTitle').value, p_phone: $('fPhone').value, p_birthday: $('fBday').value || null, p_start_date: $('fStart').value || null, p_bio: $('fBio').value, p_photo_path: path });
       if (error) throw error;
       await loadPeople(); openCard(cur);
     } catch (err) { $('fErr').textContent = 'Could not save. ' + (err.message || ''); $('fSave').disabled = false; }
@@ -578,7 +590,7 @@ $('dlgBody').onclick = async e => {
 };
 
 // ---------- Calendar ----------
-let calTab = 'all', calMonth = new Date(), calStudio = null, events = [], offs = [];
+let calTab = 'all', calMonth = new Date(), calStudio = null, events = [], offs = [], roster = [];
 calMonth.setDate(1);
 const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const fmt = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -586,8 +598,8 @@ const canEdit = ev => ME.role === 'owner' || (ME.role === 'manager' && ev.locati
 
 async function loadCal() {
   if (calStudio === null) calStudio = calTab === 'all' ? '' : (ME.location_id || '');
-  const [e, o] = await Promise.all([db.from('events').select('*').order('event_date'), db.from('time_off_calendar').select('*')]);
-  events = e.data || []; offs = o.data || [];
+  const [e, o, r] = await Promise.all([db.from('events').select('*').order('event_date'), db.from('time_off_calendar').select('*'), db.from('team_directory').select('id,full_name,location_id,birthday,start_date')]);
+  events = e.data || []; offs = o.data || []; roster = r.data || [];
   drawCal();
 }
 
@@ -595,6 +607,15 @@ function dayItems(d) {
   const inE = x => d >= x.event_date && d <= (x.ends_on || x.event_date), sf = x => !calStudio || x.location_id === calStudio;
   const ev = x => ({ t: (x.time_label ? x.time_label + ' ' : '') + (calTab === 'all' && x.location_id ? studio(x.location_id) + ': ' : '') + x.title, id: x.id, k: x.location_id ? 'es' : 'ea' });
   const of = o => ({ t: o.full_name + ' out' + (o.status === 'pending' ? ' (pending)' : ''), off: 1, pend: o.status === 'pending', oid: o.id });
+  if (calTab === 'cel') {
+    const md = d.slice(5), first = n => n.split(' ')[0];
+    return roster.filter(sf).flatMap(p => {
+      const out = [];
+      if (p.birthday && p.birthday.slice(5) === md) out.push({ t: first(p.full_name) + '\u2019s birthday', cel: 1 });
+      if (p.start_date && p.start_date.slice(5) === md) { const y = +d.slice(0, 4) - +p.start_date.slice(0, 4); if (y > 0) out.push({ t: first(p.full_name) + '\u2019s ' + y + '-year anniversary', cel: 1 }); }
+      return out;
+    });
+  }
   const out = offs.filter(o => d >= o.start_date && d <= o.end_date && sf(o)).map(of);
   if (calTab === 'off') return out;
   if (calTab === 'all') return events.filter(x => inE(x) && (!x.location_id || sf(x))).map(ev).concat(out);
@@ -607,9 +628,10 @@ function drawCal() {
   document.querySelectorAll('#calTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === calTab));
   $('calStudio').hidden = calTab === 'austin';
   $('calStudio').innerHTML = '<option value="">All studios</option>' + locs.map(x => `<option value="${x.id}" ${x.id === calStudio ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
-  $('calAdd').hidden = calTab === 'austin' ? ME.role !== 'owner' : calTab === 'off' ? false : ME.role === 'staff';
+  $('calAdd').hidden = calTab === 'cel' ? true : calTab === 'austin' ? ME.role !== 'owner' : calTab === 'off' ? false : ME.role === 'staff';
   $('calLegend').hidden = calTab !== 'all';
-  $('calAdd').textContent = { all: 'Add event', austin: 'Add Austin event', studio: 'Add studio event', off: 'Request time off' }[calTab];
+  $('calAdd').textContent = { all: 'Add event', austin: 'Add Austin event', studio: 'Add studio event', off: 'Request time off', cel: '' }[calTab];
+  $('calNote').textContent = calTab === 'cel' ? 'Pulled automatically from each person\u2019s Birthday and Start date on their team card.' : '';
   const start = new Date(y, m, 1 - new Date(y, m, 1).getDay());
   let h = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x => `<div class="dow">${x}</div>`).join('');
   for (let i = 0; i < 42; i++) {
@@ -617,7 +639,7 @@ function drawCal() {
     if (i === 35 && d.getMonth() !== m) break;
     const k = ymd(d);
     h += `<div class="${d.getMonth() !== m ? 'out' : ''} ${k === today ? 'today' : ''}"><span>${d.getDate()}</span>` +
-      dayItems(k).map(x => `<button class="chip ${x.k || ''} ${x.off ? 'off' : ''} ${x.pend ? 'pend' : ''}" ${x.id ? `data-ev="${x.id}"` : ''} ${x.oid ? `data-off="${x.oid}"` : ''}>${esc(x.t)}</button>`).join('') + '</div>';
+      dayItems(k).map(x => `<button class="chip ${x.k || ''} ${x.off ? 'off' : ''} ${x.pend ? 'pend' : ''} ${x.cel ? 'cel' : ''}" ${x.id ? `data-ev="${x.id}"` : ''} ${x.oid ? `data-off="${x.oid}"` : ''}>${esc(x.t)}</button>`).join('') + '</div>';
   }
   $('cal').innerHTML = h;
 }
