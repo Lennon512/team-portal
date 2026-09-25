@@ -232,6 +232,12 @@
     .who button { padding:.4rem .75rem; font-size:.9rem; }
     .dp { font-size:.82rem; } .dp th, .dp td { padding:.3rem .3rem; } .dp input.cellin { width:3.6rem !important; padding:.2rem .2rem; }
   }
+  .hero-in { position:relative; z-index:1; }
+  .hgrid.status .hcard { background:transparent; }
+  .hsplit { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:.6rem; }
+  .hsplit > div:first-child { border-right:1px solid var(--line); padding-right:1rem; }
+  @media (max-width:640px) { .hsplit { grid-template-columns:1fr; } .hsplit > div:first-child { border-right:0; border-bottom:1px solid var(--line); padding-right:0; padding-bottom:.75rem; } }
+  .pill.ok { background:#2f6b45; color:#dff5e6; }
 </style>
 </head>
 <body>
@@ -279,8 +285,9 @@
   </section>
   <main>
     <p class="lead" id="note" hidden></p>
-    <div class="hgrid" id="myCards"></div>
-    <div class="callout">👋 Our mission is to deliver world class member experiences, change lives through practitioner assisted stretching, and build the strongest Stretch Zone market in the country!</div>
+    <div class="hgrid" id="alertCards"></div>
+    <div class="hgrid status" id="myCards"></div>
+    <div class="callout" style="max-width:70ch">👋 Our mission is to deliver world class member experiences, change lives through practitioner assisted stretching, and build the strongest Stretch Zone market in the country!</div>
 
   </main>
   </div>
@@ -1265,8 +1272,8 @@ async function loadHome() {
 function drawHome(d) {
   const T = d.t, tp = T && T.assigned ? Math.round(100 * T.done_today / T.assigned) : 0, mp = T && T.assigned ? mtd(T.done_month, T.done_today, T.assigned, true, d.day) : null;
   const rng = r => fmt(r.start_date) + (r.end_date !== r.start_date ? ' \u2013 ' + fmt(r.end_date) : '');
-  const evs = d.ev.filter(e => !e.location_id || !ME.location_id || e.location_id === ME.location_id).slice(0, 5);
-  const out = d.offs.filter(o => o.user_id !== ME.id && (!ME.location_id || o.location_id === ME.location_id)).slice(0, 6);
+  const evs = d.ev.filter(e => !e.location_id || !ME.location_id || e.location_id === ME.location_id).slice(0, 4);
+  const out = d.offs.filter(o => o.user_id !== ME.id && (!ME.location_id || o.location_id === ME.location_id)).slice(0, 5);
   const card = (title, body, link, cls) => `<div class="hcard ${cls || ''}"><h3>${title}</h3>${body}${link ? `<p style="margin-top:.75rem"><a href="${link[0]}">${link[1]}</a></p>` : ''}</div>`;
   const none = t => `<p class="lead" style="margin:0">${t}</p>`;
   const needs = (d.sup || []).filter(r => r.status === 'needed'), ord = (d.sup || []).filter(r => r.status === 'ordered');
@@ -1284,11 +1291,14 @@ function drawHome(d) {
     const stale = Object.entries(last).map(([sid, day]) => ({ sid, day, n: Math.floor((new Date(todayStr() + 'T00:00') - new Date(day + 'T00:00')) / DAY) })).filter(x => x.n >= 2 && (ME.role === 'owner' || x.sid === ME.location_id));
     if (stale.length) dprCard = card('DPR not entered', stale.map(x => `<p><b>${esc(studio(x.sid))}</b> <span style="color:var(--muted);font-size:.85rem">last entry ${fmt(x.day)} (${x.n} days ago)</span></p>`).join(''), ['#dpr', 'Open the DPR'], 'alert');
   }
-  $('myCards').innerHTML = dprCard + supCard +
-    card('My tasks', T && T.assigned ? `<p>Today <b>${tp}%</b> (${T.done_today} of ${T.assigned})</p><div class="meter"><i style="width:${Math.min(tp, 100)}%"></i></div><p style="margin-top:.6rem">Month so far <b>${mp === null ? 'starts tomorrow' : mp + '%'}</b></p>` : none('No tasks assigned yet.'), ['#tasks', 'Open my tasks']) +
-    card('My time off', (d.pend ? `<p><b>${d.pend}</b> request${d.pend === 1 ? '' : 's'} waiting for your approval</p>` : '') + (d.mine.map(r => `<p>${rng(r)} <span class="pill ${r.status === 'approved' ? '' : 'ice'}" style="margin:0 0 0 .4rem">${r.status}</span></p>`).join('') || none('Nothing scheduled.')), ['#timeoff', 'Request time off']) +
-    card('Coming up', evs.map(e => `<p><b>${fmt(e.event_date)}</b> ${esc(e.title)} <span style="color:var(--muted);font-size:.85rem">${esc(e.location_id ? studio(e.location_id) : 'All Austin')}</span></p>`).join('') || none('No events in the next 30 days.'), ['#calendar', 'Open the calendar']) +
-    card('Out in the next 2 weeks', out.map(o => `<p>${esc(o.full_name.split(' ')[0])} ${rng(o)}${o.status === 'pending' ? ' (pending)' : ''}${ME.location_id ? '' : ' \u2022 ' + esc(studio(o.location_id))}</p>`).join('') || none('No one is off.'), ['#calendar', 'See the time-off calendar']) +
+  $('alertCards').innerHTML = dprCard + supCard;
+  $('alertCards').hidden = !(dprCard || supCard);
+  const pillCls = st => st === 'approved' ? 'ok' : st === 'denied' ? 'warn' : 'ice';
+  $('myCards').innerHTML =
+    card('My tasks', T && T.assigned ? `<div class="meter"><i style="width:${Math.min(tp, 100)}%"></i></div><p style="margin-top:.5rem">Today <b>${tp}%</b> (${T.done_today} of ${T.assigned}) \u2022 month so far <b>${mp === null ? 'starts tomorrow' : mp + '%'}</b></p>` : none('No tasks assigned yet.'), ['#tasks', 'Open my tasks']) +
+    card('My time off', (d.pend ? `<p><b>${d.pend}</b> request${d.pend === 1 ? '' : 's'} waiting for your approval</p>` : '') + (d.mine.map(r => `<p>${rng(r)} <span class="pill ${pillCls(r.status)}" style="margin:0 0 0 .4rem">${r.status}</span></p>`).join('') || none('Nothing scheduled.')), ['#timeoff', 'Request time off']) +
+    card('Calendar', `<div class="hsplit"><div><b style="font-size:.85rem;color:var(--muted)">COMING UP</b>${evs.map(e => `<p style="margin:.35rem 0 0"><b>${fmt(e.event_date)}</b> ${esc(e.title)}<br><span style="color:var(--muted);font-size:.85rem">${esc(e.location_id ? studio(e.location_id) : 'All Austin')}</span></p>`).join('') || none('No events in the next 30 days.')}</div>
+      <div><b style="font-size:.85rem;color:var(--muted)">OUT IN THE NEXT 2 WEEKS</b>${out.map(o => `<p style="margin:.35rem 0 0">${esc(o.full_name.split(' ')[0])} ${rng(o)}${o.status === 'pending' ? ' <span class="pill ice" style="margin:0">pending</span>' : ''}${ME.location_id ? '' : '<br><span style="color:var(--muted);font-size:.85rem">' + esc(studio(o.location_id)) + '</span>'}</p>`).join('') || none('No one is off.')}</div></div>`, ['#calendar', 'Open the calendar']) +
     (d.att === null || d.att === undefined ? '' : card('Members', `<p><b>${d.att}</b> member${d.att === 1 ? '' : 's'} need attention</p>`, ['#members', 'Open members']));
 }
 
