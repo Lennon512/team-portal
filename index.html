@@ -169,9 +169,12 @@
   .chip.es { background:#2f6db0; color:#fff; }
   .chip.off { background:var(--accent); color:var(--navy); }
   .chip.pend { background:transparent; color:var(--accent); border:1px dashed var(--accent); }
+  .cal > div:not(.dow) { cursor:pointer; }
+  .cal > div:not(.dow):hover { background:var(--tint); }
+  .cal > div:not(.dow):hover span:first-child { text-decoration:underline; }
   .legend { display:flex; gap:1.25rem; flex-wrap:wrap; margin:.75rem 0 0; color:var(--muted); font-size:.85rem; }
   .legend .sw { display:inline-block; width:.9rem; height:.9rem; border-radius:3px; margin-right:.4rem; vertical-align:-2px; }
-  .legend .ea { background:var(--lb); } .legend .es { background:#2f6db0; } .legend .off { background:var(--accent); } .legend .pend { border:1px dashed var(--accent); }
+  .legend .ea { background:var(--lb); } .legend .es { background:#2f6db0; } .legend .off { background:var(--accent); } .legend .pend { border:1px dashed var(--accent); } .legend .cel { background:#c58af9; }
   .tg .td, .tg .grp td { background:var(--tint); }
   .meter { background:var(--line); }
   .ov tbody tr:hover, .mt tbody tr:hover { background:var(--tint); }
@@ -309,7 +312,7 @@
     <h2>Calendar</h2>
     <div class="tabs" id="calTabs"><button data-t="all">All Austin</button><button data-t="austin">Austin events</button><button data-t="studio">Studio events</button><button data-t="off">Time off</button><button data-t="cel">Celebrations</button></div>
     <div class="bar">
-      <button class="quiet" id="prevM" aria-label="Previous month">&lsaquo;</button>
+      <button class="quiet" id="calToday">Today</button><button class="quiet" id="prevM" aria-label="Previous month">&lsaquo;</button>
       <b id="monthLbl"></b>
       <button class="quiet" id="nextM" aria-label="Next month">&rsaquo;</button>
       <select id="calStudio" aria-label="Studio" hidden></select>
@@ -317,7 +320,7 @@
     </div>
     <p class="lead" id="calNote" style="margin:0 0 .5rem"></p>
     <div class="cal-wrap"><div class="cal" id="cal"></div></div>
-    <p class="legend" id="calLegend"><span><i class="sw ea"></i>Austin event</span><span><i class="sw es"></i>Studio event</span><span><i class="sw off"></i>Time off</span><span><i class="sw pend"></i>Time off, pending</span></p>
+    <p class="legend" id="calLegend"><span><i class="sw ea"></i>Austin event</span><span><i class="sw es"></i>Studio event</span><span><i class="sw off"></i>Time off</span><span><i class="sw pend"></i>Time off, pending</span><span><i class="sw cel"></i>Birthday / anniversary</span></p>
     <div id="offPanel" hidden></div>
   </main>
   <main id="taskView" hidden>
@@ -605,22 +608,24 @@ async function loadCal() {
   drawCal();
 }
 
+function celItems(d, sf) {
+  const md = d.slice(5), first = n => n.split(' ')[0];
+  return roster.filter(sf).flatMap(p => {
+    const out = [];
+    if (p.birthday && p.birthday.slice(5) === md) out.push({ t: first(p.full_name) + '\u2019s birthday', cel: 1, pid: p.id });
+    if (p.start_date && p.start_date.slice(5) === md) { const y = +d.slice(0, 4) - +p.start_date.slice(0, 4); if (y > 0) out.push({ t: first(p.full_name) + '\u2019s ' + y + '-year anniversary', cel: 1, pid: p.id }); }
+    return out;
+  });
+}
+
 function dayItems(d) {
   const inE = x => d >= x.event_date && d <= (x.ends_on || x.event_date), sf = x => !calStudio || x.location_id === calStudio;
   const ev = x => ({ t: (x.time_label ? x.time_label + ' ' : '') + (calTab === 'all' && x.location_id ? studio(x.location_id) + ': ' : '') + x.title, id: x.id, k: x.location_id ? 'es' : 'ea' });
   const of = o => ({ t: o.full_name + ' out' + (o.status === 'pending' ? ' (pending)' : ''), off: 1, pend: o.status === 'pending', oid: o.id });
-  if (calTab === 'cel') {
-    const md = d.slice(5), first = n => n.split(' ')[0];
-    return roster.filter(sf).flatMap(p => {
-      const out = [];
-      if (p.birthday && p.birthday.slice(5) === md) out.push({ t: first(p.full_name) + '\u2019s birthday', cel: 1 });
-      if (p.start_date && p.start_date.slice(5) === md) { const y = +d.slice(0, 4) - +p.start_date.slice(0, 4); if (y > 0) out.push({ t: first(p.full_name) + '\u2019s ' + y + '-year anniversary', cel: 1 }); }
-      return out;
-    });
-  }
+  if (calTab === 'cel') return celItems(d, sf);
   const out = offs.filter(o => d >= o.start_date && d <= o.end_date && sf(o)).map(of);
   if (calTab === 'off') return out;
-  if (calTab === 'all') return events.filter(x => inE(x) && (!x.location_id || sf(x))).map(ev).concat(out);
+  if (calTab === 'all') return events.filter(x => inE(x) && (!x.location_id || sf(x))).map(ev).concat(out).concat(celItems(d, sf));
   return events.filter(x => inE(x) && (calTab === 'austin' ? !x.location_id : x.location_id && sf(x))).map(ev);
 }
 
@@ -630,7 +635,8 @@ function drawCal() {
   document.querySelectorAll('#calTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === calTab));
   $('calStudio').hidden = calTab === 'austin';
   $('calStudio').innerHTML = '<option value="">All studios</option>' + locs.map(x => `<option value="${x.id}" ${x.id === calStudio ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
-  $('calAdd').hidden = calTab === 'cel' ? true : calTab === 'austin' ? ME.role !== 'owner' : calTab === 'off' ? false : ME.role === 'staff';
+  const canAdd = calTab === 'cel' ? false : calTab === 'austin' ? ME.role === 'owner' : calTab === 'off' ? true : ME.role !== 'staff';
+  $('calAdd').hidden = !canAdd;
   $('calLegend').hidden = calTab !== 'all';
   $('calAdd').textContent = { all: 'Add event', austin: 'Add Austin event', studio: 'Add studio event', off: 'Request time off', cel: '' }[calTab];
   $('calNote').textContent = calTab === 'cel' ? 'Pulled automatically from each person\u2019s Birthday and Start date on their team card.' : '';
@@ -640,8 +646,8 @@ function drawCal() {
     const d = new Date(start); d.setDate(start.getDate() + i);
     if (i === 35 && d.getMonth() !== m) break;
     const k = ymd(d);
-    h += `<div class="${d.getMonth() !== m ? 'out' : ''} ${k === today ? 'today' : ''}"><span>${d.getDate()}</span>` +
-      dayItems(k).map(x => `<button class="chip ${x.k || ''} ${x.off ? 'off' : ''} ${x.pend ? 'pend' : ''} ${x.cel ? 'cel' : ''}" ${x.id ? `data-ev="${x.id}"` : ''} ${x.oid ? `data-off="${x.oid}"` : ''}>${esc(x.t)}</button>`).join('') + '</div>';
+    h += `<div class="${d.getMonth() !== m ? 'out' : ''} ${k === today ? 'today' : ''}" data-day="${k}"><span>${d.getDate()}</span>` +
+      dayItems(k).map(x => `<button class="chip ${x.k || ''} ${x.off ? 'off' : ''} ${x.pend ? 'pend' : ''} ${x.cel ? 'cel' : ''}" ${x.id ? `data-ev="${x.id}"` : ''} ${x.oid ? `data-off="${x.oid}"` : ''} ${x.pid ? `data-cel="${x.pid}"` : ''}>${esc(x.t)}</button>`).join('') + '</div>';
   }
   $('cal').innerHTML = h;
 }
@@ -727,7 +733,17 @@ $('prevM').onclick = () => { calMonth.setMonth(calMonth.getMonth() - 1); drawCal
 $('nextM').onclick = () => { calMonth.setMonth(calMonth.getMonth() + 1); drawCal(); };
 $('calStudio').onchange = e => { calStudio = e.target.value; drawCal(); };
 $('calAdd').onclick = () => calTab === 'off' ? (location.hash = '#timeoff') : eventForm();
-$('cal').onclick = e => { const b = e.target.closest('[data-ev]'), o = e.target.closest('[data-off]'); if (b) showEv(b.dataset.ev); else if (o) showOff(o.dataset.off); };
+$('calToday').onclick = () => { calMonth = new Date(); calMonth.setDate(1); drawCal(); };
+async function showCel(id) { if (!people.length) await loadPeople(); openCard(id); }
+function quickAdd(day) {
+  if (calTab === 'off') { location.hash = '#timeoff'; return; }
+  if (calTab === 'cel') return;
+  const own = ME.role === 'owner';
+  const canAdd = calTab === 'austin' ? own : ME.role !== 'staff';
+  if (!canAdd) return;
+  eventForm({ event_date: day });
+}
+$('cal').onclick = e => { const b = e.target.closest('[data-ev]'), o = e.target.closest('[data-off]'), c = e.target.closest('[data-cel]'); if (b) showEv(b.dataset.ev); else if (o) showOff(o.dataset.off); else if (c) showCel(c.dataset.cel); else { const cell = e.target.closest('[data-day]'); if (cell) quickAdd(cell.dataset.day); } };
 
 // ---------- Tasks ----------
 let tk = { tab: 'mine', month: new Date(), mode: 'today', uid: null, who: '', studio: '', rows: [], done: new Set() };
