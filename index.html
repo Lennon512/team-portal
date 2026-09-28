@@ -2480,15 +2480,26 @@ function rowsAfter(g, hi) {
 
 function parsePayrollFile(name, g) {
   let hi;
-  if ((hi = findHeader(g, ['Salesperson', 'Invoice', '# Previous Agreements'])) >= 0) return { kind: 'agreements', ...rowsAfter(g, hi) };
-  if ((hi = findHeader(g, ['Employee User ID', 'Total\nMinutes'])) >= 0) return { kind: 'timeclock', ...rowsAfter(g, hi) };
-  if ((hi = findHeader(g, ['Total Sessions', 'Time Clock\nHours Worked'])) >= 0) return { kind: 'session', ...rowsAfter(g, hi) };
+  if ((hi = findHeader(g, ['Salesperson', 'Invoice', '# Previous Agreements'])) >= 0) return { kind: 'agreements', grid: g, ...rowsAfter(g, hi) };
+  if ((hi = findHeader(g, ['Employee User ID', 'Total\nMinutes'])) >= 0) return { kind: 'timeclock', grid: g, ...rowsAfter(g, hi) };
+  if ((hi = findHeader(g, ['Total Sessions', 'Time Clock\nHours Worked'])) >= 0) return { kind: 'session', grid: g, ...rowsAfter(g, hi) };
   return null;
 }
 
 function periodFromName(name) {
   const m = name.match(/_(\d{4,6})_-_(\d{4}-\d{2}-\d{2})_-_(\d{4}-\d{2}-\d{2})/);
   return m ? { store: m[1], start: m[2], end: m[3] } : null;
+}
+
+// Falls back to the date range and store number printed inside the report itself (its title cell),
+// since a downloaded file can end up renamed in ways the filename check above won't catch.
+function periodFromTitle(g) {
+  const title = String((g[0] || [])[0] || '') + ' ' + String((g[1] || [])[0] || '');
+  const d = title.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!d) return null;
+  const iso = (mo, da, yr) => yr + '-' + pad2p(+mo) + '-' + pad2p(+da);
+  const store = (title.match(/\((\d{4,6})\)/) || [])[1] || null;
+  return { store, start: iso(d[1], d[2], d[3]), end: iso(d[4], d[5], d[6]) };
 }
 
 // Builds one row per ClubReady employee from the three reports, matches each to a teammate,
@@ -2606,8 +2617,9 @@ async function payReadFiles() {
       const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', raw: true });
       const parsed = parsePayrollFile(f.name, payGrid(wb.Sheets[wb.SheetNames[0]]));
       if (!parsed) { lines.push(`\u2717 ${esc(f.name)}: not a report I recognize`); continue; }
-      files[parsed.kind] = parsed; lines.push(`\u2713 ${{ agreements: 'Agreements Log', timeclock: 'Time Clock Payroll Summary', session: 'Session Payroll Summary' }[parsed.kind]} (${parsed.data.length} rows)`);
-      const p = periodFromName(f.name); if (p) period = p;
+      files[parsed.kind] = parsed; lines.push(`✓ ${{ agreements: 'Agreements Log', timeclock: 'Time Clock Payroll Summary', session: 'Session Payroll Summary' }[parsed.kind]} (${parsed.data.length} rows)`);
+      const p = periodFromName(f.name) || periodFromTitle(parsed.grid);
+      if (p && (!period || p.store)) period = { ...period, ...p };
     } catch (e) { lines.push(`\u2717 ${esc(f.name)}: could not be read`); }
   }
   let err = '';
