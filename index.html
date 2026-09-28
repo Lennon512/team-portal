@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@e965/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root { --bg:#f2f5f4; --panel:#fff; --ink:#1c2b2a; --muted:#5d6f6d; --line:#d3dcda; --accent:#1f6f6b; --danger:#b3261e; }
@@ -1684,6 +1684,14 @@ function parseMine(g) {
   return { rows, skipped, missing: RAW.filter(([k]) => !(k in cols)).map(x => x[1]) };
 }
 
+function xlsbHint(f, e) {
+  const msg = (e && e.message) || 'Unknown error.';
+  const isXlsb = f && /\.xlsb$/i.test(f.name);
+  return `That file could not be read (${esc(msg)}).` +
+    (isXlsb ? ' This can happen with .xlsb files that use certain formulas. Open it in Excel and choose File \u2192 Save As \u2192 Excel Workbook (.xlsx), or in Google Sheets choose File \u2192 Download \u2192 Microsoft Excel (.xlsx), then upload that file instead.'
+      : ' Try re-saving it as a .xlsx file and uploading that instead.');
+}
+
 async function readBook(f, want) {
   const buf = await f.arrayBuffer();
   if (!want) return XLSX.read(buf, { type: 'array', raw: true });
@@ -1719,7 +1727,7 @@ function pfCorpForm() {
       if (!r.corp.length) return upMsg('', 'I could not find your studios. Check that this is the Stretch Zone monthly scorecard, and that all six studios have their store numbers set.');
       const n = new Set(r.allRows.map(x => x.store)).size;
       upMsg(`<p>Months found: <b>${r.months.map(m => mLbl(m)).join(', ')}</b></p><p>Your studios found: <b>${r.studios.size} of ${locs.length}</b> \u2022 ${r.corp.length} numbers with network ranks</p><p>Network averages: <b>${new Set(r.net.map(x => x.month)).size} months</b> \u2022 ${r.net.length} numbers</p><p>All Stretch Zone locations: <b>${n}</b>, for the All Stretch Zone Mastercard</p>`);
-    } catch (e) { upMsg('', 'That file could not be read. ' + (e.message || '')); }
+    } catch (e) { upMsg('', xlsbHint($('cFile').files[0], e)); }
   };
 }
 
@@ -1728,14 +1736,14 @@ function pfMineForm() {
   $('pfTpl').onclick = e => { e.preventDefault(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([['Month', 'Studio', ...RAW.map(x => x[1].replace(' ($)', ''))].join(',') + '\n'], { type: 'text/csv' })); a.download = 'monthly-kpis-template.csv'; a.click(); };
   $('mFile').onchange = async () => {
     try {
-      const wb = await readBook($('mFile').files[0]), r = parseMine(grid(wb.Sheets[wb.SheetNames[0]]));
+      const f = $('mFile').files[0], wb = await readBook(f), r = parseMine(grid(wb.Sheets[wb.SheetNames[0]]));
       if (!r) return upMsg('', 'I could not find the Month and Studio columns in the first rows of this file.');
       const same = (a, b) => (a ?? null) === (b ?? null), ch = { n: 0, c: 0, u: 0 }, todo = [];
       r.rows.forEach(row => { const ex = PF.rows.find(x => x.studio_id === row.studio_id && x.month === row.month); const state = !ex ? 'n' : RAW.some(([k]) => k in row && !same(ex[k], row[k])) ? 'c' : 'u'; ch[state]++; if (state !== 'u') todo.push(row); });
       PF.pend = todo;
       const ms = r.rows.map(x => x.month).sort();
       upMsg(`<p><b>${r.rows.length}</b> studio-months from ${r.rows.length ? mLbl(ms[0]) + ' to ' + mLbl(ms[ms.length - 1]) : 'none'}: <b>${ch.n}</b> new, <b>${ch.c}</b> changed, ${ch.u} unchanged.</p>${r.skipped.length ? `<p class="lead">Skipped ${r.skipped.length} rows with a studio I did not recognize: ${esc([...new Set(r.skipped)].slice(0, 5).join(', '))}</p>` : ''}${r.missing.length ? `<p class="lead">Columns not found (left as they are): ${esc(r.missing.join(', '))}</p>` : ''}`, todo.length ? '' : 'Nothing new to save.');
-    } catch (e) { upMsg('', 'That file could not be read. ' + (e.message || '')); }
+    } catch (e) { upMsg('', xlsbHint($('mFile').files[0], e)); }
   };
 }
 
