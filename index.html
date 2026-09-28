@@ -450,7 +450,13 @@ $('loginForm').onsubmit = async e => {
   e.preventDefault();
   $('err').textContent = '';
   const { error } = await db.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pw').value });
-  if (error) { $('err').textContent = 'Sign in failed. Check your email and password.'; return; }
+  if (error) {
+    $('err').textContent = /confirm/i.test(error.message) ? 'Almost there: check the inbox for that email for a message from Supabase and click the link in it, then come back and sign in.'
+      : /invalid login/i.test(error.message) ? 'That email and password do not match. Double check both, or use Forgot your password below.'
+      : /rate limit|too many/i.test(error.message) ? 'Too many attempts. Wait a few minutes and try again.'
+      : 'Could not sign in: ' + error.message;
+    return;
+  }
   init();
 };
 
