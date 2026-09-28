@@ -2395,12 +2395,19 @@ async function inviteCreate() {
   if (!/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'Add a valid email.';
   if (pass.length < 8) return err.textContent = 'The password needs at least 8 characters.';
   const go = document.querySelector('[data-act="ivCreate"]'); go.disabled = true; go.textContent = 'Creating...';
+  const emailLc = email.toLowerCase();
   try {
+    // Puts them on the allow-list first, so the database recognizes this signup as one you started.
+    const { error: aerr } = await db.from('signup_allowlist').upsert({ email: emailLc, requested_by: ME.id }, { onConflict: 'email' });
+    if (aerr) throw new Error(/does not exist|schema cache/i.test(aerr.message) ? 'The database is not set up for this yet. Run invite-security.sql, then try again.' : 'Could not start the invite. ' + aerr.message);
     // A separate, throwaway connection: this creates their login without touching your own sign-in.
     const tmp = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     const { data, error } = await tmp.auth.signUp({ email, password: pass });
-    if (error) throw new Error(/registered|exists/i.test(error.message) ? 'Someone with that email already has a login.' : error.message);
-    if (!data || !data.user) throw new Error('That did not go through. Try again in a moment.');
+    if (error) {
+      await db.from('signup_allowlist').delete().eq('email', emailLc);
+      throw new Error(/registered|exists/i.test(error.message) ? 'Someone with that email already has a login.' : /not allowed|disabled/i.test(error.message) ? 'Sign-ups are switched off in Supabase. Turn on Authentication → Sign In / Providers → Email → Allow new users to sign up, then try again.' : error.message);
+    }
+    if (!data || !data.user) { await db.from('signup_allowlist').delete().eq('email', emailLc); throw new Error('That did not go through. Try again in a moment.'); }
     const { error: perr } = await db.from('profiles').upsert({ id: data.user.id, email, full_name: name, role, location_id: loc, page_group: group }, { onConflict: 'id' });
     if (perr) throw new Error('Login created, but saving their details failed: ' + perr.message);
     inviteDone(name, email, pass);
