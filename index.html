@@ -256,6 +256,10 @@
   .hrsec h3 { margin:0 0 .6rem; font-size:1.1rem; }
   .item { border:1px solid var(--line); border-radius:8px; padding:.6rem .8rem; margin-bottom:.5rem; }
   .item .acts { margin-top:.5rem; }
+  .pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.6rem 1.2rem; margin:.5rem 0 0; }
+  .pgrid label { display:flex; gap:.6rem; align-items:flex-start; margin:0; font-weight:400; cursor:pointer; }
+  .pgrid input { margin-top:.2rem; flex:none; }
+  .pgrid small { display:block; color:var(--muted); font-size:.8rem; }
 </style>
 </head>
 <body>
@@ -367,10 +371,15 @@
       <p class="lead" id="teamNote"></p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Location</th><th>Leadership</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Location</th><th>Page access</th><th></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
+    </section>
+    <section id="accessSec" hidden style="margin-top:2.5rem">
+      <h2>Page access</h2>
+      <p class="lead" id="accessNote"></p>
+      <div id="accessBody"></div>
     </section>
   </main>
   <main id="perfView" hidden>
@@ -399,7 +408,7 @@
     <div id="dprBody"></div>
   </main>
   <main id="hrView" hidden>
-    <div class="thead"><div><h2>Leadership</h2><p class="lead">Confidential. Pay, reviews, and discipline for the team. Only the owner and people the owner has given leadership access can see this page.</p></div></div>
+    <div class="thead"><div><h2>Leadership</h2><p class="lead">Confidential. Pay, reviews, and discipline for the team. Only the owner and people the owner has given access to (People \u2192 Page access) can see this page.</p></div></div>
     <div class="sum" id="hrSum"></div>
     <div class="bar" id="hrTools">
       <select id="hrStudio" aria-label="Studio"></select>
@@ -459,6 +468,7 @@ async function showApp(user) {
   const me = m.data;
   if (!me) { $('hello').textContent = 'Account not set up'; $('note').textContent = 'Your login has no profile yet. Ask the owner for help.'; return; }
   ME = me;
+  await loadPages(); applyNav();
   $('studioFilter').innerHTML = '<option value="">All studios</option>' + locs.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
   route();
   const loc = locs.find(x => x.id === me.location_id);
@@ -469,15 +479,16 @@ async function showApp(user) {
   $('tag').textContent = TAGS[Math.floor(Date.now() / 864e5) % TAGS.length];
   $('note').hidden = !(me.role !== 'owner' && !loc);
   $('note').textContent = 'You have not been assigned to a studio yet. Ask the owner to add you.';
-  $('team').hidden = me.role === 'staff'; $('navPeople').hidden = me.role === 'staff'; $('navPerf').hidden = me.role === 'staff'; $('navHr').hidden = !hrAllowed();
-  if (me.role !== 'staff') loadTeam(me);
+  $('team').hidden = !canPage('people');
+  if (canPage('people')) loadTeam(me);
 }
 
 async function loadTeam(me) {
   const isOwner = me.role === 'owner';
   $('teamTitle').textContent = isOwner ? 'Everyone' : 'Your location\u2019s team';
-  $('teamNote').textContent = isOwner ? 'Set each person\u2019s name, role, and location, then save.' : 'People at your location.';
-  const { data } = await db.from('profiles').select('*').order('email');
+  $('teamNote').textContent = isOwner ? 'Set each person\u2019s name, role, location, and page access, then save.' : 'People at your location.';
+  const [pr, gr] = await Promise.all([db.from('profiles').select('*').order('email'), isOwner ? db.from('page_groups').select('*').order('name') : Promise.resolve({ data: null })]);
+  const data = pr.data; acc.groups = isOwner && !gr.error ? (gr.data || []) : null; acc.people = data || [];
   const dis = isOwner ? '' : 'disabled';
   $('rows').innerHTML = (data || []).map(p => {
     const self = p.id === me.id;
@@ -486,9 +497,10 @@ async function loadTeam(me) {
       <td>${esc(p.email)}</td>
       <td><select class="r" ${isOwner && !self ? '' : 'disabled'}>${['owner','manager','staff'].map(r => `<option ${r === p.role ? 'selected' : ''}>${r}</option>`).join('')}</select></td>
       <td><select class="l" ${dis}><option value="">None</option>${locs.map(x => `<option value="${x.id}" ${x.id === p.location_id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></td>
-      <td style="text-align:center">${isOwner && 'hr_access' in p ? `<input type="checkbox" class="hra" ${p.role === 'owner' || p.hr_access ? 'checked' : ''} ${p.role === 'owner' ? 'disabled title="Owners always have access"' : ''} aria-label="Leadership access for ${esc(p.full_name || p.email)}">` : ''}</td>
+      <td>${isOwner && acc.groups && 'page_group' in p ? (p.role === 'owner' ? '<span class="lead" style="margin:0">Full access</span>' : `<select class="acc" aria-label="Page access for ${esc(p.full_name || p.email)}"><option value="">Default for role</option>${acc.groups.map(g => `<option value="${g.id}" ${g.id === p.page_group ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>`) : ''}</td>
       <td>${isOwner ? '<button class="save">Save</button><span class="status"></span>' : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="6">No one here yet.</td></tr>';
+  drawAccess();
 }
 
 $('rows').onclick = async e => {
@@ -499,9 +511,10 @@ $('rows').onclick = async e => {
     full_name: tr.querySelector('.n').value.trim() || null,
     role: tr.querySelector('.r').value,
     location_id: tr.querySelector('.l').value || null
-  }, hra = tr.querySelector('.hra');
-  if (hra && !hra.disabled) upd.hr_access = hra.checked;
+  }, ac = tr.querySelector('.acc');
+  if (ac) upd.page_group = ac.value || null;
   const { error } = await db.from('profiles').update(upd).eq('id', tr.dataset.id);
+  if (!error) { const pp = acc.people.find(x => x.id === tr.dataset.id); if (pp) Object.assign(pp, upd); drawAccess(); }
   s.textContent = error ? 'Could not save' : 'Saved';
   setTimeout(() => s.textContent = '', 2500);
 };
@@ -510,6 +523,8 @@ let ME = null, people = [], urls = {}, cur = null;
 
 function route() {
   const v = location.hash === '#team' ? 'team' : location.hash === '#calendar' ? 'cal' : location.hash.startsWith('#tasks') ? 'tasks' : location.hash === '#members' ? 'mem' : location.hash === '#timeoff' ? 'off' : location.hash.startsWith('#studio') ? 'studio' : location.hash === '#people' ? 'people' : location.hash === '#performance' ? 'perf' : location.hash === '#supplies' ? 'sup' : location.hash === '#dpr' ? 'dpr' : location.hash === '#leadership' ? 'hr' : 'home';
+  const PK = { team: 'team', cal: 'calendar', tasks: 'tasks', mem: 'members', off: 'timeoff', studio: 'studio', people: 'people', perf: 'performance', sup: 'supplies', dpr: 'dpr', hr: 'leadership' };
+  if (ME && PK[v] && !canPage(PK[v])) { location.hash = '#home'; return; }
   $('homeView').hidden = v !== 'home'; $('teamView').hidden = v !== 'team'; $('calView').hidden = v !== 'cal'; $('taskView').hidden = v !== 'tasks'; $('memView').hidden = v !== 'mem'; $('toView').hidden = v !== 'off'; $('studioView').hidden = v !== 'studio'; $('peopleView').hidden = v !== 'people'; $('perfView').hidden = v !== 'perf'; $('supView').hidden = v !== 'sup'; $('dprView').hidden = v !== 'dpr'; $('hrView').hidden = v !== 'hr';
   $('navTasks').classList.toggle('on', v === 'tasks'); $('navMem').classList.toggle('on', v === 'mem'); $('navOff').classList.toggle('on', v === 'off'); $('navStudio').classList.toggle('on', v === 'studio'); $('navPeople').classList.toggle('on', v === 'people'); $('navPerf').classList.toggle('on', v === 'perf'); $('navSup').classList.toggle('on', v === 'sup'); $('navDpr').classList.toggle('on', v === 'dpr'); $('navHr').classList.toggle('on', v === 'hr');
   $('navHome').classList.toggle('on', v === 'home'); $('navTeam').classList.toggle('on', v === 'team'); $('navCal').classList.toggle('on', v === 'cal');
@@ -1322,12 +1337,12 @@ async function loadHome() {
     db.from('events').select('*').or(`ends_on.gte.${td},event_date.gte.${td}`).lte('event_date', in30).order('event_date').limit(60),
     db.from('time_off_calendar').select('*').gte('end_date', td).lte('start_date', in14).order('start_date'),
     ME.role === 'staff' ? null : db.from('time_off_requests').select('id,user_id').eq('status', 'pending'),
-    homeAttn(),
+    canPage('members') ? homeAttn() : null,
     ME.role === 'owner' ? db.from('supply_requests').select('*, supply_items(name)') : null,
     ME.role === 'owner' ? db.from('supply_items').select('*').eq('active', true) : null,
     ME.role === 'owner' ? db.from('supply_counts').select('*') : null,
     ME.role === 'owner' ? db.from('supply_thresholds').select('*') : null,
-    ME.role !== 'staff' ? db.from('dpr_daily').select('studio_id,day').gte('day', ymd(new Date(Date.now() - 30 * DAY))) : null]);
+    ME.role !== 'staff' && canPage('dpr') ? db.from('dpr_daily').select('studio_id,day').gte('day', ymd(new Date(Date.now() - 30 * DAY))) : null]);
   drawHome({ t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], ev: ev.data || [], offs: offs2.data || [],
     pend: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').length : null, att, day: now.getDate(), sup: sup ? (sup.data || []) : [], sitems: sitems ? (sitems.data || []) : [], counts: scounts ? (scounts.data || []) : [], thr: sthr ? (sthr.data || []) : [], dpr: dprr ? (dprr.data || []) : null });
 }
@@ -1337,7 +1352,7 @@ function drawHome(d) {
   const rng = r => fmt(r.start_date) + (r.end_date !== r.start_date ? ' \u2013 ' + fmt(r.end_date) : '');
   const evs = d.ev.filter(e => !e.location_id || !ME.location_id || e.location_id === ME.location_id).slice(0, 4);
   const out = d.offs.filter(o => o.user_id !== ME.id && (!ME.location_id || o.location_id === ME.location_id)).slice(0, 5);
-  const card = (title, body, link, cls) => `<div class="hcard ${cls || ''}"><h3>${title}</h3>${body}${link ? `<p style="margin-top:.75rem"><a href="${link[0]}">${link[1]}</a></p>` : ''}</div>`;
+  const card = (title, body, link, cls) => link && !canHref(link[0]) ? '' : `<div class="hcard ${cls || ''}"><h3>${title}</h3>${body}${link ? `<p style="margin-top:.75rem"><a href="${link[0]}">${link[1]}</a></p>` : ''}</div>`;
   const none = t => `<p class="lead" style="margin:0">${t}</p>`;
   const needs = (d.sup || []).filter(r => r.status === 'needed'), ord = (d.sup || []).filter(r => r.status === 'ordered');
   const lowN = ME.role === 'owner' ? locs.reduce((n, l) => n + (d.sitems || []).filter(it => spState(l.id, it, { thr: d.thr || [], counts: d.counts || [] }).low && !(d.sup || []).some(r => r.studio_id === l.id && r.item_id === it.id)).length, 0) : 0;
@@ -2102,7 +2117,7 @@ const HRSTAT = { active: 'Active', on_leave: 'On leave', terminated: 'Former emp
 const EMPT = { '': 'Not set', full_time: 'Full time', part_time: 'Part time', contractor: 'Contractor' };
 const HRFILT = { active: 'Active staff', overdue: 'Reviews overdue', soon: 'Reviews due in 60 days', discipline: 'Open discipline', nopay: 'No pay on file', former: 'Former employees', all: 'Everyone' };
 const hr = { people: [], prof: {}, pay: [], rev: [], dis: [], studio: '', find: '', filter: 'active', uid: null, pend: null };
-const hrAllowed = () => !!ME && (ME.role === 'owner' || ME.hr_access === true);
+const hrAllowed = () => canPage('leadership');
 const hrFmt = d => d ? new Date(d + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
 const hrOpts = (o, sel) => Object.entries(o).map(([k, v]) => `<option value="${k}" ${k === (sel || '') ? 'selected' : ''}>${esc(v)}</option>`).join('');
 const hrRate = r => r ? m$(+r.rate) + (r.pay_type === 'salary' ? ' / yr' : ' / hr') : '-';
@@ -2308,6 +2323,55 @@ $('hrUp').onclick = hrUpForm;
 $('hrCsv').onclick = hrDownload;
 $('hrBody').onclick = e => { const tr = e.target.closest('tr[data-hr]'); if (tr) hrPerson(tr.dataset.hr); };
 $('dlg').addEventListener('close', () => $('dlg').classList.remove('wide'));
+
+// ---------- Page access ----------
+const PAGES = [['team', 'Team', 'Team cards and bios'], ['studio', 'Studio', 'Studio pages and rosters'], ['calendar', 'Calendar', 'Events, time off, celebrations'], ['tasks', 'Tasks', 'Daily task checklists'],
+  ['members', 'Members', 'Member lists, at-risk and new members'], ['timeoff', 'Time off', 'Request and approve time off'], ['dpr', 'DPR', 'Daily production report and studio financials'], ['supplies', 'Supplies', 'Supply counts and requests'],
+  ['performance', 'Performance', 'KPI scorecards (their own studio only)'], ['leadership', 'Leadership', 'Pay, reviews, and discipline for everyone'], ['people', 'People', 'Names, roles, and studios (only the owner can change them)']];
+const DEFPAGES = { staff: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies'], manager: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies', 'performance', 'people'] };
+const NAVID = { team: 'navTeam', studio: 'navStudio', calendar: 'navCal', tasks: 'navTasks', members: 'navMem', timeoff: 'navOff', dpr: 'navDpr', supplies: 'navSup', performance: 'navPerf', leadership: 'navHr', people: 'navPeople' };
+const canPage = k => !!ME && (ME.role === 'owner' || (ME.pages || []).includes(k));
+const canHref = h => { const k = { '#tasks': 'tasks', '#timeoff': 'timeoff', '#calendar': 'calendar', '#members': 'members', '#dpr': 'dpr', '#supplies': 'supplies' }[h]; return !k || canPage(k); };
+const acc = { groups: null, people: [], msg: '' };
+
+async function loadPages() {
+  // The database decides. If that is not set up yet, fall back to what each role could always see.
+  const { data, error } = await db.rpc('my_pages');
+  ME.pages = !error && Array.isArray(data) ? data : [...(DEFPAGES[ME.role] || DEFPAGES.staff)].concat(ME.hr_access ? ['leadership'] : []);
+}
+function applyNav() { Object.entries(NAVID).forEach(([k, id]) => { $(id).hidden = !canPage(k); }); }
+
+function drawAccess() {
+  const sec = $('accessSec');
+  if (!ME || ME.role !== 'owner' || acc.groups === null) { sec.hidden = true; return; }
+  sec.hidden = false;
+  const label = ks => ks.map(k => (PAGES.find(x => x[0] === k) || [k, k])[1]).join(', ');
+  $('accessNote').innerHTML = `Make a group, tick the pages it can see, then choose the group for each person in the table above. Owners always see everything. Anyone without a group gets the default for their role: staff see ${esc(label(DEFPAGES.staff))}; managers see ${esc(label(DEFPAGES.manager))}. My page is always visible.` + (acc.msg ? ` <b style="color:var(--accent)">${esc(acc.msg)}</b>` : '');
+  const cnt = id => acc.people.filter(x => x.page_group === id).length;
+  const grid = sel => `<div class="pgrid">${PAGES.map(([k, n, d]) => `<label><input type="checkbox" data-pg="${k}" ${sel.includes(k) ? 'checked' : ''}><span><b>${n}</b><small>${d}</small></span></label>`).join('')}</div>`;
+  const card = g => `<div class="hcard" data-gid="${g ? g.id : ''}" style="margin-bottom:1rem"><label>${g ? 'Group name' : 'New group'}<input class="gname" value="${g ? esc(g.name) : ''}" maxlength="60" placeholder="${g ? '' : 'For example: Front desk'}"></label>${grid(g ? (g.pages || []) : ['team', 'studio', 'calendar', 'tasks', 'timeoff'])}
+    ${g ? `<p class="lead" style="margin:.7rem 0 0">${cnt(g.id)} ${cnt(g.id) === 1 ? 'person' : 'people'} in this group${(g.pages || []).includes('leadership') ? ' \u2022 <b style="color:var(--accent)">can see everyone\u2019s pay and discipline records</b>' : ''}</p>` : ''}
+    <div class="acts"><button data-acc="save">${g ? 'Save group' : 'Create group'}</button>${g ? '<button class="quiet" data-acc="del">Delete group</button>' : ''}<span class="status"></span></div></div>`;
+  $('accessBody').innerHTML = `<div class="dgrid">${acc.groups.map(card).join('')}${card(null)}</div>`;
+}
+
+$('accessBody').onclick = async e => {
+  const b = e.target.closest('[data-acc]'); if (!b) return;
+  const c = b.closest('[data-gid]'), gid = c.dataset.gid, name = c.querySelector('.gname').value.trim(), pages = [...c.querySelectorAll('[data-pg]:checked')].map(x => x.dataset.pg), st = c.querySelector('.status');
+  const say = m => { st.textContent = m; };
+  if (b.dataset.acc === 'del') {
+    const n = acc.people.filter(x => x.page_group === gid).length;
+    if (!confirm(`Delete this group?${n ? ' ' + n + ' ' + (n === 1 ? 'person goes' : 'people go') + ' back to the default for their role.' : ''}`)) return;
+    const { error } = await db.from('page_groups').delete().eq('id', gid); if (error) return say('Could not delete. ' + error.message);
+    acc.msg = 'Group deleted.';
+  } else {
+    if (!name) return say('Give the group a name.');
+    const { error } = gid ? await db.from('page_groups').update({ name, pages }).eq('id', gid) : await db.from('page_groups').insert({ name, pages });
+    if (error) return say(/duplicate|unique/i.test(error.message) ? 'That name is already used.' : 'Could not save. ' + error.message);
+    acc.msg = gid ? 'Saved ' + name + '.' : 'Created ' + name + '.';
+  }
+  await loadTeam(ME);
+};
 
 init();
 </script>
