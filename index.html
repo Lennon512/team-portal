@@ -5,24 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stretch Zone Austin Team Portal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@e965/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  :root { --bg:#f2f5f4; --panel:#fff; --ink:#1c2b2a; --muted:#5d6f6d; --line:#d3dcda; --accent:#1f6f6b; --danger:#b3261e; }
+  :root { --bg:#f7f4ee; --panel:#fff; --ink:#16202b; --muted:#6b7280; --line:#e4e0d6; --accent:#ffc72c; --danger:#b3261e; }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 "DM Sans", system-ui, sans-serif; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 "Inter", system-ui, sans-serif; }
   [hidden] { display:none !important; }
   h1, h2 { margin:0; line-height:1.15; }
   input, select, button { font:inherit; }
-  input, select { padding:.55rem .7rem; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); width:100%; }
+  input, select { padding:.55rem .7rem; border:1px solid var(--line2); border-radius:6px; background:#fff; color:var(--ink); width:100%; }
   button { padding:.6rem 1.1rem; border:0; border-radius:6px; background:var(--accent); color:#fff; font-weight:500; cursor:pointer; }
   button.quiet { background:transparent; color:var(--accent); border:1px solid var(--line); }
   :focus-visible { outline:3px solid #7fc4bf; outline-offset:2px; }
   #login { min-height:100vh; display:grid; place-items:center; padding:1.5rem; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:2rem; width:100%; max-width:380px; }
-  .card h1 { font-size:2rem; margin-bottom:.35rem; }
+  .card h1 { font-family:"Fraunces", serif; font-weight:600; font-size:2rem; margin-bottom:.35rem; }
   .card p { margin:0 0 1.5rem; color:var(--muted); }
   label { display:block; font-size:.9rem; font-weight:500; margin:0 0 1rem; }
   label input { margin-top:.3rem; }
@@ -31,7 +31,7 @@
   header h1 { font-size:1.25rem; }
   header small { color:var(--muted); display:block; }
   main { max-width:960px; margin:0 auto; padding:2rem 1.5rem 4rem; }
-  main h2 { font-size:1.6rem; margin-bottom:.4rem; }
+  main h2 { font-family:"Fraunces", serif; font-weight:600; font-size:1.7rem; margin-bottom:.4rem; }
   .lead { color:var(--muted); margin:0 0 2rem; }
   .soon { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:.75rem; margin-bottom:2.5rem; }
   .soon div { border:1px dashed var(--line); border-radius:8px; padding:.9rem 1rem; color:var(--muted); }
@@ -44,7 +44,7 @@
   td .status { font-size:.85rem; color:var(--accent); margin-left:.5rem; }
   .hero { position:relative; overflow:hidden; background:linear-gradient(180deg,#bfdcd8 0%,#f2ead2 100%); padding:3.5rem 1.5rem 7rem; }
   .hero-in { max-width:960px; margin:0 auto; position:relative; }
-  .hero h1 { font-size:clamp(2rem,6vw,3.4rem); letter-spacing:-.02em; max-width:14em; }
+  .hero h1 { font-family:"Fraunces", serif; font-weight:600; font-size:clamp(2rem,6vw,3.4rem); letter-spacing:-.01em; max-width:14em; }
   .hero .hi { font-size:1.25rem; font-weight:500; margin:1rem 0 .25rem; }
   .hero #tag { margin:0; color:#3f5654; font-size:1.1rem; }
   .peaks { position:absolute; left:0; bottom:0; width:100%; height:110px; fill:#1f6f6b; opacity:.22; }
@@ -69,7 +69,7 @@
   dialog { border:0; border-radius:12px; padding:1.5rem; max-width:460px; width:calc(100% - 2rem); color:var(--ink); }
   dialog::backdrop { background:rgba(20,35,34,.5); }
   dialog .ph { max-width:220px; margin-bottom:1rem; }
-  dialog textarea { width:100%; min-height:130px; padding:.55rem .7rem; border:1px solid var(--line); border-radius:6px; font:inherit; margin-top:.3rem; }
+  dialog textarea { width:100%; min-height:130px; padding:.55rem .7rem; border:1px solid var(--line2); border-radius:6px; font:inherit; margin-top:.3rem; }
   .acts { display:flex; gap:.6rem; margin-top:1rem; }
   .tabs { display:flex; gap:.4rem; margin:0 0 1rem; flex-wrap:wrap; }
   .tabs button { background:#fff; color:var(--ink); border:1px solid var(--line); }
@@ -135,37 +135,36 @@
   .facts dt { color:var(--muted); } .facts dd { margin:0; }
   .studios a { padding:.45rem .9rem; border:1px solid var(--line); background:#fff; border-radius:99px; color:var(--ink); text-decoration:none; }
   .studios a.mine { background:var(--accent); color:#fff; border-color:var(--accent); }
-  /* Theme: dark blue, light blue accents, yellow highlight */
-  :root { --bg:#0b2545; --panel:#0f2f57; --field:#0a2040; --ink:#eaf3fb; --muted:#9fb8d4; --line:#2a527f; --accent:#ffc72c; --danger:#ff9b8f; --lb:#8ec9f0; --tint:#1a4674; --navy:#061a33; color-scheme:dark; }
+  /* Theme: warm white, brand navy as the one bold accent, yellow highlight */
+  :root { --bg:#f7f4ee; --panel:#fff; --field:#faf8f4; --ink:#16202b; --muted:#6b7280; --line:#e4e0d6; --accent:#ffc72c; --danger:#b3261e; --lb:#2e6da4; --tint:#f1ede3; --navy:#0b2545; --onhero:#cfe0f4; --line2:#9c8f73; color-scheme:light; }
   a { color:var(--lb); }
-  input, select, textarea { background:var(--field); color:var(--ink); }
+  input, select, textarea { background:var(--field); color:var(--ink); border-color:var(--line2); }
   button { color:var(--navy); }
-  button.quiet { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  button.quiet { background:transparent; color:var(--ink); border:1px solid var(--line2); }
   :focus-visible, .person:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
-  header { display:block; padding:0; background:var(--navy); border-bottom:1px solid var(--line); }
+  header { display:block; padding:0; background:var(--panel); border-bottom:1px solid var(--line); }
   .hrow { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.85rem 1.5rem; }
   .hrow h1 { font-size:1.25rem; white-space:nowrap; color:var(--ink); }
   .who { display:flex; align-items:center; gap:.9rem; min-width:0; }
   .wtxt { text-align:right; min-width:0; line-height:1.3; }
   .wtxt span { display:block; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #topnav { margin:0; padding:.4rem 1.5rem; border-top:1px solid var(--line); overflow-x:auto; }
-  nav a { color:var(--lb); } nav a:hover { background:var(--tint); }
+  nav a { color:var(--muted); } nav a:hover { background:var(--tint); color:var(--ink); }
   nav a.on { background:var(--accent); color:var(--navy); }
   .hero { background:linear-gradient(180deg,#14487f 0%,#0b2545 100%); }
-  .hero h1 { color:var(--ink); } .hero #tag { color:var(--lb); }
-  .peaks { fill:var(--lb); opacity:.18; }
+  .hero h1 { color:#fff; } .hero .hi { color:#fff; } .hero #tag { color:var(--onhero); }
+  .peaks { fill:var(--onhero); opacity:.22; }
   .callout { background:var(--tint); border-left:4px solid var(--accent); }
   .studios span, .studios a, .studios button { background:var(--panel); color:var(--ink); }
   .studios span.mine, .studios a.mine, .studios button.mine { background:var(--accent); color:var(--navy); border-color:var(--accent); }
   .ph { background:var(--tint); color:var(--lb); }
-  dialog { background:var(--panel); } dialog::backdrop { background:rgba(3,12,26,.7); }
-  .shero { background:linear-gradient(180deg,#14487f,#0b2545); }
+  dialog { background:var(--panel); } dialog::backdrop { background:rgba(15,22,31,.45); }
   .tabs button { background:var(--panel); color:var(--ink); }
   .tabs button.on { background:var(--accent); color:var(--navy); border-color:var(--accent); }
-  .cal .out { background:var(--field); color:#5d7ea6; }
+  .cal .out { background:var(--field); color:var(--muted); }
   .cal .today > span { background:var(--accent); color:var(--navy); }
   .chip { background:var(--tint); color:var(--ink); }
-  .chip.ea { background:var(--lb); color:var(--navy); }
+  .chip.ea { background:var(--lb); color:#fff; }
   .chip.es { background:#2f6db0; color:#fff; }
   .chip.off { background:var(--accent); color:var(--navy); }
   .chip.pend { background:transparent; color:var(--accent); border:1px dashed var(--accent); }
@@ -179,9 +178,9 @@
   .meter { background:var(--line); }
   .ov tbody tr:hover, .mt tbody tr:hover { background:var(--tint); }
   .rvd7 { background:#ffd966; color:var(--navy); } .rvd30 { background:#f6a860; color:var(--navy); } .rvd90 { background:#e58f8f; color:var(--navy); } .rvdnone { background:#c9362f; color:#fff; }
-  .lowc { background:#6b2437; color:#ffd6d6; }
-  .pill { background:var(--tint); color:var(--ink); } .pill.warn { background:#c9362f; color:#fff; } .pill.ice { background:var(--lb); color:var(--navy); }
-  .why { color:#ffb4a8; }
+  .lowc { background:#fbdede; color:#8a2420; font-weight:500; }
+  .pill { background:var(--tint); color:var(--ink); } .pill.warn { background:#c9362f; color:#fff; } .pill.ice { background:var(--lb); color:#fff; }
+  .why { color:#a4271f; }
   .kgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:.75rem; margin-top:1rem; }
   .kt { all:unset; box-sizing:border-box; cursor:pointer; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:.8rem 1rem; display:flex; flex-direction:column; gap:.15rem; }
   .kt:hover, .kt.on { border-color:var(--accent); }
@@ -190,9 +189,9 @@
   .kt b { font-size:1.7rem; line-height:1.2; }
   .kt small, .kn2 small { display:block; color:var(--muted); font-size:.75rem; }
   .kd { font-size:.8rem; color:var(--muted); }
-  .up { color:#7fdc9a; } .dn { color:#ff9b8f; }
+  .up { color:#0f6b37; } .dn { color:#c23b30; }
   .spark { width:100%; height:28px; margin:.3rem 0; }
-  .best { background:rgba(255,199,44,.2); font-weight:500; }
+  .best { background:rgba(255,199,44,.4); font-weight:500; }
   :root { --pad: clamp(1rem, 3vw, 3rem); }
   main { max-width:none; margin:0; padding:2rem var(--pad) 4rem; }
   .hero { padding:3.5rem var(--pad) 7rem; }
@@ -206,9 +205,9 @@
   .hcard.alert { border-color:var(--accent); }
   .pill.need { background:var(--accent); color:var(--navy); }
   .qty { width:8rem; }
-  .req.low { border-color:#ff6b5b; background:rgba(201,54,47,.16); }
+  .req.low { border-color:#e2564a; background:rgba(201,54,47,.09); }
   .qty[type=number] { width:6rem; }
-  .good { background:rgba(100,200,140,.32); } .bad { background:rgba(240,100,90,.34); }
+  .good { background:rgba(35,140,80,.16); } .bad { background:rgba(201,54,47,.16); }
   .dp { min-width:0; width:100%; } .dp th, .dp td { padding:.3rem .45rem; } .dp th { white-space:normal; }
   .dgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(440px,1fr)); gap:1rem; }
   .dgrid .hcard { overflow-x:auto; }
@@ -219,11 +218,11 @@
   .dgrid3 .hcard { overflow-x:auto; }
   .dgrid3 textarea, #dprNote textarea { display:block; width:100%; }
   input.cellin, select.cellin { width:100%; min-width:4.6rem; padding:.25rem .35rem; border:1px solid transparent; background:transparent; color:inherit; border-radius:4px; font:inherit; }
-  input.cellin:hover, select.cellin:hover, input.cellin:focus, select.cellin:focus { border-color:var(--line); background:var(--field); }
-  input.cellin.saved { outline:2px solid #7fdc9a; }
+  input.cellin:hover, select.cellin:hover, input.cellin:focus, select.cellin:focus { border-color:var(--line2); background:var(--field); }
+  input.cellin.saved { outline:2px solid #1a8f4c; }
   select.cellin { min-width:9.5rem; }
   .dg th { white-space:normal; text-align:center; font-size:.8rem; min-width:5.2rem; }
-  .dg .ycol { background:rgba(255,199,44,.14); }
+  .dg .ycol { background:rgba(255,199,44,.25); }
   .dg tr.tod td { background:var(--tint); }
   .dg tr.tot td { font-weight:600; }
   #reset { min-height:100vh; display:grid; place-items:center; padding:1.5rem; }
@@ -248,7 +247,7 @@
   .back { display:inline-block; margin-bottom:1rem; }
   .netbar { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin:0 0 .75rem; }
   .netbar input[type=search] { max-width:280px; }
-  .mt tr.yours { background:rgba(255,199,44,.12); }
+  .mt tr.yours { background:rgba(255,199,44,.22); }
   .mt tr.yours td:first-child { font-weight:600; }
   dialog.wide { max-width:920px; }
   .soon { background:rgba(255,199,44,.22); }
@@ -367,8 +366,7 @@
   <main id="studioView" hidden><div id="studioBody"></div></main>
   <main id="peopleView" hidden>
     <section id="team" hidden>
-      <h2 id="teamTitle">Team</h2>
-      <p class="lead" id="teamNote"></p>
+      <div class="thead"><div><h2 id="teamTitle">Team</h2><p class="lead" id="teamNote"></p></div><button class="quiet" id="addPerson" hidden>Add & invite</button></div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Location</th><th>Page access</th><th></th></tr></thead>
@@ -408,7 +406,7 @@
     <div id="dprBody"></div>
   </main>
   <main id="hrView" hidden>
-    <div class="thead"><div><h2>Leadership</h2><p class="lead">Confidential. Pay, reviews, and discipline for the team. Only the owner and people the owner has given access to (People \u2192 Page access) can see this page.</p></div></div>
+    <div class="thead"><div><h2>Leadership</h2><p class="lead">Confidential. Pay, reviews, and discipline for the team. Only the owner and people the owner has given access to (People → Page access) can see this page.</p></div></div>
     <div class="sum" id="hrSum"></div>
     <div class="bar" id="hrTools">
       <select id="hrStudio" aria-label="Studio"></select>
@@ -479,7 +477,7 @@ async function showApp(user) {
   $('tag').textContent = TAGS[Math.floor(Date.now() / 864e5) % TAGS.length];
   $('note').hidden = !(me.role !== 'owner' && !loc);
   $('note').textContent = 'You have not been assigned to a studio yet. Ask the owner to add you.';
-  $('team').hidden = !canPage('people');
+  $('team').hidden = !canPage('people'); $('addPerson').hidden = me.role !== 'owner';
   if (canPage('people')) loadTeam(me);
 }
 
@@ -2372,6 +2370,57 @@ $('accessBody').onclick = async e => {
   }
   await loadTeam(ME);
 };
+
+// ---------- Add & invite ----------
+const invite = { groups: null };
+const genPass = () => { const w = ['Coral', 'Trail', 'Summit', 'Amber', 'Cedar', 'Delta', 'Maple', 'River', 'Clover', 'Basil', 'Harbor', 'Willow']; return w[Math.floor(Math.random() * w.length)] + w[Math.floor(Math.random() * w.length)] + (10 + Math.floor(Math.random() * 90)); };
+
+async function inviteForm() {
+  if (invite.groups === null) { const { data } = await db.from('page_groups').select('*').order('name'); invite.groups = data || []; }
+  $('dlgBody').innerHTML = `<h2>Add & invite</h2><p class="lead" style="margin:.25rem 0 1rem">Creates their login right away. You'll get an email you can send them with their sign-in details.</p>
+    <div class="grid2"><label>Full name<input id="ivName" maxlength="80"></label><label>Email<input id="ivEmail" type="email"></label>
+    <label>Role<select id="ivRole"><option value="staff">Staff</option><option value="manager">Manager</option><option value="owner">Owner</option></select></label>
+    <label>Studio<select id="ivStudio"><option value="">None yet</option>${locs.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')}</select></label>
+    <label>Page access<select id="ivGroup"><option value="">Default for role</option>${invite.groups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select></label>
+    <label>Temporary password<span style="display:flex;gap:.5rem"><input id="ivPass" value="${genPass()}" style="flex:1"><button type="button" class="quiet" id="ivGen">New</button></span></label></div>
+    <div class="err" id="ivErr" role="alert"></div><div class="acts"><button data-act="ivCreate">Create login</button><button class="quiet" data-act="close">Cancel</button></div>`;
+  $('ivGen').onclick = () => { $('ivPass').value = genPass(); };
+  if (!$('dlg').open) $('dlg').showModal();
+}
+
+async function inviteCreate() {
+  const name = $('ivName').value.trim(), email = $('ivEmail').value.trim(), role = $('ivRole').value, loc = $('ivStudio').value || null, group = $('ivGroup').value || null, pass = $('ivPass').value;
+  const err = $('ivErr'); err.textContent = '';
+  if (!name) return err.textContent = 'Add their name.';
+  if (!/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'Add a valid email.';
+  if (pass.length < 8) return err.textContent = 'The password needs at least 8 characters.';
+  const go = document.querySelector('[data-act="ivCreate"]'); go.disabled = true; go.textContent = 'Creating...';
+  try {
+    // A separate, throwaway connection: this creates their login without touching your own sign-in.
+    const tmp = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const { data, error } = await tmp.auth.signUp({ email, password: pass });
+    if (error) throw new Error(/registered|exists/i.test(error.message) ? 'Someone with that email already has a login.' : error.message);
+    if (!data || !data.user) throw new Error('That did not go through. Try again in a moment.');
+    const { error: perr } = await db.from('profiles').upsert({ id: data.user.id, email, full_name: name, role, location_id: loc, page_group: group }, { onConflict: 'id' });
+    if (perr) throw new Error('Login created, but saving their details failed: ' + perr.message);
+    inviteDone(name, email, pass);
+    await loadTeam(ME);
+  } catch (e) { err.textContent = e.message; go.disabled = false; go.textContent = 'Create login'; }
+}
+
+function inviteDone(name, email, pass) {
+  const first = name.split(' ')[0], site = location.origin + location.pathname;
+  const body = `Hi ${first},\n\nYou now have access to the Stretch Zone Austin team portal.\n\nSite: ${site}\nEmail: ${email}\nTemporary password: ${pass}\n\nSign in, then click Password in the top right to set your own password.\n\nOne more thing: check your inbox for a confirmation email and click the link in it once, or this password will not work yet.`;
+  const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Your Stretch Zone Austin portal login')}&body=${encodeURIComponent(body)}`;
+  $('dlgBody').innerHTML = `<h2>${esc(name)}'s login is ready</h2><p class="lead" style="margin:.25rem 0 1rem">Send them this, or copy it into whatever you use to message them.</p>
+    <textarea id="ivMsg" rows="9" readonly>${esc(body)}</textarea>
+    <p class="lead" style="margin:.75rem 0 0;font-size:.85rem">They'll also get one confirmation email from Supabase. They need to click it once before the password works.</p>
+    <div class="acts"><a href="${mailto}"><button type="button">Open in email</button></a><button class="quiet" id="ivCopy">Copy message</button><button class="quiet" data-act="close">Done</button></div>`;
+  $('ivCopy').onclick = () => { $('ivMsg').select(); navigator.clipboard && navigator.clipboard.writeText(body).catch(() => {}); $('ivCopy').textContent = 'Copied'; setTimeout(() => $('ivCopy').textContent = 'Copy message', 1500); };
+}
+
+$('addPerson').onclick = inviteForm;
+$('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'ivCreate') inviteCreate(); });
 
 init();
 </script>
