@@ -1,5 +1,6 @@
 (function(){
-const $m=v=>'
+'use strict';
+const $m=v=>'$'+Math.round(+v||0).toLocaleString(), $p=v=>Math.round((+v||0)*1000)/10;
 function E(t,c,x){let e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
 function calc(b,s){let L=s.ld*b.rem,S=L*s.l2d,H=S*s.show,N=H*s.close,V=N*(s.eft+s.cash),D=s.canc*b.rem*s.eft;return{L,H,N,V,D,P:b.gross+b.remEft+V-D}}
 function hist(sid,n,d,k){return PF.rows.filter(r=>r.studio_id===sid).map(r=>n&&d?(+r[d]?+r[n]/+r[d]:null):(r[k]==null?null:+r[k])).filter(v=>v!=null&&isFinite(v))}
