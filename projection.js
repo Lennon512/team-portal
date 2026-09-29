@@ -7,36 +7,7 @@ function hist(sid,n,d,k){return PF.rows.filter(r=>r.studio_id===sid).map(r=>n&&d
 function note(sid,v,n,d,k,p){let h=hist(sid,n,d,k);if(!h.length)return'No prior monthly history yet.';let best=Math.max(...h),hit=h.some(x=>x>=v*.995),z=p?$p(best)+'%':best.toLocaleString(undefined,{maximumFractionDigits:1});return(hit?'Previously achieved. ':'Stretch target. ')+'Best recorded: '+z+'.'}
 function base(){let sid=PF.projStudio,r=PF.rows.find(x=>x.studio_id===sid&&x.month===PF.month)||{},q=PF.projData||{daily:[],goal:0},a=q.daily,y=+PF.month.slice(0,4),m=+PF.month.slice(5,7),days=new Date(y,m,0).getDate(),now=todayStr(),elapsed=now.slice(0,7)===PF.month.slice(0,7)?+now.slice(8,10):(now<PF.month?0:days);elapsed=Math.max(1,elapsed);let sum=k=>a.reduce((n,x)=>n+(+x[k]||0),0),last=k=>{let z=a.filter(x=>x[k]!=null).sort((x,y)=>x.day<y.day?1:-1);return z.length?+z[0][k]:null},leads=sum('total_leads')||+r.leads||0,sch=sum('demos_scheduled')||+r.scheduled||0,demos=sum('demos_showed')||+r.demos||0,sales=sum('demo_sales')||+r.agreements||0,g=last('mtd_gross');if(g==null)g=+r.gross_revenue||0;let eft=+r.avg_eft||275,cash=+r.cash_sales||0;return{sid,days,rem:Math.max(0,days-elapsed),gross:g,due:+q.due||0,remEft:last('eft_remaining')||0,goal:q.goal||0,ld:leads/elapsed,l2d:leads?sch/leads:0,show:sch?demos/sch:0,close:demos?sales/demos:0,eft,cash:sales?cash/sales:150,canc:(sum('cancellations')||+r.cancellations||0)/elapsed}}
 function F(p,id,label,val,step,help){let b=E('div','pj-box'),l=E('label','',label),i=document.createElement('input');i.id=id;i.type='number';i.min=0;i.step=step;i.value=val;l.append(i);b.append(l,E('small','',help));p.append(b)}
-function compareVisual(B,cur,sc,currentCalc,scenarioCalc){
-  const box=E('div','pj-compare');
-  box.append(E('h3','','Current vs scenario'));
-  const rows=[
-    ['Leads / day',cur.ld,sc.ld,'number'],
-    ['Lead to Demo',$p(cur.l2d),$p(sc.l2d),'percent'],
-    ['Show rate',$p(cur.show),$p(sc.show),'percent'],
-    ['Close rate',$p(cur.close),$p(sc.close),'percent'],
-    ['Future sales',currentCalc.N,scenarioCalc.N,'number'],
-    ['Projected revenue',currentCalc.P,scenarioCalc.P,'money']
-  ];
-  rows.forEach(row=>{
-    const max=Math.max(Number(row[1])||0,Number(row[2])||0,1);
-    const wrap=E('div','pj-vrow');
-    const bars=E('div','pj-bars');
-    const format=v=>row[3]==='money'?$m(v):row[3]==='percent'?Number(v).toFixed(1)+'%':Number(v).toFixed(1);
-    [['Current',row[1],'current'],['Scenario',row[2],'scenario']].forEach(item=>{
-      const line=E('div','pj-barline');
-      const track=E('div','pj-track');
-      const fill=E('span','pj-fill '+item[2]);
-      fill.style.width=Math.max(2,(Number(item[1])||0)/max*100)+'%';
-      track.append(fill);
-      line.append(E('small','',item[0]),track,E('em','',format(item[1])));
-      bars.append(line);
-    });
-    wrap.append(E('b','',row[0]),bars);
-    box.append(wrap);
-  });
-  B.append(box);
-}
+function compareVisual(B,cur,sc,cx,x){let box=E('div','pj-compare');box.append(E('h3','','Funnel impact → revenue'));let rows=[['Future leads',cx.L,x.L,0],['Demos scheduled',cx.L*cur.l2d,x.L*sc.l2d,0],['Shows',cx.H,x.H,0],['Sales',cx.N,x.N,0],['New sales value',cx.V,x.V,1],['Month-end revenue',cx.P,x.P,1]];rows.forEach(r=>{let d=r[2]-r[1],fmt=v=>r[3]?$m(v):(+v).toFixed(1),w=E('div','pj-flow-row');w.append(E('b','',r[0]),E('span','pj-base',fmt(r[1])),E('span','pj-arrow','→'),E('strong','',fmt(r[2])),E('span','pj-delta '+(d>0?'up':d<0?'down':'flat'),(d>0?'+':'')+fmt(d)));box.append(w)});B.append(box)}
 window.loadProjection=async function(){
   let av=locs.filter(l=>PF.rows.some(r=>r.studio_id===l.id));
   PF.projStudio=av.some(l=>l.id===PF.projStudio)?PF.projStudio:(PF.studio&&av.some(l=>l.id===PF.studio)?PF.studio:(av[0]||{}).id);
@@ -54,7 +25,7 @@ window.loadProjection=async function(){
   draw();
 }
 function draw(){let b=base(),cur={ld:b.ld,l2d:b.l2d,show:b.show,close:b.close,eft:b.eft,cash:b.cash,canc:b.canc},s=PF.projScenario||cur,x=calc(b,s),cx=calc(b,cur),gap=b.goal?b.goal-x.P:null,B=$('pfBody');B.replaceChildren();let bar=E('div','bar'),sel=document.createElement('select');sel.id='pjStudio';locs.filter(l=>PF.rows.some(r=>r.studio_id===l.id)).forEach(l=>{let o=new Option(l.name,l.id,l.id===b.sid,l.id===b.sid);sel.add(o)});let reset=E('button','quiet','Reset to current performance');reset.id='pjReset';reset.style.marginLeft='auto';bar.append(sel,reset);B.append(bar,E('h3','sub',(locs.find(l=>l.id===b.sid)||{}).name+' · '+mLbl(PF.month,1)),E('p','lead','Planning model based on actual performance. Scenario changes never overwrite real KPIs.'));let top=E('div','pj-top pj-top-five');
-  [['Current gross',b.gross],['Invoices coming due',b.due],['Expected new sales',cx.V],['If nothing changes',cx.P],['Revenue goal',b.goal||null]].forEach((a,i)=>{
+  [['Current gross',b.gross],['Invoices coming due',b.due],['Baseline new sales',cx.V],['If nothing changes',cx.P],['Scenario month-end',x.P]].forEach((a,i)=>{
     let c=E('div','pj-card'+(i===3&&b.goal&&cx.P>=b.goal?' hit':''));
     c.append(E('small','',a[0]),E('b','',a[1]==null?'-':$m(a[1])));
     top.append(c)
