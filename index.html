@@ -259,6 +259,16 @@
   .pgrid label { display:flex; gap:.6rem; align-items:flex-start; margin:0; font-weight:400; cursor:pointer; }
   .pgrid input { margin-top:.2rem; flex:none; }
   .pgrid small { display:block; color:var(--muted); font-size:.8rem; }
+  nav a { display:inline-flex; align-items:center; }
+  .navic { width:16px; height:16px; flex:none; margin-right:.4rem; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .navdrop { position:relative; display:inline-block; }
+  #navAdminBtn { display:inline-flex; align-items:center; padding:.4rem .8rem; border-radius:6px; color:var(--muted); font-weight:500; background:none; border:0; cursor:pointer; font:inherit; }
+  #navAdminBtn:hover { background:var(--tint); color:var(--ink); }
+  #navAdminBtn.on { background:var(--accent); color:var(--navy); }
+  .navcaret { width:13px; height:13px; margin-left:.3rem; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .navmenu { position:fixed; z-index:20; background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 20px rgba(20,20,10,.12); padding:.35rem; min-width:170px; }
+  .navmenu a { display:flex; width:100%; box-sizing:border-box; padding:.5rem .6rem; border-radius:6px; }
+  .navmenu a.on { background:var(--accent); color:var(--navy); }
 </style>
 </head>
 <body>
@@ -293,7 +303,26 @@
       <h1>Stretch Zone Austin</h1>
       <div class="who"><div class="wtxt"><span id="who"></span><small id="meta"></small></div><button class="quiet" id="pwBtn">Password</button><button class="quiet" id="signout">Sign out</button></div>
     </div>
-    <nav id="topnav"><a href="#home" id="navHome">My page</a><a href="#team" id="navTeam">Team</a><a href="#studio" id="navStudio">Studio</a><a href="#calendar" id="navCal">Calendar</a><a href="#tasks" id="navTasks">Tasks</a><a href="#members" id="navMem">Members</a><a href="#timeoff" id="navOff">Time off</a><a href="#dpr" id="navDpr">DPR</a><a href="#supplies" id="navSup">Supplies</a><a href="#performance" id="navPerf" hidden>Performance</a><a href="#leadership" id="navHr" hidden>Leadership</a><a href="#payroll" id="navPay" hidden>Payroll</a><a href="#people" id="navPeople" hidden>People</a></nav>
+    <nav id="topnav">
+      <a href="#home" id="navHome"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 9.5 10 3.5l7 6"/><path d="M5 8.5V16h4v-4h2v4h4V8.5"/></svg>My page</a>
+      <a href="#tasks" id="navTasks"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2.2"/><polyline points="6.5 10.3 9 12.8 14 7.3"/></svg>Tasks</a>
+      <a href="#members" id="navMem"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><circle cx="7.3" cy="6.6" r="2.9"/><path d="M2.2 16.8c0-3.2 2.4-5.7 5.1-5.7s5.1 2.5 5.1 5.7"/><circle cx="15" cy="7.6" r="2.2"/><path d="M13.3 16.8c.2-2.5 1.7-4.4 3.6-4.9"/></svg>Members</a>
+      <a href="#dpr" id="navDpr"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="9.3" width="3" height="6.7" rx=".6"/><rect x="8.5" y="5" width="3" height="11" rx=".6"/><rect x="14" y="11.3" width="3" height="4.7" rx=".6"/></svg>DPR</a>
+      <a href="#calendar" id="navCal"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="1.6"/><line x1="3" y1="8" x2="17" y2="8"/><line x1="6.6" y1="2.6" x2="6.6" y2="5.6"/><line x1="13.4" y1="2.6" x2="13.4" y2="5.6"/></svg>Calendar</a>
+      <a href="#supplies" id="navSup"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6.5 10 3l7 3.5-7 3.5-7-3.5Z"/><path d="M3 6.5V14l7 3.5 7-3.5V6.5"/><line x1="10" y1="10" x2="10" y2="17.4"/></svg>Supplies</a>
+      <a href="#team" id="navTeam"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="12" height="14" rx="2"/><circle cx="10" cy="8" r="2.1"/><line x1="6.6" y1="13.4" x2="13.4" y2="13.4"/><line x1="7.4" y1="15.2" x2="12.6" y2="15.2"/></svg>Team</a>
+      <a href="#studio" id="navStudio"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="12" height="14" rx="1"/><rect x="6.2" y="5.5" width="2" height="2"/><rect x="11.8" y="5.5" width="2" height="2"/><rect x="6.2" y="9.4" width="2" height="2"/><rect x="11.8" y="9.4" width="2" height="2"/><rect x="8" y="13.4" width="4" height="3.6"/></svg>Studio</a>
+      <a href="#timeoff" id="navOff"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><polyline points="10 6.2 10 10 12.8 11.8"/></svg>Time off</a>
+      <div class="navdrop" id="navAdminWrap" hidden>
+        <button type="button" id="navAdminBtn" aria-haspopup="true" aria-expanded="false"><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><line x1="3" y1="6" x2="17" y2="6"/><circle cx="8" cy="6" r="1.7"/><line x1="3" y1="10" x2="17" y2="10"/><circle cx="13" cy="10" r="1.7"/><line x1="3" y1="14" x2="17" y2="14"/><circle cx="9.5" cy="14" r="1.7"/></svg>Admin <svg class="navcaret" viewBox="0 0 20 20" aria-hidden="true"><polyline points="5.5 8 10 12.5 14.5 8"/></svg></button>
+        <div class="navmenu" id="navAdminMenu" role="menu" hidden>
+          <a href="#performance" id="navPerf" role="menuitem" hidden><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><polyline points="3 14.2 8 9 11 12 17.2 4.8"/><polyline points="12.7 4.8 17.2 4.8 17.2 9.3"/></svg>Performance</a>
+          <a href="#leadership" id="navHr" role="menuitem" hidden><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.8 16.3 5.3V9.8c0 4-2.7 6.3-6.3 7.5-3.6-1.2-6.3-3.5-6.3-7.5V5.3Z"/><polyline points="7.2 9.8 9.2 11.8 13.1 7.3"/></svg>Leadership</a>
+          <a href="#payroll" id="navPay" role="menuitem" hidden><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M12.4 7.5c-.4-.7-1.3-1.1-2.4-1.1-1.5 0-2.6.8-2.6 1.9 0 2.7 5 1.2 5 3.9 0 1.1-1.1 1.9-2.6 1.9-1.1 0-2-.4-2.4-1.1"/><line x1="10" y1="5.1" x2="10" y2="14.9"/></svg>Payroll</a>
+          <a href="#people" id="navPeople" role="menuitem" hidden><svg class="navic" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.3" cy="6.8" r="2.9"/><path d="M3.4 16.8c0-3.1 2.2-5.5 4.9-5.5s4.9 2.4 4.9 5.5"/><circle cx="15.3" cy="14" r="2.3"/><line x1="15.3" y1="11.6" x2="15.3" y2="12.3"/><line x1="15.3" y1="15.7" x2="15.3" y2="16.4"/><line x1="12.9" y1="14" x2="13.6" y2="14"/><line x1="17" y1="14" x2="17.7" y2="14"/><line x1="13.7" y1="12.4" x2="14.2" y2="12.9"/><line x1="16.4" y1="15.1" x2="16.9" y2="15.6"/><line x1="16.9" y1="12.4" x2="16.4" y2="12.9"/><line x1="14.2" y1="15.1" x2="13.7" y2="15.6"/></svg>People</a>
+        </div>
+      </div>
+    </nav>
   </header>
   <div id="homeView">
   <section class="hero">
@@ -553,6 +582,7 @@ function route() {
   if (ME && PK[v] && !canPage(PK[v])) { location.hash = '#home'; return; }
   $('homeView').hidden = v !== 'home'; $('teamView').hidden = v !== 'team'; $('calView').hidden = v !== 'cal'; $('taskView').hidden = v !== 'tasks'; $('memView').hidden = v !== 'mem'; $('toView').hidden = v !== 'off'; $('studioView').hidden = v !== 'studio'; $('peopleView').hidden = v !== 'people'; $('perfView').hidden = v !== 'perf'; $('supView').hidden = v !== 'sup'; $('dprView').hidden = v !== 'dpr'; $('hrView').hidden = v !== 'hr'; $('payView').hidden = v !== 'pay';
   $('navTasks').classList.toggle('on', v === 'tasks'); $('navMem').classList.toggle('on', v === 'mem'); $('navOff').classList.toggle('on', v === 'off'); $('navStudio').classList.toggle('on', v === 'studio'); $('navPeople').classList.toggle('on', v === 'people'); $('navPerf').classList.toggle('on', v === 'perf'); $('navSup').classList.toggle('on', v === 'sup'); $('navDpr').classList.toggle('on', v === 'dpr'); $('navHr').classList.toggle('on', v === 'hr'); $('navPay').classList.toggle('on', v === 'pay');
+  $('navAdminBtn').classList.toggle('on', ['perf', 'hr', 'pay', 'people'].includes(v));
   $('navHome').classList.toggle('on', v === 'home'); $('navTeam').classList.toggle('on', v === 'team'); $('navCal').classList.toggle('on', v === 'cal');
   if (v === 'team' && ME) loadPeople();
   if (v === 'cal' && ME) loadCal();
@@ -2366,7 +2396,14 @@ async function loadPages() {
   const { data, error } = await db.rpc('my_pages');
   ME.pages = !error && Array.isArray(data) ? data : [...(DEFPAGES[ME.role] || DEFPAGES.staff)].concat(ME.hr_access ? ['leadership'] : []);
 }
-function applyNav() { Object.entries(NAVID).forEach(([k, id]) => { $(id).hidden = !canPage(k); }); }
+function applyNav() {
+  Object.entries(NAVID).forEach(([k, id]) => { $(id).hidden = !canPage(k); });
+  $('navAdminWrap').hidden = !['performance', 'leadership', 'payroll', 'people'].some(canPage);
+}
+$('navAdminBtn').onclick = e => { e.stopPropagation(); const open = $('navAdminMenu').hidden; if (open) { const r = $('navAdminBtn').getBoundingClientRect(), w = 178, left = Math.min(r.left, window.innerWidth - w - 8); $('navAdminMenu').style.top = (r.bottom + 4) + 'px'; $('navAdminMenu').style.left = Math.max(8, left) + 'px'; } $('navAdminMenu').hidden = !open; $('navAdminBtn').setAttribute('aria-expanded', String(open)); };
+document.addEventListener('click', e => { if (!e.target.closest('.navdrop')) { $('navAdminMenu').hidden = true; $('navAdminBtn').setAttribute('aria-expanded', 'false'); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('navAdminMenu').hidden) { $('navAdminMenu').hidden = true; $('navAdminBtn').setAttribute('aria-expanded', 'false'); $('navAdminBtn').focus(); } });
+$('navAdminMenu').addEventListener('click', () => { $('navAdminMenu').hidden = true; $('navAdminBtn').setAttribute('aria-expanded', 'false'); });
 
 function drawAccess() {
   const sec = $('accessSec');
