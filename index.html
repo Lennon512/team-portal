@@ -226,6 +226,21 @@
   .cmp-mid b { font-size:.9rem; }
   .cmp-mid span { color:var(--muted); font-size:.76rem; }
   .cmp-note { padding:.8rem 1rem; border-left:4px solid var(--accent); background:var(--tint); margin-bottom:1rem; font-size:.9rem; }
+  .pj-top { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.7rem; margin:1rem 0; }
+  .pj-card,.pj-box { border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:1rem; }
+  .pj-card small { display:block; color:var(--muted); margin-bottom:.25rem; }
+  .pj-card b { font-size:1.45rem; }
+  .pj-card.hit { background:#dff3e5; border-color:#4d9a68; color:#155b2d; }
+  .pj-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.7rem; }
+  .pj-box label { margin:0 0 .35rem; }
+  .pj-box small { display:block; color:var(--muted); margin-top:.35rem; min-height:2.2em; }
+  .pj-paths { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; margin-top:.7rem; }
+  .pj-paths h4 { margin:.1rem 0 .45rem; }
+  .pj-paths p { margin:0; }
+  .pj-progress { height:12px; border-radius:20px; background:var(--tint); overflow:hidden; margin:.65rem 0 .35rem; }
+  .pj-progress span { display:block; height:100%; background:var(--accent); border-radius:inherit; }
+  @media(max-width:800px){.pj-top,.pj-paths{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media(max-width:560px){.pj-top,.pj-paths,.pj-grid{grid-template-columns:1fr;}}
   @media (max-width:700px) {
     .cmp-head { grid-template-columns:1fr; gap:.6rem; }
     .cmp-vs { padding:0; text-align:center; }
@@ -442,6 +457,7 @@
       <button data-t="score">Austin scorecard</button>
       <button data-t="master">All Stretch Zone Mastercard</button>
       <button data-t="compare">Compare studios</button>
+      <button data-t="projection">Projection</button>
     </div>
   <div id="repDpr">
     <h2>Daily production report</h2>
@@ -1583,7 +1599,7 @@ const CORP = [['revenue', 'Revenue', 'usd'], ['eft', 'EFT collected', 'usd'], ['
 const RAW = [['gross_revenue', 'Gross revenue ($)'], ['draft', 'Draft ($)'], ['refunds', 'Refunds ($)'], ['leads', 'Leads'], ['scheduled', 'Demos scheduled'], ['demos', 'Demos completed'], ['agreements', 'Agreements'],
   ['cash_sales', 'Cash sales ($)'], ['eft_sales', 'EFT sales ($)'], ['avg_eft', 'Average EFT ($)'], ['staff_util', 'Staff utilization'], ['calls_per_day', 'Calls per day'], ['cancellations', 'Cancellations'], ['active_members', 'Active members']];
 const COLORS = ['#ffc72c', '#8ec9f0', '#f28b82', '#81c995', '#c58af9', '#ff8bcb'];
-const PF = { rows: [], net: {}, corp: {}, netAll: {}, netStore: null, netChart: null, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '', cmpA: '', cmpB: '' };
+const PF = { rows: [], net: {}, corp: {}, netAll: {}, netStore: null, netChart: null, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '', cmpA: '', cmpB: '', projStudio: '', projScenario: null, projData: null };
 
 const fv = (x, f) => x === null || x === undefined || isNaN(x) ? '-' : f === 'usd' ? '$' + Math.round(x).toLocaleString() : f === 'usd2' ? '$' + x.toFixed(2) : f === 'pct' ? (x * 100).toFixed(0) + '%' : f === 'dec' ? x.toFixed(1) : Math.round(x).toLocaleString();
 const mAdd = (m, n) => { const d = new Date(m + 'T00:00'); d.setMonth(d.getMonth() + n); return ymd(d); };
@@ -1621,6 +1637,7 @@ function drawPerf() {
   $('pfStudio').hidden = PF.tab !== 'score' || ME.role !== 'owner'; $('pfRange').hidden = PF.tab !== 'score';
   if (PF.tab === 'score') drawScore();
   else if (PF.tab === 'compare') loadCompare();
+  else if (PF.tab === 'projection') loadProjection();
   else loadMaster();
 }
 
@@ -1635,6 +1652,7 @@ function updateRepTabs() {
   document.querySelector('#repTabs [data-t="score"]').hidden = !perfOk;
   if (document.querySelector('#repTabs [data-t="master"]')) document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || ME.role !== 'owner';
   if (document.querySelector('#repTabs [data-t="compare"]')) document.querySelector('#repTabs [data-t="compare"]').hidden = !perfOk || ME.role !== 'owner';
+  if (document.querySelector('#repTabs [data-t="projection"]')) document.querySelector('#repTabs [data-t="projection"]').hidden = !perfOk;
 }
 function drawRepTabs() {
   if (REP.sub === 'dpr' && !canPage('dpr') && canPage('performance')) REP.sub = 'score';
@@ -1772,7 +1790,61 @@ function drawMaster() {
 
 
 
-const CMP_DIR = { attrition: -1, at_risk: -1, basic: 0 };
+
+function pjPct(v){ return Math.round((+v||0)*1000)/10; }
+function pjLimit(v,min,max){ v=+v||0; return Math.max(min,Math.min(max,v)); }
+function pjHist(sid,num,den,key){
+  return PF.rows.filter(function(r){return r.studio_id===sid;}).map(function(r){
+    if(num&&den) return +r[den] ? +r[num]/+r[den] : null;
+    return r[key]===null||r[key]===undefined ? null : +r[key];
+  }).filter(function(v){return v!==null&&isFinite(v);});
+}
+function pjHistoryText(sid,value,num,den,key,isPct){
+  var h=pjHist(sid,num,den,key);
+  if(!h.length) return 'No prior monthly history yet.';
+  var best=Math.max.apply(null,h), hit=h.some(function(v){return v>=value*.995;});
+  var shown=isPct ? pjPct(best)+'%' : best.toLocaleString('en-US',{maximumFractionDigits:1});
+  return hit ? 'Previously achieved — best recorded: '+shown+'.' : 'Stretch target — best recorded: '+shown+'.';
+}
+function pjBaseline(){
+  var sid=PF.projStudio, r=PF.rows.find(function(x){return x.studio_id===sid&&x.month===PF.month;})||{};
+  var q=PF.projData||{daily:[],goals:null}, daily=q.daily||[];
+  var year=+PF.month.slice(0,4), mon=+PF.month.slice(5,7), days=new Date(year,mon,0).getDate();
+  var now=todayStr(), inMonth=now.slice(0,7)===PF.month.slice(0,7);
+  var elapsed=inMonth ? +now.slice(8,10) : (now<PF.month?0:days); elapsed=Math.max(1,elapsed);
+  var remain=Math.max(0,days-elapsed);
+  function sum(k){return daily.reduce(function(n,x){return n+(+x[k]||0);},0);}
+  function latest(k){var a=daily.filter(function(x){return x[k]!==null&&x[k]!==undefined;}).sort(function(a,b){return a.day<b.day?1:-1;});return a.length?+a[0][k]:null;}
+  var leads=sum('total_leads')||+r.leads||0, scheduled=sum('demos_scheduled')||+r.scheduled||0, demos=sum('demos_showed')||+r.demos||0, sales=sum('demo_sales')||+r.agreements||0;
+  var gross=latest('mtd_gross'); if(gross===null) gross=+r.gross_revenue||0;
+  var eftRemaining=latest('eft_remaining')||0, avgEft=+r.avg_eft||275;
+  var cash=+r.cash_sales||0, cashPerSale=sales?cash/sales:150;
+  var canc=sum('cancellations')||+r.cancellations||0;
+  return {sid:sid,r:r,days:days,elapsed:elapsed,remain:remain,gross:gross,eftRemaining:eftRemaining,goal:q.goals&&+q.goals.revenue||0,
+    leadsDay:leads/elapsed,l2d:leads?scheduled/leads:0,show:scheduled?demos/scheduled:0,close:demos?sales/demos:0,
+    avgEft:avgEft,cashPerSale:cashPerSale,cancDay:canc/elapsed};
+}
+function pjCompute(b,s){
+  var leads=s.leadsDay*b.remain, scheduled=leads*s.l2d, shows=scheduled*s.show, sales=shows*s.close;
+  var salesValue=sales*(s.avgEft+s.cashPerSale), cancellationDrag=s.cancDay*b.remain*s.avgEft;
+  return {leads:leads,shows:shows,sales:sales,salesValue:salesValue,cancellationDrag:cancellationDrag,projected:b.gross+b.eftRemaining+salesValue-cancellationDrag};
+}
+async function loadProjection(){
+  var available=locs.filter(function(l){return PF.rows.some(function(r){return r.studio_id===l.id;});});
+  if(!PF.projStudio||!available.some(function(l){return l.id===PF.projStudio;})) PF.projStudio=(PF.studio&&available.some(function(l){return l.id===PF.studio;})?PF.studio:(available[0]||{}).id)||'';
+  if(!PF.projStudio){$('pfBody').innerHTML='<p class="lead">Add monthly studio data before using Projection.</p>';return;}
+  $('pfBody').innerHTML='<p class="lead">Loading projection...</p>';
+  var sid=PF.projStudio,m=PF.month,end=mAdd(m,1);
+  var res=await Promise.all([
+    db.from('dpr_daily').select('*').eq('studio_id',sid).gte('day',m).lt('day',end),
+    db.from('dpr_goals').select('*').eq('studio_id',sid).lte('month',m).order('month',{ascending:false}).limit(1)
+  ]);
+  PF.projData={daily:res[0].data||[],goals:(res[1].data||[])[0]||null}; PF.projScenario=null; drawProjection();
+}
+function pjMake(tag,cls,text){
+  var e=document.createElement(tag); if(cls)e.className=cls; if(text!==undefined)e.textContent=text; return e;
+}
+function pjMoney(v){return ' { attrition: -1, at_risk: -1, basic: 0 };
 const cmpDir = k => Object.prototype.hasOwnProperty.call(CMP_DIR, k) ? CMP_DIR[k] : 1;
 const cmpStoreName = r => r ? (r.name || ('Store ' + r.store)) : 'Select a studio';
 
@@ -1885,6 +1957,7 @@ $('pfMonth').onchange = e => { PF.month = e.target.value; drawPerf(); };
 $('pfRange').onchange = e => { PF.range = +e.target.value; if (PF.tab === 'score') drawChart(); };
 $('pfData').onclick = pfMenu;
 $('pfBody').onclick = e => {
+  if (e.target.closest('#projReset')) { PF.projScenario = null; drawProjection(); return; }
   if (e.target.closest('#cmpSwap')) { const a = PF.cmpA; PF.cmpA = PF.cmpB; PF.cmpB = a; drawCompare(); return; }
   if (e.target.closest('#netBack')) return netBackToList();
   const nkt = e.target.closest('.netkt');
@@ -1900,6 +1973,8 @@ $('pfBody').oninput = e => { if (e.target.id === 'mFindBox') { PF.mFind = e.targ
 $('pfBody').addEventListener('change', e => {
   if (e.target.id === 'cmpA') { PF.cmpA = e.target.value; drawCompare(); }
   else if (e.target.id === 'cmpB') { PF.cmpB = e.target.value; drawCompare(); }
+  else if (e.target.id === 'projStudio') { PF.projStudio = e.target.value; loadProjection(); }
+  else if (['pjLeads','pjL2d','pjShow','pjClose','pjEft','pjCanc'].includes(e.target.id)) { PF.projScenario = pjReadScenario(); drawProjection(); }
 });
 $('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'pfSave') pfSave(); });
 $('dlgBody').addEventListener('change', e => { if (e.target.id === 'pStudio' || e.target.id === 'pMonth') { const m = $('pMonth').value; if (m) pfForm($('pStudio').value, m + '-01'); } });
