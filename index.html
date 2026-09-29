@@ -442,6 +442,7 @@
       <button data-t="score">Austin scorecard</button>
       <button data-t="master">All Stretch Zone Mastercard</button>
       <button data-t="compare">Compare studios</button>
+      <button data-t="projection">Projection</button>
     </div>
   <div id="repDpr">
     <h2>Daily production report</h2>
@@ -1621,6 +1622,7 @@ function drawPerf() {
   $('pfStudio').hidden = PF.tab !== 'score' || ME.role !== 'owner'; $('pfRange').hidden = PF.tab !== 'score';
   if (PF.tab === 'score') drawScore();
   else if (PF.tab === 'compare') loadCompare();
+  else if (PF.tab === 'projection') loadProjection();
   else loadMaster();
 }
 
@@ -1635,6 +1637,7 @@ function updateRepTabs() {
   document.querySelector('#repTabs [data-t="score"]').hidden = !perfOk;
   if (document.querySelector('#repTabs [data-t="master"]')) document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || ME.role !== 'owner';
   if (document.querySelector('#repTabs [data-t="compare"]')) document.querySelector('#repTabs [data-t="compare"]').hidden = !perfOk || ME.role !== 'owner';
+  if (document.querySelector('#repTabs [data-t="projection"]')) document.querySelector('#repTabs [data-t="projection"]').hidden = !perfOk;
 }
 function drawRepTabs() {
   if (REP.sub === 'dpr' && !canPage('dpr') && canPage('performance')) REP.sub = 'score';
@@ -2941,5 +2944,6 @@ $('dlgBody').addEventListener('click', e => {
 
 init();
 </script>
+<script src="projection.js"></script>
 </body>
 </html>
