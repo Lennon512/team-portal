@@ -442,6 +442,7 @@
       <button data-t="score">Austin scorecard</button>
       <button data-t="master">All Stretch Zone Mastercard</button>
       <button data-t="compare">Compare studios</button>
+      <button data-t="projection">Projection</button>
     </div>
   <div id="repDpr">
     <h2>Daily production report</h2>
@@ -1583,7 +1584,7 @@ const CORP = [['revenue', 'Revenue', 'usd'], ['eft', 'EFT collected', 'usd'], ['
 const RAW = [['gross_revenue', 'Gross revenue ($)'], ['draft', 'Draft ($)'], ['refunds', 'Refunds ($)'], ['leads', 'Leads'], ['scheduled', 'Demos scheduled'], ['demos', 'Demos completed'], ['agreements', 'Agreements'],
   ['cash_sales', 'Cash sales ($)'], ['eft_sales', 'EFT sales ($)'], ['avg_eft', 'Average EFT ($)'], ['staff_util', 'Staff utilization'], ['calls_per_day', 'Calls per day'], ['cancellations', 'Cancellations'], ['active_members', 'Active members']];
 const COLORS = ['#ffc72c', '#8ec9f0', '#f28b82', '#81c995', '#c58af9', '#ff8bcb'];
-const PF = { rows: [], net: {}, corp: {}, netAll: {}, netStore: null, netChart: null, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '', cmpA: '', cmpB: '' };
+const PF = { rows: [], net: {}, corp: {}, netAll: {}, netStore: null, netChart: null, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '', cmpA: '', cmpB: '', projStudio: '' };
 
 const fv = (x, f) => x === null || x === undefined || isNaN(x) ? '-' : f === 'usd' ? '$' + Math.round(x).toLocaleString() : f === 'usd2' ? '$' + x.toFixed(2) : f === 'pct' ? (x * 100).toFixed(0) + '%' : f === 'dec' ? x.toFixed(1) : Math.round(x).toLocaleString();
 const mAdd = (m, n) => { const d = new Date(m + 'T00:00'); d.setMonth(d.getMonth() + n); return ymd(d); };
@@ -1621,6 +1622,7 @@ function drawPerf() {
   $('pfStudio').hidden = PF.tab !== 'score' || ME.role !== 'owner'; $('pfRange').hidden = PF.tab !== 'score';
   if (PF.tab === 'score') drawScore();
   else if (PF.tab === 'compare') loadCompare();
+  else if (PF.tab === 'projection') window.loadProjection();
   else loadMaster();
 }
 
@@ -1635,6 +1637,7 @@ function updateRepTabs() {
   document.querySelector('#repTabs [data-t="score"]').hidden = !perfOk;
   if (document.querySelector('#repTabs [data-t="master"]')) document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || ME.role !== 'owner';
   if (document.querySelector('#repTabs [data-t="compare"]')) document.querySelector('#repTabs [data-t="compare"]').hidden = !perfOk || ME.role !== 'owner';
+  if (document.querySelector('#repTabs [data-t="projection"]')) document.querySelector('#repTabs [data-t="projection"]').hidden = !perfOk;
 }
 function drawRepTabs() {
   if (REP.sub === 'dpr' && !canPage('dpr') && canPage('performance')) REP.sub = 'score';
@@ -2941,5 +2944,6 @@ $('dlgBody').addEventListener('click', e => {
 
 init();
 </script>
+<script src="projection.js"></script>
 </body>
 </html>
