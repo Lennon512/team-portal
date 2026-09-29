@@ -1775,12 +1775,92 @@ function drawMaster() {
 const CMP_DIR = { attrition: -1, at_risk: -1, basic: 0 };
 const cmpDir = k => Object.prototype.hasOwnProperty.call(CMP_DIR, k) ? CMP_DIR[k] : 1;
 const cmpStoreName = r => r ? (r.name || ('Store ' + r.store)) : 'Select a studio';
+
 function cmpDiff(a, b, f) {
   if (a === null || a === undefined || b === null || b === undefined || isNaN(a) || isNaN(b)) return '';
   const d = +a - +b, ad = Math.abs(d);
   if (ad < 0.000001) return 'Equal';
   if (f === 'pct') return (d > 0 ? '+' : '-') + (ad * 100).toFixed(1) + ' pts';
-  if (f === 'usd' || f === 'usd2') return (d > 0 ? '+' : '-') + '
+  if (f === 'usd' || f === 'usd2') return (d > 0 ? '+' : '-') + '$' + ad.toLocaleString('en-US', { maximumFractionDigits: f === 'usd2' ? 2 : 0 });
+  return (d > 0 ? '+' : '-') + ad.toLocaleString('en-US', { maximumFractionDigits: 1 });
+}
+
+function cmpClass(a, b, k) {
+  const dir = cmpDir(k);
+  if (!dir || a === null || a === undefined || b === null || b === undefined || isNaN(a) || isNaN(b) || +a === +b) return ['', ''];
+  const aw = ((+a - +b) * dir) > 0;
+  return aw ? ['win', 'lose'] : ['lose', 'win'];
+}
+
+function cmpOptions(rows, selected) {
+  const yours = new Set(locs.map(l => String(l.club_store_id || '')).filter(Boolean));
+  const sorted = [...rows].sort((a, b) => {
+    const ay = yours.has(String(a.store)), by = yours.has(String(b.store));
+    if (ay !== by) return ay ? -1 : 1;
+    return String(a.name || a.store).localeCompare(String(b.name || b.store));
+  });
+  const ownRows = sorted.filter(r => yours.has(String(r.store)));
+  const otherRows = sorted.filter(r => !yours.has(String(r.store)));
+  const opts = arr => arr.map(r => '<option value="' + esc(r.store) + '"' + (String(r.store) === String(selected) ? ' selected' : '') + '>' + esc(r.name || r.store) + (r.franchise ? ' — ' + esc(r.franchise) : '') + '</option>').join('');
+  return (ownRows.length ? '<optgroup label="Austin studios">' + opts(ownRows) + '</optgroup>' : '') +
+    '<optgroup label="All other Stretch Zone studios">' + opts(otherRows) + '</optgroup>';
+}
+
+async function loadCompare() {
+  if (ME.role !== 'owner') {
+    $('pfBody').innerHTML = '<p class="lead">Only the owner can compare against the full Stretch Zone network.</p>';
+    return;
+  }
+  if (!PF.netAll[PF.month]) {
+    $('pfBody').innerHTML = '<p class="lead">Loading studios for comparison...</p>';
+    const { data, error } = await db.from('kpi_network_all').select('*').eq('month', PF.month).limit(1000);
+    if (error) {
+      $('pfBody').innerHTML = '<p class="lead">Could not load comparison data. ' + esc(error.message) + '</p>';
+      return;
+    }
+    PF.netAll[PF.month] = data || [];
+  }
+  drawCompare();
+}
+
+function drawCompare() {
+  const rows = PF.netAll[PF.month] || [];
+  if (!rows.length) {
+    $('pfBody').innerHTML = '<p class="lead">No Mastercard data is loaded for ' + esc(mLbl(PF.month, 1)) + '.</p>';
+    return;
+  }
+  const yours = new Set(locs.map(l => String(l.club_store_id || '')).filter(Boolean));
+  const ownRows = rows.filter(r => yours.has(String(r.store)));
+  if (!rows.some(r => String(r.store) === String(PF.cmpA))) PF.cmpA = String((ownRows[0] || rows[0]).store);
+  if (!rows.some(r => String(r.store) === String(PF.cmpB)) || String(PF.cmpB) === String(PF.cmpA)) {
+    PF.cmpB = String((rows.find(r => String(r.store) !== String(PF.cmpA) && !yours.has(String(r.store))) ||
+      rows.find(r => String(r.store) !== String(PF.cmpA)) || rows[0]).store);
+  }
+  const A = rows.find(r => String(r.store) === String(PF.cmpA));
+  const B = rows.find(r => String(r.store) === String(PF.cmpB));
+  const metricRows = CORP.map(([k, n, f]) => {
+    const av = A && A.kpis ? A.kpis[k] : null;
+    const bv = B && B.kpis ? B.kpis[k] : null;
+    const cls = cmpClass(av, bv, k), dir = cmpDir(k);
+    const note = dir < 0 ? 'Lower is better' : dir === 0 ? 'Context metric' : 'Higher is better';
+    return '<div class="cmp-row">' +
+      '<div class="cmp-val ' + cls[0] + '"><b>' + fmtNet(av, f) + '</b><small>' + esc(cmpStoreName(A)) + '</small></div>' +
+      '<div class="cmp-mid"><b>' + esc(n) + '</b><span>' + esc(cmpDiff(av, bv, f)) + '</span><span>' + note + '</span></div>' +
+      '<div class="cmp-val right ' + cls[1] + '"><b>' + fmtNet(bv, f) + '</b><small>' + esc(cmpStoreName(B)) + '</small></div>' +
+      '</div>';
+  }).join('');
+
+  $('pfBody').innerHTML =
+    '<div class="cmp-note"><b>Green = stronger for that metric.</b> Dark = lower-performing side. Attrition and at-risk reverse the logic because lower is better. % of basic members is shown without a winner because it is a mix metric, not automatically good or bad.</div>' +
+    '<div class="cmp-head"><label>Studio A<select id="cmpA">' + cmpOptions(rows, PF.cmpA) + '</select></label>' +
+    '<div class="cmp-vs">VS<br><button type="button" class="quiet cmp-swap" id="cmpSwap" title="Swap studios">⇄ Swap</button></div>' +
+    '<label>Studio B<select id="cmpB">' + cmpOptions(rows, PF.cmpB) + '</select></label></div>' +
+    '<h3 class="sub" style="margin:0 0 .2rem">' + esc(cmpStoreName(A)) + ' vs ' + esc(cmpStoreName(B)) + '</h3>' +
+    '<p class="lead" style="margin:0 0 1rem">' + esc(mLbl(PF.month, 1)) + ' · Same corporate Mastercard definitions on both sides</p>' +
+    '<div class="cmp-list">' + metricRows + '</div>';
+}
+
+function pfForm(sid, month) {
   sid = sid || PF.studio || (locs[0] || {}).id; month = month || mAdd(todayStr().slice(0, 7) + '-01', -1);
   const r = PF.rows.find(x => x.studio_id === sid && x.month === month) || {};
   $('dlgBody').innerHTML = `<h2>Add or edit a month</h2><p class="lead" style="margin:.25rem 0 1rem">Pick a studio and month. If numbers already exist they fill in below; saving replaces them.</p>
@@ -1790,6 +1870,7 @@ function cmpDiff(a, b, f) {
     <div class="err" id="pErr" role="alert"></div><div class="acts"><button data-act="pfSave">Save month</button><button class="quiet" data-act="close">Cancel</button></div>`;
   if (!$('dlg').open) $('dlg').showModal();
 }
+
 async function pfSave() {
   const row = { studio_id: $('pStudio').value, month: $('pMonth').value + '-01' };
   if (!$('pMonth').value) { $('pErr').textContent = 'Pick a month.'; return; }
