@@ -208,33 +208,6 @@
   .req.low { border-color:#e2564a; background:rgba(201,54,47,.09); }
   .qty[type=number] { width:6rem; }
   .good { background:rgba(35,140,80,.16); } .bad { background:rgba(201,54,47,.16); }
-  .cmp-head { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:1rem; align-items:end; margin:1rem 0 1.25rem; }
-  .cmp-head label { margin:0; }
-  .cmp-vs { align-self:center; font-weight:700; color:var(--muted); padding-bottom:.65rem; }
-  .cmp-swap { margin-top:.45rem; width:100%; }
-  .cmp-list { display:grid; gap:.55rem; }
-  .cmp-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(150px,.7fr) minmax(0,1fr); gap:.6rem; align-items:stretch; }
-  .cmp-val { border:1px solid var(--line); border-radius:9px; padding:.8rem 1rem; background:var(--panel); min-width:0; }
-  .cmp-val.right { text-align:right; }
-  .cmp-val b { display:block; font-size:1.35rem; line-height:1.2; }
-  .cmp-val small { display:block; margin-top:.2rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .cmp-val.win { background:#dff3e5; border-color:#4d9a68; color:#155b2d; }
-  .cmp-val.win small { color:#33734a; }
-  .cmp-val.lose { background:#18212c; border-color:#18212c; color:#fff; }
-  .cmp-val.lose small { color:#c9d1d9; }
-  .cmp-mid { display:flex; flex-direction:column; justify-content:center; text-align:center; padding:.55rem .35rem; }
-  .cmp-mid b { font-size:.9rem; }
-  .cmp-mid span { color:var(--muted); font-size:.76rem; }
-  .cmp-note { padding:.8rem 1rem; border-left:4px solid var(--accent); background:var(--tint); margin-bottom:1rem; font-size:.9rem; }
-  @media (max-width:700px) {
-    .cmp-head { grid-template-columns:1fr; gap:.6rem; }
-    .cmp-vs { padding:0; text-align:center; }
-    .cmp-row { grid-template-columns:1fr 82px 1fr; gap:.35rem; }
-    .cmp-val { padding:.65rem .55rem; }
-    .cmp-val b { font-size:1.05rem; }
-    .cmp-val small { font-size:.7rem; }
-    .cmp-mid b { font-size:.75rem; }
-  }
   .dp { min-width:0; width:100%; } .dp th, .dp td { padding:.3rem .45rem; } .dp th { white-space:normal; }
   .dgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(440px,1fr)); gap:1rem; }
   .dgrid .hcard { overflow-x:auto; }
@@ -296,6 +269,44 @@
   .navmenu { position:fixed; z-index:20; background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 20px rgba(20,20,10,.12); padding:.35rem; min-width:170px; }
   .navmenu a { display:flex; width:100%; box-sizing:border-box; padding:.5rem .6rem; border-radius:6px; }
   .navmenu a.on { background:var(--accent); color:var(--navy); }
+  .cmplist { margin-top:.4rem; display:flex; flex-direction:column; gap:.2rem; max-height:220px; overflow-y:auto; }
+  .cmpitem { all:unset; cursor:pointer; padding:.4rem .5rem; border-radius:6px; }
+  .cmpitem:hover { background:var(--tint); }
+  .cmprow { cursor:pointer; }
+  .cmprow.on { background:rgba(255,199,44,.18); }
+  .pj-top { display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem; margin:1rem 0; }
+  .pj-top-five { grid-template-columns:repeat(5,1fr); }
+  .pj-baseline { border-left:4px solid var(--accent); background:var(--tint); padding:.8rem 1rem; border-radius:8px; font-weight:600; margin:.25rem 0 1rem; }
+  .pj-card, .pj-box { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:1rem; }
+  .pj-card { min-height:62px; padding:.72rem; display:flex; flex-direction:column; justify-content:center; }
+  .pj-card small, .pj-box small { display:block; color:var(--muted); margin-bottom:.3rem; }
+  .pj-card b { font-size:1.55rem; }
+  .pj-card.hit { background:#dff3e5; border-color:#4d9a68; color:#155b2d; }
+  .pj-workspace { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr); gap:1rem; align-items:start; margin:.65rem 0; }
+  .pj-controls, .pj-visual { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:1rem; }
+  .pj-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; margin-top:.8rem; }
+  .pj-grid .pj-box { padding:.75rem; background:var(--bg); }
+  .pj-grid label { font-weight:600; font-size:.86rem; display:block; }
+  .pj-grid input { width:100%; margin-top:.35rem; box-sizing:border-box; }
+  .pj-grid small { font-size:.74rem; line-height:1.25; margin-top:.35rem; }
+  .pj-formula { font-size:.75rem; color:var(--muted); margin:.8rem 0 0; }
+  .pj-flow-row { display:grid; grid-template-columns:1.35fr .8fr 18px .8fr .8fr; gap:.35rem; align-items:center; padding:.48rem 0; border-top:1px solid var(--line); font-size:.82rem; }
+  .pj-flow-row .pj-base { color:var(--muted); text-align:right; }
+  .pj-flow-row strong, .pj-delta { text-align:right; }
+  .pj-arrow { text-align:center; color:var(--muted); }
+  .pj-delta { font-weight:700; }
+  .pj-delta.up { color:#0f6b37; } .pj-delta.down { color:#b3261e; } .pj-delta.flat { color:var(--muted); }
+  .pj-impact { display:grid; grid-template-columns:1.2fr repeat(5,1fr); gap:.65rem; margin:1rem 0; }
+  .pj-impact-title { font-weight:700; display:flex; align-items:center; }
+  .pj-impact-card { border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:.8rem; }
+  .pj-impact-card small { display:block; color:var(--muted); font-size:.75rem; }
+  .pj-impact-card b { display:block; font-size:1.15rem; margin-top:.25rem; }
+  .pj-paths { display:grid; grid-template-columns:repeat(3,1fr); gap:.7rem; }
+  .pj-paths .pj-box { min-height:58px; padding:.65rem; }
+  .pj-paths h4 { margin:.05rem 0 .4rem; }
+  .pj-paths p { margin:0; color:var(--muted); line-height:1.4; }
+  @media (max-width:1000px) { .pj-top-five { grid-template-columns:repeat(2,1fr); } .pj-workspace { grid-template-columns:1fr; } .pj-impact { grid-template-columns:repeat(3,1fr); } .pj-impact-title { grid-column:1/-1; } }
+  @media (max-width:700px) { .pj-top, .pj-top-five, .pj-grid, .pj-paths, .pj-impact { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -441,7 +452,7 @@
       <button data-t="dpr">DPR</button>
       <button data-t="score">Austin scorecard</button>
       <button data-t="master">All Stretch Zone Mastercard</button>
-      <button data-t="compare">Compare studios</button>
+      <button data-t="compare">Compare</button>
       <button data-t="projection">Projection</button>
     </div>
   <div id="repDpr">
@@ -1584,7 +1595,7 @@ const CORP = [['revenue', 'Revenue', 'usd'], ['eft', 'EFT collected', 'usd'], ['
 const RAW = [['gross_revenue', 'Gross revenue ($)'], ['draft', 'Draft ($)'], ['refunds', 'Refunds ($)'], ['leads', 'Leads'], ['scheduled', 'Demos scheduled'], ['demos', 'Demos completed'], ['agreements', 'Agreements'],
   ['cash_sales', 'Cash sales ($)'], ['eft_sales', 'EFT sales ($)'], ['avg_eft', 'Average EFT ($)'], ['staff_util', 'Staff utilization'], ['calls_per_day', 'Calls per day'], ['cancellations', 'Cancellations'], ['active_members', 'Active members']];
 const COLORS = ['#ffc72c', '#8ec9f0', '#f28b82', '#81c995', '#c58af9', '#ff8bcb'];
-const PF = { rows: [], net: {}, corp: {}, netAll: {}, netStore: null, netChart: null, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '', cmpA: '', cmpB: '', projStudio: '' };
+const PF = { rows: [], net: {}, corp: {}, netAll: {}, netStore: null, netChart: null, cmpIndex: null, cmp: { a: null, b: null, kpi: 'revenue', find: { a: '', b: '' } }, cmpChart: null, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '', projData: null, projScenario: null, projDom: null };
 
 const fv = (x, f) => x === null || x === undefined || isNaN(x) ? '-' : f === 'usd' ? '$' + Math.round(x).toLocaleString() : f === 'usd2' ? '$' + x.toFixed(2) : f === 'pct' ? (x * 100).toFixed(0) + '%' : f === 'dec' ? x.toFixed(1) : Math.round(x).toLocaleString();
 const mAdd = (m, n) => { const d = new Date(m + 'T00:00'); d.setMonth(d.getMonth() + n); return ymd(d); };
@@ -1619,11 +1630,8 @@ async function loadPerf() {
 
 function drawPerf() {
   updateRepTabs();
-  $('pfStudio').hidden = PF.tab !== 'score' || ME.role !== 'owner'; $('pfRange').hidden = PF.tab !== 'score';
-  if (PF.tab === 'score') drawScore();
-  else if (PF.tab === 'compare') loadCompare();
-  else if (PF.tab === 'projection') window.loadProjection();
-  else loadMaster();
+  $('pfStudio').hidden = (PF.tab !== 'score' && PF.tab !== 'projection') || ME.role !== 'owner'; $('pfMonth').hidden = PF.tab === 'compare'; $('pfRange').hidden = PF.tab !== 'score';
+  if (PF.tab === 'score') drawScore(); else if (PF.tab === 'master') loadMaster(); else if (PF.tab === 'projection') loadProjection(); else drawCompare();
 }
 
 // One combined tab strip in front of both DPR and Performance. REP.sub decides which of the
@@ -1635,9 +1643,9 @@ function updateRepTabs() {
   document.querySelector('#repTabs [data-t="dpr"]').hidden = !canPage('dpr');
   const perfOk = canPage('performance');
   document.querySelector('#repTabs [data-t="score"]').hidden = !perfOk;
-  if (document.querySelector('#repTabs [data-t="master"]')) document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || ME.role !== 'owner';
-  if (document.querySelector('#repTabs [data-t="compare"]')) document.querySelector('#repTabs [data-t="compare"]').hidden = !perfOk || ME.role !== 'owner';
-  if (document.querySelector('#repTabs [data-t="projection"]')) document.querySelector('#repTabs [data-t="projection"]').hidden = !perfOk;
+  document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || ME.role !== 'owner';
+  document.querySelector('#repTabs [data-t="compare"]').hidden = !perfOk || ME.role !== 'owner';
+  document.querySelector('#repTabs [data-t="projection"]').hidden = !perfOk;
 }
 function drawRepTabs() {
   if (REP.sub === 'dpr' && !canPage('dpr') && canPage('performance')) REP.sub = 'score';
@@ -1740,6 +1748,221 @@ function drawNetChart() {
     scales: { x: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(228,224,214,1)' } }, y: { ticks: { color: '#6b7280', callback: v => fmtNet(v, f) }, grid: { color: 'rgba(228,224,214,1)' } } } } });
 }
 
+// ---------- Compare two locations ----------
+const CMP_LOWER = new Set(['attrition', 'at_risk']);
+
+async function loadCmpIndex() {
+  if (PF.cmpIndex) return PF.cmpIndex;
+  const { data } = await db.from('kpi_network_all').select('store,name,franchise,tier,month').order('month', { ascending: false }).limit(3000);
+  const seen = new Map();
+  (data || []).forEach(r => { if (!seen.has(r.store)) seen.set(r.store, r); });
+  PF.cmpIndex = [...seen.values()];
+  return PF.cmpIndex;
+}
+
+async function selectCmpSlot(side, store) {
+  const idx = (PF.cmpIndex || []).find(x => x.store === store);
+  PF.cmp.find[side] = '';
+  const { data } = await db.from('kpi_network_all').select('*').eq('store', store).order('month');
+  PF.cmp[side] = { store, name: (idx && idx.name) || store, franchise: (idx && idx.franchise) || '', tier: (idx && idx.tier) || '', rows: data || [] };
+  drawCompare();
+}
+
+function cmpResultsHtml(side) {
+  const q = (PF.cmp.find[side] || '').trim().toLowerCase();
+  if (q.length < 2) return '';
+  const results = (PF.cmpIndex || []).filter(x => (x.name || '').toLowerCase().includes(q) || (x.franchise || '').toLowerCase().includes(q)).slice(0, 8);
+  return results.length ? `<div class="cmplist">${results.map(r => `<button type="button" class="cmpitem" data-side="${side}" data-store="${esc(r.store)}">${esc(r.name)} <span class="lead">${esc(r.franchise || '')}</span></button>`).join('')}</div>` : '<p class="lead" style="margin:.4rem 0 0">No match.</p>';
+}
+
+async function drawCompare() {
+  if (!PF.cmpIndex) { $('pfBody').innerHTML = '<p class="lead">Loading locations...</p>'; await loadCmpIndex(); }
+  const slot = (side, label) => {
+    const c = PF.cmp[side];
+    if (c) return `<div class="hcard"><b>${esc(c.name)}</b><div class="lead" style="margin:.2rem 0 .6rem">${esc([c.franchise, c.tier].filter(Boolean).join(' \u2022 '))}${c.rows.length ? ' \u2022 ' + c.rows.length + ' month' + (c.rows.length === 1 ? '' : 's') + ' on file' : ' \u2022 no history yet'}</div><button class="quiet sm" data-cmpclear="${side}">Change</button></div>`;
+    return `<div class="hcard"><label>${label}<input type="search" class="cmpsearch" id="cmpIn_${side}" data-side="${side}" placeholder="Search by name or franchise" value="${esc(PF.cmp.find[side] || '')}"></label><div id="cmpList_${side}">${cmpResultsHtml(side)}</div></div>`;
+  };
+  let html = `<p class="lead" style="margin:0 0 1rem">Pick any two Stretch Zone locations you\u2019ve uploaded a scorecard for, yours or anyone else\u2019s.</p><div class="dgrid3">${slot('a', 'Location A')}${slot('b', 'Location B')}</div>`;
+  if (PF.cmp.a && PF.cmp.b) {
+    const A = PF.cmp.a, B = PF.cmp.b, la = A.rows[A.rows.length - 1], lb = B.rows[B.rows.length - 1];
+    const rows = CORP.map(([k, n, f]) => {
+      const va = la ? (la.kpis[k] ?? null) : null, vb = lb ? (lb.kpis[k] ?? null) : null;
+      const better = va !== null && vb !== null && va !== vb ? (CMP_LOWER.has(k) ? (va < vb ? 'a' : 'b') : (va > vb ? 'a' : 'b')) : '';
+      return `<tr data-k="${k}" class="cmprow ${PF.cmp.kpi === k ? 'on' : ''}"><td>${n}</td><td class="${better === 'a' ? 'best' : ''}">${fmtNet(va, f)}</td><td class="${better === 'b' ? 'best' : ''}">${fmtNet(vb, f)}</td></tr>`;
+    }).join('');
+    html += `<h3 class="sub" style="margin-top:1.5rem">Side by side</h3><p class="lead" style="margin:0 0 .5rem">${la ? esc(A.name) + '\u2019s most recent month on file is ' + mLbl(la.month) : esc(A.name) + ' has no history yet'}, ${lb ? esc(B.name) + '\u2019s is ' + mLbl(lb.month) : esc(B.name) + ' has no history yet'}. The better number for each KPI is highlighted. Click a row to chart it.</p>
+      <div class="table-wrap"><table class="mt"><thead><tr><th>KPI</th><th>${esc(A.name)}</th><th>${esc(B.name)}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="pcard" style="margin-top:1rem"><h3 id="cmpTitle"></h3><div style="position:relative;height:320px"><canvas id="cmpChart"></canvas></div></div>`;
+  }
+  $('pfBody').innerHTML = html;
+  if (PF.cmp.a && PF.cmp.b) drawCmpChart();
+}
+
+function drawCmpChart() {
+  const [k, n, f] = CORP.find(x => x[0] === PF.cmp.kpi);
+  if (typeof Chart === 'undefined') { $('cmpTitle').textContent = n; return; }
+  const A = PF.cmp.a, B = PF.cmp.b;
+  const months = [...new Set([...A.rows.map(r => r.month), ...B.rows.map(r => r.month)])].sort();
+  const seriesFor = loc => months.map(m => { const r = loc.rows.find(x => x.month === m); return r ? (r.kpis[k] ?? null) : null; });
+  const ln = (label, data, color) => ({ label, data, borderColor: color, backgroundColor: color, tension: .25, pointRadius: 2, borderWidth: 2, spanGaps: false });
+  $('cmpTitle').textContent = n;
+  if (PF.cmpChart) PF.cmpChart.destroy();
+  PF.cmpChart = new Chart($('cmpChart'), { type: 'line', data: { labels: months.map(m => mLbl(m)), datasets: [ln(A.name, seriesFor(A), '#ffc72c'), ln(B.name, seriesFor(B), '#2e6da4')] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: '#16202b' } }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmtNet(c.parsed.y, f) } } },
+      scales: { x: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(228,224,214,1)' } }, y: { ticks: { color: '#6b7280', callback: v => fmtNet(v, f) }, grid: { color: 'rgba(228,224,214,1)' } } } } });
+}
+
+// ---------- Projection: a what-if planner for one studio's month ----------
+// Kept here in the main file rather than as a separate script, so uploading index.html
+// alone is always enough, the same as every other page in this app.
+const PJ = { E: (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; },
+  $m: v => '$' + Math.round(+v || 0).toLocaleString(), $p: v => Math.round((+v || 0) * 1000) / 10 };
+
+function pjCalc(b, s) {
+  const L = s.ld * b.rem, S = L * s.l2d, H = S * s.show, N = H * s.close, V = N * (s.eft + s.cash), D = s.canc * b.rem * s.eft;
+  return { L, H, N, V, D, P: b.gross + b.due + V - D };
+}
+function pjHist(sid, n, d, k) { return PF.rows.filter(r => r.studio_id === sid).map(r => n && d ? (+r[d] ? +r[n] / +r[d] : null) : (r[k] == null ? null : +r[k])).filter(v => v != null && isFinite(v)); }
+function pjNote(sid, v, n, d, k, p) {
+  const h = pjHist(sid, n, d, k); if (!h.length) return 'No prior monthly history yet.';
+  const best = Math.max(...h), hit = h.some(x => x >= v * .995), z = p ? PJ.$p(best) + '%' : best.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  return (hit ? 'Previously achieved. ' : 'Stretch target. ') + 'Best recorded: ' + z + '.';
+}
+
+function pjBase() {
+  const sid = PF.studio, r = PF.rows.find(x => x.studio_id === sid && x.month === PF.month) || {}, q = PF.projData || { daily: [], goal: 0, due: 0 };
+  const a = q.daily, y = +PF.month.slice(0, 4), m = +PF.month.slice(5, 7), days = new Date(y, m, 0).getDate(), now = todayStr();
+  const isCurrentMonth = now.slice(0, 7) === PF.month.slice(0, 7);
+  let elapsed = isCurrentMonth ? +now.slice(8, 10) : (now < PF.month ? 0 : days);
+  const dataDay = a.map(x => +(x.day || '').slice(8, 10)).filter(Boolean);
+  if (!isCurrentMonth && dataDay.length) elapsed = Math.max(...dataDay);
+  elapsed = Math.max(1, Math.min(days, elapsed));
+  const sum = k => a.reduce((n, x) => n + (+x[k] || 0), 0);
+  const last = k => { const z = a.filter(x => x[k] != null).sort((x, y2) => x.day < y2.day ? 1 : -1); return z.length ? +z[0][k] : null; };
+  const leads = sum('total_leads') || +r.leads || 0, sch = sum('demos_scheduled') || +r.scheduled || 0, demos = sum('demos_showed') || +r.demos || 0, sales = sum('demo_sales') || +r.agreements || 0;
+  let g = last('mtd_gross'); if (g == null) g = +r.gross_revenue || 0;
+  const eft = +r.avg_eft || 275, cash = +r.cash_sales || 0;
+  return { sid, days, elapsed, isCurrentMonth, hasDaily: !!dataDay.length, rem: Math.max(0, days - elapsed), gross: g, due: +q.due || 0, goal: q.goal || 0,
+    ld: leads / elapsed, l2d: leads ? sch / leads : 0, show: sch ? demos / sch : 0, close: demos ? sales / demos : 0, eft, cash: sales ? cash / sales : (cash || 150),
+    counts: { leads, sch, demos, sales }, canc: (sum('cancellations') || +r.cancellations || 0) / elapsed };
+}
+
+async function loadProjection() {
+  const own = ME.role === 'owner';
+  if (!own && ME.location_id) PF.studio = ME.location_id;
+  const av = locs.filter(l => PF.rows.some(r => r.studio_id === l.id));
+  if (!PF.studio || !av.some(l => l.id === PF.studio)) PF.studio = (av[0] || {}).id || '';
+  if (!PF.studio) { $('pfBody').innerHTML = '<p class="lead">Add monthly studio data first, on the Austin scorecard tab.</p>'; return; }
+  $('pfBody').innerHTML = '<p class="lead">Loading projection...</p>';
+  const end = mAdd(PF.month, 1), today = todayStr(), monthStart = PF.month + '-01';
+  const [d, g, members] = await Promise.all([
+    db.from('dpr_daily').select('*').eq('studio_id', PF.studio).gte('day', PF.month).lt('day', end),
+    db.from('dpr_goals').select('*').eq('studio_id', PF.studio).lte('month', PF.month).order('month', { ascending: false }).limit(1),
+    db.from('member_snapshot').select('next_due,amount,frozen').eq('studio_id', PF.studio).limit(5000)
+  ]);
+  const due = (members.data || []).filter(r => !r.frozen && r.next_due && r.next_due >= (today.slice(0, 7) === PF.month ? today : monthStart) && r.next_due < end).reduce((n, r) => n + (+r.amount || 0), 0);
+  PF.projData = { daily: d.data || [], goal: (g.data && g.data[0] && +g.data[0].revenue) || 0, due };
+  PF.projScenario = null;
+  drawProjection();
+}
+
+function drawProjection() {
+  const b = pjBase();
+  if (!b.isCurrentMonth && !b.hasDaily) {
+    // A past month with no day-by-day DPR entries has nothing to plan, it's already over.
+    // Show what actually happened instead of guessing how much of the month had passed.
+    $('pfBody').innerHTML = `<p class="lead">${esc((locs.find(l => l.id === b.sid) || {}).name)} \u2022 ${mLbl(PF.month, 1)} is a closed month with no daily DPR entries on file, so there is nothing to project.</p>
+      <div class="sum">${tile(m$(b.gross), 'Recorded gross revenue')}${tile(b.counts.leads, 'Leads')}${tile(b.counts.demos, 'Demos')}${tile(b.counts.sales, 'New agreements')}</div>`;
+    return;
+  }
+  const cur = { ld: b.ld, l2d: b.l2d, show: b.show, close: b.close, eft: b.eft, cash: b.cash, canc: b.canc };
+  PF.projScenario = PF.projScenario || cur;
+  const { E, $m, $p } = PJ, B = $('pfBody'); B.replaceChildren();
+  const reset = E('button', 'quiet', 'Reset to current performance'); reset.id = 'pjReset'; reset.type = 'button'; reset.style.margin = '.5rem 0 1rem';
+  B.append(E('h3', 'sub', (locs.find(l => l.id === b.sid) || {}).name + ' \u2022 ' + mLbl(PF.month, 1)),
+    E('p', 'lead', 'Planning model based on actual performance. Scenario changes never overwrite real KPIs.' + (b.isCurrentMonth ? '' : ' This month has ended, so the scenario below assumes the month is fully played out.')),
+    reset);
+  const outWrap = E('div'); B.append(outWrap);
+  const controls = E('div', 'pj-controls');
+  controls.append(E('h3', 'sub', 'What are we going to change?'), E('p', 'lead', 'The baseline assumes the current sales process continues. Change the levers below to see a different month-end result.'));
+  const grid = E('div', 'pj-grid');
+  const field = (id, label, val, step, help) => {
+    const box = E('div', 'pj-box'), l = E('label', '', label), i = document.createElement('input');
+    i.id = id; i.type = 'number'; i.min = 0; i.step = step; i.value = val;
+    l.append(i); box.append(l, E('small', '', help)); grid.append(box);
+  };
+  field('pjLeads', 'Leads per day', cur.ld.toFixed(1), .1, pjNote(b.sid, cur.ld * b.days, null, null, 'leads', false));
+  field('pjL2d', 'Lead \u2192 Demo %', $p(cur.l2d), .1, 'Current: ' + b.counts.sch + ' of ' + b.counts.leads + ' leads scheduled. ' + pjNote(b.sid, cur.l2d, 'scheduled', 'leads', null, true));
+  field('pjShow', 'Show rate %', $p(cur.show), .1, 'Current: ' + b.counts.demos + ' of ' + b.counts.sch + ' scheduled demos showed. ' + pjNote(b.sid, cur.show, 'demos', 'scheduled', null, true));
+  field('pjClose', 'Close rate %', $p(cur.close), .1, 'Current: ' + b.counts.sales + ' of ' + b.counts.demos + ' shows closed. ' + pjNote(b.sid, cur.close, 'agreements', 'demos', null, true));
+  field('pjEft', 'Average EFT $', cur.eft.toFixed(0), 1, 'Recurring value per new sale. ' + pjNote(b.sid, cur.eft, null, null, 'avg_eft', false));
+  field('pjCash', 'Cash per sale $', cur.cash.toFixed(0), 5, 'Estimated from cash sales divided by agreements.');
+  field('pjCanc', 'Cancellations per day', cur.canc.toFixed(2), .1, 'Lower is better. Used to estimate cancellation drag.');
+  controls.append(grid, E('p', 'pj-formula', 'Current gross + invoices coming due + modeled future sales \u2212 cancellation drag'));
+  const visual = E('div', 'pj-visual');
+  const workspace = E('div', 'pj-workspace'); workspace.append(controls, visual); B.append(workspace);
+  const impactWrap = E('div'); B.append(impactWrap);
+  const pathsHead = E('div'); B.append(pathsHead);
+  const pathsWrap = E('div'); B.append(pathsWrap);
+  PF.projDom = { outWrap, visual, impactWrap, pathsHead, pathsWrap };
+  pjRenderOutputs(b, cur, outWrap, visual, impactWrap, pathsHead, pathsWrap);
+}
+
+// Redraws only the read-only panels (numbers, chart-free visual, impact, paths), never the
+// <input> elements themselves, so typing in a box does not knock the cursor out of it.
+function pjRenderOutputs(b, cur, outWrap, visual, impactWrap, pathsHead, pathsWrap) {
+  const { E, $m } = PJ, s = PF.projScenario || cur, x = pjCalc(b, s), cx = pjCalc(b, cur), gap = b.goal ? b.goal - x.P : null;
+  outWrap.replaceChildren();
+  const top = E('div', 'pj-top pj-top-five');
+  [['Current gross', b.gross], ['Invoices coming due', b.due], ['Baseline new sales', cx.V], ['If nothing changes', cx.P], ['Scenario month-end', x.P]].forEach((a, i) => {
+    const c = E('div', 'pj-card' + (i === 3 && b.goal && cx.P >= b.goal ? ' hit' : ''));
+    c.append(E('small', '', a[0]), E('b', '', a[1] == null ? '-' : $m(a[1])));
+    top.append(c);
+  });
+  outWrap.append(top);
+  if (b.goal) { const baseGap = b.goal - cx.P; outWrap.append(E('div', 'pj-baseline', baseGap > 0 ? 'If nothing changes, this studio is projected to finish ' + $m(baseGap) + ' below goal. What are we going to change?' : 'If nothing changes, this studio is projected to finish ' + $m(Math.abs(baseGap)) + ' above goal. Use the scenario below to pressure-test the plan.')); }
+  else outWrap.append(E('div', 'cmp-note', 'No DPR revenue goal is set yet. Add one on the DPR tab to enable exact gap-to-goal guidance.'));
+
+  visual.replaceChildren();
+  visual.append(E('h3', '', 'Funnel impact \u2192 revenue'));
+  [['Future leads', cx.L, x.L, 0], ['Demos scheduled', cx.L * cur.l2d, x.L * s.l2d, 0], ['Shows', cx.H, x.H, 0], ['Sales', cx.N, x.N, 0], ['New sales value', cx.V, x.V, 1], ['Month-end revenue', cx.P, x.P, 1]].forEach(r => {
+    const d = r[2] - r[1], fmt = v => r[3] ? $m(v) : (+v).toFixed(1), w = E('div', 'pj-flow-row');
+    w.append(E('b', '', r[0]), E('span', 'pj-base', fmt(r[1])), E('span', 'pj-arrow', '\u2192'), E('strong', '', fmt(r[2])), E('span', 'pj-delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'flat'), (d > 0 ? '+' : '') + fmt(d)));
+    visual.append(w);
+  });
+
+  impactWrap.replaceChildren();
+  const out = E('div', 'pj-impact');
+  out.append(E('div', 'pj-impact-title', 'Scenario impact'));
+  [['Future leads', Math.round(x.L)], ['Future shows', Math.round(x.H)], ['Future sales', x.N.toFixed(1)], ['Added sales value', $m(x.V)], ['Cancellation drag', $m(x.D)]].forEach(a => {
+    const c = E('div', 'pj-impact-card'); c.append(E('small', '', a[0]), E('b', '', a[1])); out.append(c);
+  });
+  impactWrap.append(out);
+
+  pathsHead.replaceChildren(); pathsHead.append(E('h3', 'sub', 'Paths to work the gap'), E('p', 'lead', 'Use these as operating directions, then test the assumptions above.'));
+  pathsWrap.replaceChildren();
+  const paths = E('div', 'pj-paths'), need = gap > 0 ? Math.ceil(gap / Math.max(1, s.eft + s.cash)) : 0, conv = s.l2d * s.show * s.close, leadsNeeded = need && conv ? Math.ceil(need / conv) : 0;
+  const msg = gap == null ? ['Set a revenue goal to calculate required sales.', 'A goal will translate the gap into required leads.', 'Test a combination of volume and conversion above.']
+    : gap <= 0 ? ['This scenario reaches goal with ' + $m(Math.abs(gap)) + ' cushion.', 'Protect lead flow and show rate.', 'Lower assumptions to find a conservative goal-hitting plan.']
+    : ['About ' + need + ' additional sales close the ' + $m(gap) + ' gap.', 'At these conversion rates, that is about ' + leadsNeeded + ' additional leads.', 'Improve several levers modestly, history notes show what has been achieved before.'];
+  ['1. Sales path', '2. Lead-volume path', '3. Balanced path'].forEach((t, i) => { const z = E('div', 'pj-box'); z.append(E('h4', '', t), E('p', '', msg[i])); paths.append(z); });
+  pathsWrap.append(paths);
+}
+
+function pjRead(b) {
+  const v = (id, fallback) => { const el = $(id); return el == null || el.value === '' ? fallback : +el.value; };
+  return { ld: Math.max(0, v('pjLeads', b.ld)), l2d: Math.min(1, Math.max(0, v('pjL2d', PJ.$p(b.l2d)) / 100)), show: Math.min(1, Math.max(0, v('pjShow', PJ.$p(b.show)) / 100)),
+    close: Math.min(1, Math.max(0, v('pjClose', PJ.$p(b.close)) / 100)), eft: Math.max(0, v('pjEft', b.eft)), cash: Math.max(0, v('pjCash', b.cash)), canc: Math.max(0, v('pjCanc', b.canc)) };
+}
+$('pfBody').addEventListener('click', e => { if (e.target && e.target.id === 'pjReset' && PF.tab === 'projection') { PF.projScenario = null; drawProjection(); } });
+$('pfBody').addEventListener('input', e => {
+  if (PF.tab !== 'projection' || !PF.projDom || !e.target || !['pjLeads', 'pjL2d', 'pjShow', 'pjClose', 'pjEft', 'pjCash', 'pjCanc'].includes(e.target.id)) return;
+  const b = pjBase(); PF.projScenario = pjRead(b);
+  const { outWrap, visual, impactWrap, pathsHead, pathsWrap } = PF.projDom;
+  pjRenderOutputs(b, { ld: b.ld, l2d: b.l2d, show: b.show, close: b.close, eft: b.eft, cash: b.cash, canc: b.canc }, outWrap, visual, impactWrap, pathsHead, pathsWrap);
+});
+
 function fmtNet(v, f) {
   return v === null || v === undefined || v === '' || isNaN(v) ? '-' : f === 'usd' ? '$' + Math.round(v).toLocaleString() : f === 'usd2' ? '$' + (+v).toFixed(2) : f === 'pct' ? (+v * 100).toFixed(0) + '%' : f === 'dec' ? (+v).toFixed(1) : Math.round(v).toLocaleString();
 }
@@ -1774,95 +1997,6 @@ function drawMaster() {
 }
 
 
-
-const CMP_DIR = { attrition: -1, at_risk: -1, basic: 0 };
-const cmpDir = k => Object.prototype.hasOwnProperty.call(CMP_DIR, k) ? CMP_DIR[k] : 1;
-const cmpStoreName = r => r ? (r.name || ('Store ' + r.store)) : 'Select a studio';
-
-function cmpDiff(a, b, f) {
-  if (a === null || a === undefined || b === null || b === undefined || isNaN(a) || isNaN(b)) return '';
-  const d = +a - +b, ad = Math.abs(d);
-  if (ad < 0.000001) return 'Equal';
-  if (f === 'pct') return (d > 0 ? '+' : '-') + (ad * 100).toFixed(1) + ' pts';
-  if (f === 'usd' || f === 'usd2') return (d > 0 ? '+' : '-') + '$' + ad.toLocaleString('en-US', { maximumFractionDigits: f === 'usd2' ? 2 : 0 });
-  return (d > 0 ? '+' : '-') + ad.toLocaleString('en-US', { maximumFractionDigits: 1 });
-}
-
-function cmpClass(a, b, k) {
-  const dir = cmpDir(k);
-  if (!dir || a === null || a === undefined || b === null || b === undefined || isNaN(a) || isNaN(b) || +a === +b) return ['', ''];
-  const aw = ((+a - +b) * dir) > 0;
-  return aw ? ['win', 'lose'] : ['lose', 'win'];
-}
-
-function cmpOptions(rows, selected) {
-  const yours = new Set(locs.map(l => String(l.club_store_id || '')).filter(Boolean));
-  const sorted = [...rows].sort((a, b) => {
-    const ay = yours.has(String(a.store)), by = yours.has(String(b.store));
-    if (ay !== by) return ay ? -1 : 1;
-    return String(a.name || a.store).localeCompare(String(b.name || b.store));
-  });
-  const ownRows = sorted.filter(r => yours.has(String(r.store)));
-  const otherRows = sorted.filter(r => !yours.has(String(r.store)));
-  const opts = arr => arr.map(r => '<option value="' + esc(r.store) + '"' + (String(r.store) === String(selected) ? ' selected' : '') + '>' + esc(r.name || r.store) + (r.franchise ? ' — ' + esc(r.franchise) : '') + '</option>').join('');
-  return (ownRows.length ? '<optgroup label="Austin studios">' + opts(ownRows) + '</optgroup>' : '') +
-    '<optgroup label="All other Stretch Zone studios">' + opts(otherRows) + '</optgroup>';
-}
-
-async function loadCompare() {
-  if (ME.role !== 'owner') {
-    $('pfBody').innerHTML = '<p class="lead">Only the owner can compare against the full Stretch Zone network.</p>';
-    return;
-  }
-  if (!PF.netAll[PF.month]) {
-    $('pfBody').innerHTML = '<p class="lead">Loading studios for comparison...</p>';
-    const { data, error } = await db.from('kpi_network_all').select('*').eq('month', PF.month).limit(1000);
-    if (error) {
-      $('pfBody').innerHTML = '<p class="lead">Could not load comparison data. ' + esc(error.message) + '</p>';
-      return;
-    }
-    PF.netAll[PF.month] = data || [];
-  }
-  drawCompare();
-}
-
-function drawCompare() {
-  const rows = PF.netAll[PF.month] || [];
-  if (!rows.length) {
-    $('pfBody').innerHTML = '<p class="lead">No Mastercard data is loaded for ' + esc(mLbl(PF.month, 1)) + '.</p>';
-    return;
-  }
-  const yours = new Set(locs.map(l => String(l.club_store_id || '')).filter(Boolean));
-  const ownRows = rows.filter(r => yours.has(String(r.store)));
-  if (!rows.some(r => String(r.store) === String(PF.cmpA))) PF.cmpA = String((ownRows[0] || rows[0]).store);
-  if (!rows.some(r => String(r.store) === String(PF.cmpB)) || String(PF.cmpB) === String(PF.cmpA)) {
-    PF.cmpB = String((rows.find(r => String(r.store) !== String(PF.cmpA) && !yours.has(String(r.store))) ||
-      rows.find(r => String(r.store) !== String(PF.cmpA)) || rows[0]).store);
-  }
-  const A = rows.find(r => String(r.store) === String(PF.cmpA));
-  const B = rows.find(r => String(r.store) === String(PF.cmpB));
-  const metricRows = CORP.map(([k, n, f]) => {
-    const av = A && A.kpis ? A.kpis[k] : null;
-    const bv = B && B.kpis ? B.kpis[k] : null;
-    const cls = cmpClass(av, bv, k), dir = cmpDir(k);
-    const note = dir < 0 ? 'Lower is better' : dir === 0 ? 'Context metric' : 'Higher is better';
-    return '<div class="cmp-row">' +
-      '<div class="cmp-val ' + cls[0] + '"><b>' + fmtNet(av, f) + '</b><small>' + esc(cmpStoreName(A)) + '</small></div>' +
-      '<div class="cmp-mid"><b>' + esc(n) + '</b><span>' + esc(cmpDiff(av, bv, f)) + '</span><span>' + note + '</span></div>' +
-      '<div class="cmp-val right ' + cls[1] + '"><b>' + fmtNet(bv, f) + '</b><small>' + esc(cmpStoreName(B)) + '</small></div>' +
-      '</div>';
-  }).join('');
-
-  $('pfBody').innerHTML =
-    '<div class="cmp-note"><b>Green = stronger for that metric.</b> Dark = lower-performing side. Attrition and at-risk reverse the logic because lower is better. % of basic members is shown without a winner because it is a mix metric, not automatically good or bad.</div>' +
-    '<div class="cmp-head"><label>Studio A<select id="cmpA">' + cmpOptions(rows, PF.cmpA) + '</select></label>' +
-    '<div class="cmp-vs">VS<br><button type="button" class="quiet cmp-swap" id="cmpSwap" title="Swap studios">⇄ Swap</button></div>' +
-    '<label>Studio B<select id="cmpB">' + cmpOptions(rows, PF.cmpB) + '</select></label></div>' +
-    '<h3 class="sub" style="margin:0 0 .2rem">' + esc(cmpStoreName(A)) + ' vs ' + esc(cmpStoreName(B)) + '</h3>' +
-    '<p class="lead" style="margin:0 0 1rem">' + esc(mLbl(PF.month, 1)) + ' · Same corporate Mastercard definitions on both sides</p>' +
-    '<div class="cmp-list">' + metricRows + '</div>';
-}
-
 function pfForm(sid, month) {
   sid = sid || PF.studio || (locs[0] || {}).id; month = month || mAdd(todayStr().slice(0, 7) + '-01', -1);
   const r = PF.rows.find(x => x.studio_id === sid && x.month === month) || {};
@@ -1873,7 +2007,6 @@ function pfForm(sid, month) {
     <div class="err" id="pErr" role="alert"></div><div class="acts"><button data-act="pfSave">Save month</button><button class="quiet" data-act="close">Cancel</button></div>`;
   if (!$('dlg').open) $('dlg').showModal();
 }
-
 async function pfSave() {
   const row = { studio_id: $('pStudio').value, month: $('pMonth').value + '-01' };
   if (!$('pMonth').value) { $('pErr').textContent = 'Pick a month.'; return; }
@@ -1888,8 +2021,13 @@ $('pfMonth').onchange = e => { PF.month = e.target.value; drawPerf(); };
 $('pfRange').onchange = e => { PF.range = +e.target.value; if (PF.tab === 'score') drawChart(); };
 $('pfData').onclick = pfMenu;
 $('pfBody').onclick = e => {
-  if (e.target.closest('#cmpSwap')) { const a = PF.cmpA; PF.cmpA = PF.cmpB; PF.cmpB = a; drawCompare(); return; }
   if (e.target.closest('#netBack')) return netBackToList();
+  const cmpItem = e.target.closest('.cmpitem');
+  if (cmpItem) return selectCmpSlot(cmpItem.dataset.side, cmpItem.dataset.store);
+  const cmpClear = e.target.closest('[data-cmpclear]');
+  if (cmpClear) { PF.cmp[cmpClear.dataset.cmpclear] = null; return drawCompare(); }
+  const cmpRow = e.target.closest('.cmprow');
+  if (cmpRow) { PF.cmp.kpi = cmpRow.dataset.k; document.querySelectorAll('.cmprow').forEach(x => x.classList.toggle('on', x === cmpRow)); return drawCmpChart(); }
   const nkt = e.target.closest('.netkt');
   if (nkt) { PF.netStore.kpi = nkt.dataset.k; document.querySelectorAll('.netkt').forEach(x => x.classList.toggle('on', x === nkt)); drawNetChart(); $('netChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   const kt = e.target.closest('.kt');
@@ -1899,11 +2037,7 @@ $('pfBody').onclick = e => {
   const row = e.target.closest('tr[data-store]');
   if (row) { const rows = PF.netAll[PF.month] || [], r = rows.find(x => x.store === row.dataset.store); loadNetStore(row.dataset.store, r); }
 };
-$('pfBody').oninput = e => { if (e.target.id === 'mFindBox') { PF.mFind = e.target.value; drawMaster(); } };
-$('pfBody').addEventListener('change', e => {
-  if (e.target.id === 'cmpA') { PF.cmpA = e.target.value; drawCompare(); }
-  else if (e.target.id === 'cmpB') { PF.cmpB = e.target.value; drawCompare(); }
-});
+$('pfBody').oninput = e => { if (e.target.id === 'mFindBox') { PF.mFind = e.target.value; drawMaster(); } else if (e.target.classList.contains('cmpsearch')) { const side = e.target.dataset.side; PF.cmp.find[side] = e.target.value; $('cmpList_' + side).innerHTML = cmpResultsHtml(side); } };
 $('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'pfSave') pfSave(); });
 $('dlgBody').addEventListener('change', e => { if (e.target.id === 'pStudio' || e.target.id === 'pMonth') { const m = $('pMonth').value; if (m) pfForm($('pStudio').value, m + '-01'); } });
 
@@ -2944,7 +3078,5 @@ $('dlgBody').addEventListener('click', e => {
 
 init();
 </script>
-<script src="projection.js"></script>
 </body>
-<!-- pages redeploy 2026-09-29 -->
 </html>
