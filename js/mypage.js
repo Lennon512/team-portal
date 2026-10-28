@@ -64,7 +64,7 @@ function drawHome() {
     // Studios whose numbers for yesterday aren't in the Daily log yet
     const yd = ymd(new Date(Date.now() - DAY)), have = new Set(H.dpr.filter(r => r.day === yd).map(r => r.studio_id));
     const miss = locs.filter(l => (ME.role === 'owner' || l.id === ME.location_id) && !have.has(l.id));
-    if (miss.length) tiles.push(tile(miss.length, `Daily log${miss.length === 1 ? '' : 's'} missing`, esc(miss.map(l => l.name).slice(0, 3).join(', ')) + ' \u2022 yesterday', '#dpr', 'hot'));
+    if (miss.length) tiles.push(tile(miss.length, `Daily log${miss.length === 1 ? '' : 's'} missing`, esc(miss.map(l => l.name).slice(0, 3).join(', ')) + ' \u2022 yesterday', '#enter', 'hot'));
   }
   // supplies: compact list
   let supCard = '';

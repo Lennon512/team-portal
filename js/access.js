@@ -5,7 +5,7 @@ const PAGES = [['team', 'Team', 'Team cards and bios'], ['studio', 'Studio', 'St
 const DEFPAGES = { staff: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies'], manager: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies', 'performance', 'people'] };
 const NAVID = { team: 'navTeam', studio: 'navStudio', calendar: 'navCal', tasks: 'navTasks', members: 'navMem', timeoff: 'navOff', supplies: 'navSup', leadership: 'navHr', payroll: 'navPay', people: 'navPeople' };
 const canPage = k => !!ME && (ME.role === 'owner' || (ME.pages || []).includes(k));
-const canHref = h => { const k = { '#tasks': 'tasks', '#timeoff': 'timeoff', '#calendar': 'calendar', '#members': 'members', '#dpr': 'dpr', '#supplies': 'supplies' }[h]; return !k || canPage(k); };
+const canHref = h => { const k = { '#tasks': 'tasks', '#timeoff': 'timeoff', '#calendar': 'calendar', '#members': 'members', '#dpr': 'dpr', '#enter': 'dpr', '#supplies': 'supplies' }[h]; return !k || canPage(k); };
 const acc = { groups: null, people: [], msg: '' };
 
 async function loadPages() {
