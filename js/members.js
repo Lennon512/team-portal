@@ -158,6 +158,17 @@ const NT = [['welcome', 'Welcome email', ['welcome']], ['appflex', 'App / Flex p
 const ntOn = (id, fields) => fields.some(f => (mem.nt[id] || {})[f]);
 // Joins a new member to their row in the at-risk snapshot for last session / last contact
 const snapOf = id => mem.rows.find(x => x.club_id == id);
+// Warning signs for a new member; shared with the home page so the counts match
+function nmHealth(r, day, dl, ratio) {
+  if (r.cancelled) return { health: 'cx', why: [] };
+  const why = [];
+  if (!(r.sessions_booked > 0)) why.push('nothing booked');
+  if (ratio !== null && day >= 7 && ratio < .5) why.push('behind on sessions');
+  // Normal gap between visits depends on the plan: ~11 days for 4x/month, ~22 for 2x
+  const gap = r.plan_sessions ? Math.max(10, Math.round(30 / r.plan_sessions * 1.5)) : 14;
+  if (dl !== null ? dl > gap : day > 7 && !r.sessions_done) why.push(dl === null ? 'no session yet' : `no session in ${dl} days`);
+  return { health: why.length >= 2 ? 'risk' : why.length ? 'watch' : 'ok', why };
+}
 function nmCalc(r) {
   const d = s => new Date(s + 'T00:00'), day = Math.max(1, daysAgo(r.signed_on) + 1), snap = snapOf(r.club_id) || {};
   const lastS = snap.last_session || null, lastC = snap.club_id ? lc(snap) : ((mem.contacts[r.club_id] || [])[0] || {}).contacted_on || null;
@@ -165,16 +176,7 @@ function nmCalc(r) {
   // Sessions they should have done by now, pro-rated over the first 30 days
   const expect = r.plan_sessions ? r.plan_sessions * Math.min(day, 30) / 30 : null, ratio = expect ? r.sessions_done / Math.max(expect, 1) : null;
   const m2 = r.is_package ? 'N/A' : r.cancelled ? ((r.cancel_date && (d(r.cancel_date) - d(r.signed_on)) / DAY >= 30) ? 'Yes' : 'No') : day > 30 ? 'Yes' : 'Not yet';
-  let health = 'ok', why = [];
-  if (r.cancelled) health = 'cx';
-  else {
-    if (!(r.sessions_booked > 0)) why.push('nothing booked');
-    if (ratio !== null && day >= 7 && ratio < .5) why.push('behind on sessions');
-    // Normal gap between visits depends on the plan: ~11 days for 4x/month, ~22 for 2x
-    const gap = r.plan_sessions ? Math.max(10, Math.round(30 / r.plan_sessions * 1.5)) : 14;
-    if (dl !== null ? dl > gap : day > 7 && !r.sessions_done) why.push(dl === null ? 'no session yet' : `no session in ${dl} days`);
-    health = why.length >= 2 ? 'risk' : why.length ? 'watch' : 'ok';
-  }
+  const { health, why } = nmHealth(r, day, dl, ratio);
   const done = NT.filter(x => ntOn(r.club_id, x[2])).length;
   return { day, lastS, lastC, dl, dc, ratio, m2, health, why: why.join(', '), done, past: day > 30 };
 }
