@@ -26,6 +26,7 @@ async function showOff(id) {
   $('dlgBody').innerHTML = `<h2>${esc(o.full_name)}</h2>
     <p class="lead" style="margin:.25rem 0 1rem">${esc(fmt(o.start_date) + (o.end_date !== o.start_date ? ' \u2013 ' + fmt(o.end_date) : ''))} \u2022 ${esc(studio(o.location_id))} \u2022 <span class="pill ${o.status === 'approved' ? '' : 'ice'}" style="margin:0">${o.status}</span></p>
     <p style="margin:0 0 .75rem">${esc(line)}</p>
+    ${clashes(o).length ? `<p class="clash">Heads up: also out at ${esc(studio(o.location_id))} during these days: ${clashes(o).map(c => `<b>${esc(c.full_name)}</b> (${esc(fmt(c.start_date) + (c.end_date !== c.start_date ? '\u2013' + fmt(c.end_date) : ''))}${c.status === 'pending' ? ', pending' : ''})`).join(', ')}.</p>` : ''}
     ${r && toInfo(r) ? `<p style="margin:0 0 .75rem">${toInfo(r)}</p>` : '<p class="lead" style="font-size:.85rem;margin:0 0 .75rem">Only the person and their managers can see the reason and coverage details.</p>'}
     <div class="acts">${decide ? `<button data-act="offDecide" data-s="approved" data-id="${id}">Approve</button><button class="quiet" data-act="offDecide" data-s="denied" data-id="${id}">Deny</button>` : ''}${r && r.user_id === ME.id && r.status === 'pending' ? `<button class="quiet" data-act="offCancel" data-id="${id}">Cancel request</button>` : ''}<button class="quiet" data-act="close">Close</button></div>`;
   if (!$('dlg').open) $('dlg').showModal();
