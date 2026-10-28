@@ -10,7 +10,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/@e965/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="css/base.css?v=20261028b">
-<link rel="stylesheet" href="css/glass.css?v=20261028d">
+<link rel="stylesheet" href="css/glass.css?v=20261028e">
 </head>
 <body>
 
@@ -112,18 +112,20 @@
     <div id="taskBody"></div>
   </main>
   <main id="memView" hidden>
-    <h2>Members</h2>
+    <div class="mem-head">
+      <div><h2>Members</h2><span id="memAsOf" class="mem-asof"></span></div>
+      <div class="mem-headacts"><select id="memStudio" aria-label="Studio" hidden></select><button class="quiet" id="memUp" hidden>Upload reports</button></div>
+    </div>
     <div class="tabs" id="memTabs"><button data-sec="risk">At-risk members</button><button data-sec="new">New members</button></div>
-    <div class="sum" id="memSum"></div>
-    <div class="tabs" id="memSubs"></div>
-    <div class="bar">
-      <select id="memStudio" aria-label="Studio" hidden></select>
-      <input id="memFind" type="search" placeholder="Find a member" aria-label="Find a member" style="width:auto;min-width:200px">
-      <select id="memSort" aria-label="Sort"><option value="attn">Needs attention first</option><option value="credits">Most unused credits</option><option value="due">Invoice date (soonest first)</option><option value="last">Last visit (oldest first)</option></select>
-      <select id="memWin" aria-label="Signed up" hidden><option value="30">Signed up: last 30 days</option><option value="60" selected>Signed up: last 60 days</option><option value="90">Signed up: last 90 days</option><option value="9999">Signed up: all</option></select>
-      <label style="display:flex;gap:.4rem;align-items:center;margin:0"><input type="checkbox" id="memMine"> Mine only</label>
-      <button class="quiet" id="memUp" hidden>Upload reports</button>
-      <span class="lead" id="memAsOf" style="margin:0;align-self:center"></span>
+    <div class="sum mem-tiles" id="memSum"></div>
+    <div class="mem-tools">
+      <div class="tabs" id="memSubs"></div>
+      <div class="mem-filters">
+        <input id="memFind" type="search" placeholder="Find a member" aria-label="Find a member">
+        <select id="memSort" aria-label="Sort"><option value="attn">Needs attention first</option><option value="credits">Most unused credits</option><option value="due">Invoice date (soonest first)</option><option value="last">Last visit (oldest first)</option></select>
+        <select id="memWin" aria-label="Signed up" hidden><option value="30">Signed up: last 30 days</option><option value="60" selected>Signed up: last 60 days</option><option value="90">Signed up: last 90 days</option><option value="9999">Signed up: all</option></select>
+        <label class="mem-mine"><input type="checkbox" id="memMine"> Mine only</label>
+      </div>
     </div>
     <div id="memBody"></div>
   </main>
@@ -208,10 +210,10 @@
 
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
 
-<script src="js/core.js?v=20261028"></script>
+<script src="js/core.js?v=20261028e"></script>
 <script src="js/calendar.js?v=20261028"></script>
-<script src="js/tasks.js?v=20261028d"></script>
-<script src="js/members.js?v=20261028"></script>
+<script src="js/tasks.js?v=20261028e"></script>
+<script src="js/members.js?v=20261028e"></script>
 <script src="js/timeoff.js?v=20261028"></script>
 <script src="js/mypage.js?v=20261028"></script>
 <script src="js/studio.js?v=20261028"></script>
