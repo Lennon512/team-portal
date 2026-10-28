@@ -10,7 +10,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/@e965/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="css/base.css?v=20261028b">
-<link rel="stylesheet" href="css/glass.css?v=20261028u">
+<link rel="stylesheet" href="css/glass.css?v=20261028w">
 </head>
 <body>
 
@@ -184,14 +184,15 @@
   </main>
 
   <main id="hrView" hidden>
-    <div class="thead"><div><h2>Leadership</h2><p class="lead">Confidential. Pay, reviews, and discipline for the team. Only the owner and people the owner has given access to (People → Page access) can see this page.</p></div></div>
+    <div class="thead"><div><h2>Leadership</h2><p class="lead">Confidential. Everyone’s current pay, raise history, reviews and discipline. Staff don’t need a portal login to be on here. Only the owner and people given Leadership access can see this page.</p></div></div>
     <div class="sum" id="hrSum"></div>
     <div class="bar" id="hrTools">
       <select id="hrStudio" aria-label="Studio"></select>
       <input id="hrFind" type="search" placeholder="Find someone" aria-label="Find someone" style="width:auto;min-width:200px">
       <select id="hrFilter" aria-label="Show"></select>
-      <span style="margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap"><button class="quiet" id="hrCsv">Download report</button><button class="quiet" id="hrUp">Upload pay report</button></span>
+      <span style="margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap"><button class="quiet" id="hrCsv">Download</button><button class="quiet" id="hrUp">Import pay sheet</button><button id="hrAddBtn">+ Add employee</button></span>
     </div>
+    <div class="tabs" id="hrTabs" style="margin:0 0 1rem"><button data-v="pay" class="on">Current pay</button><button data-v="history">Raise history</button></div>
     <div id="hrBody"></div>
   </main>
   <main id="payView" hidden>
@@ -222,10 +223,10 @@
 <script src="js/supplies.js?v=20261028l"></script>
 <script src="js/daily.js?v=20261028t"></script>
 <script src="js/passwords.js?v=20261028"></script>
-<script src="js/leadership.js?v=20261028"></script>
+<script src="js/leadership.js?v=20261028w"></script>
 <script src="js/access.js?v=20261028s"></script>
 <script src="js/invite.js?v=20261028"></script>
-<script src="js/payroll.js?v=20261028"></script>
+<script src="js/payroll.js?v=20261028w"></script>
 <script src="js/start.js?v=20261028"></script>
 </body>
 </html>
