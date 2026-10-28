@@ -64,52 +64,66 @@ async function showApp(user) {
   if (canPage('people')) loadTeam(me);
 }
 
+// Page names a person sees, for the "Sees:" line under their access choice
+function seesList(p) {
+  if (p.role === 'owner') return 'Everything';
+  const g = p.page_group && (acc.groups || []).find(x => x.id === p.page_group), ks = g ? (g.pages || []) : (DEFPAGES[p.role] || DEFPAGES.staff);
+  return ['My page'].concat(PAGES.filter(([k]) => ks.includes(k)).map(x => x[1])).join(', ');
+}
 function accessCell(p, isOwner) {
   if (!(isOwner && acc.groups && 'page_group' in p)) return '';
-  if (p.role === 'owner') return '<span class="lead" style="margin:0">Full access</span>';
-  return `<select class="acc" aria-label="Page access for ${esc(p.full_name || p.email)}"><option value="">Default for role</option>${acc.groups.map(g => `<option value="${g.id}" ${g.id === p.page_group ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>`;
+  if (p.role === 'owner') return '<span class="lead" style="margin:0">Owner: sees everything</span>';
+  return `<select class="acc" aria-label="Page access for ${esc(p.full_name || p.email)}"><option value="">Standard for ${esc(p.role)}</option>${acc.groups.map(g => `<option value="${g.id}" ${g.id === p.page_group ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select><small class="sees">Sees: ${esc(seesList(p))}</small>`;
+}
+const agoTxt = t => { const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 60 ? 'just now' : m < 1440 ? Math.round(m / 60) + ' hr ago' : Math.round(m / 1440) === 1 ? 'yesterday' : Math.round(m / 1440) < 60 ? Math.round(m / 1440) + ' days ago' : new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
+function signinCell(p) {
+  const st = (acc.status || {})[p.id]; if (!st) return '';
+  if (!st.confirmed_at) return `<span class="pill warn">Hasn’t confirmed email</span><button class="linkish" data-resend="${esc(p.email)}">Resend email</button>`;
+  if (!st.last_sign_in_at) return '<span class="pill ice">Never signed in</span>';
+  return `<span class="muted">Active ${agoTxt(st.last_sign_in_at)}</span>`;
 }
 
 async function loadTeam(me) {
   const isOwner = me.role === 'owner';
-  $('teamTitle').textContent = isOwner ? 'Everyone' : 'Your location\u2019s team';
-  $('teamNote').textContent = isOwner ? 'Set each person\u2019s name, role, location, and page access, then save.' : 'People at your location.';
-  const [pr, gr] = await Promise.all([db.from('profiles').select('*').order('email'), isOwner ? db.from('page_groups').select('*').order('name') : Promise.resolve({ data: null })]);
+  $('teamTitle').textContent = isOwner ? 'Everyone' : 'Your location’s team';
+  $('teamNote').textContent = isOwner ? 'Everyone with a portal login. Changes save as soon as you make them.' : 'People at your location.';
+  const [pr, gr, ss] = await Promise.all([db.from('profiles').select('*').order('full_name'), isOwner ? db.from('page_groups').select('*').order('name') : Promise.resolve({ data: null }), isOwner ? db.rpc('people_status') : Promise.resolve({ data: null })]);
   const data = pr.data; acc.groups = isOwner && !gr.error ? (gr.data || []) : null; acc.people = data || [];
+  acc.status = !ss.error && Array.isArray(ss.data) ? Object.fromEntries(ss.data.map(x => [x.id, x])) : null;
+  $('teamHead').innerHTML = `<th>Name</th><th>Email</th><th>Role</th><th>Studio</th>${isOwner && acc.groups ? '<th>Page access</th>' : ''}${isOwner && acc.status ? '<th>Sign-in</th>' : ''}<th class="rowst"></th>`;
   const dis = isOwner ? '' : 'disabled';
   $('rows').innerHTML = (data || []).map(p => {
     const self = p.id === me.id;
     return `<tr data-id="${p.id}">
       <td><input class="n" value="${esc(p.full_name)}" placeholder="Full name" ${dis}></td>
       <td>${esc(p.email)}</td>
-      <td><select class="r" ${isOwner && !self ? '' : 'disabled'}>${['owner','manager','staff'].map(r => `<option value="${r}" ${r === p.role ? 'selected' : ''}>${r === 'owner' ? 'owner (sees everything)' : r}</option>`).join('')}</select></td>
+      <td><select class="r" ${isOwner && !self ? '' : 'disabled'}>${['staff', 'manager', 'owner'].map(r => `<option value="${r}" ${r === p.role ? 'selected' : ''}>${r === 'owner' ? 'Owner' : r === 'manager' ? 'Manager' : 'Staff'}</option>`).join('')}</select></td>
       <td><select class="l" ${dis}><option value="">None</option>${locs.map(x => `<option value="${x.id}" ${x.id === p.location_id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></td>
-      <td class="acccell">${accessCell(p, isOwner)}</td>
-      <td>${isOwner ? '<button class="save">Save</button><span class="status"></span>' : ''}</td></tr>`;
-  }).join('') || '<tr><td colspan="6">No one here yet.</td></tr>';
+      ${isOwner && acc.groups ? `<td class="acccell">${accessCell(p, isOwner)}</td>` : ''}${isOwner && acc.status ? `<td class="sicell">${signinCell(p)}</td>` : ''}<td class="rowst"><span class="status"></span></td></tr>`;
+  }).join('') || '<tr><td colspan="7">No one here yet.</td></tr>';
   drawAccess();
 }
 
-$('rows').onchange = e => {
-  if (!e.target.classList.contains('r')) return;
-  const tr = e.target.closest('tr'), p = acc.people.find(x => x.id === tr.dataset.id); if (!p) return;
-  tr.querySelector('.acccell').innerHTML = accessCell({ ...p, role: e.target.value }, true);
-};
-
-$('rows').onclick = async e => {
-  if (!e.target.classList.contains('save')) return;
-  const tr = e.target.closest('tr');
-  const s = tr.querySelector('.status');
-  const upd = {
-    full_name: tr.querySelector('.n').value.trim() || null,
-    role: tr.querySelector('.r').value,
-    location_id: tr.querySelector('.l').value || null
-  }, ac = tr.querySelector('.acc');
+// Save a row as soon as something changes
+async function saveRow(tr) {
+  const s = tr.querySelector('.status'), p = acc.people.find(x => x.id === tr.dataset.id); if (!p) return;
+  const upd = { full_name: tr.querySelector('.n').value.trim() || null, role: tr.querySelector('.r').value, location_id: tr.querySelector('.l').value || null }, ac = tr.querySelector('.acc');
   if (ac) upd.page_group = ac.value || null;
+  if (upd.role === 'owner' && p.role !== 'owner' && !confirm(`Make ${upd.full_name || p.email} an owner? Owners see and change everything, including everyone’s pay.`)) { tr.querySelector('.r').value = p.role; return; }
+  const g = upd.page_group && upd.page_group !== p.page_group && acc.groups.find(x => x.id === upd.page_group), sens = g && (g.pages || []).filter(k => SENSITIVE.includes(k));
+  if (sens && sens.length && !confirm(`The "${g.name}" group can see ${sens.map(k => PAGES.find(x => x[0] === k)[1]).join(' and ')}, which shows pay information. Give ${upd.full_name || p.email} this access?`)) { ac.value = p.page_group || ''; return; }
+  s.textContent = 'Saving…'; s.className = 'status';
   const { error } = await db.from('profiles').update(upd).eq('id', tr.dataset.id);
-  if (!error) { const pp = acc.people.find(x => x.id === tr.dataset.id); if (pp) Object.assign(pp, upd); drawAccess(); }
-  s.textContent = error ? 'Could not save' : 'Saved';
-  setTimeout(() => s.textContent = '', 2500);
+  if (error) { s.textContent = 'Could not save'; s.className = 'status bad'; s.title = error.message; return; }
+  Object.assign(p, upd); s.textContent = '✓ Saved'; s.className = 'status ok'; setTimeout(() => { if (s.textContent === '✓ Saved') s.textContent = ''; }, 2500);
+  const cell = tr.querySelector('.acccell'); if (cell && (upd.role !== undefined)) cell.innerHTML = accessCell(p, true);
+  drawAccess();
+}
+$('rows').onchange = e => { const tr = e.target.closest('tr[data-id]'); if (tr && e.target.matches('.n, .r, .l, .acc')) saveRow(tr); };
+$('rows').onclick = async e => {
+  const b = e.target.closest('[data-resend]'); if (!b) return;
+  b.disabled = true; const { error } = await db.auth.resend({ type: 'signup', email: b.dataset.resend });
+  b.textContent = error ? 'Could not send' : 'Sent'; if (error) b.title = error.message;
 };
 
 let ME = null, people = [], urls = {}, cur = null;

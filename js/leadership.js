@@ -31,9 +31,12 @@ async function loadHr() {
   if (hr.missing) { $('hrSum').innerHTML = ''; $('hrTools').hidden = true; $('hrTabs').hidden = true; $('hrBody').innerHTML = `<div class="pcard"><h3>One-time setup needed</h3><p>${ME.role === 'owner' ? 'Open Supabase → SQL Editor → New query, paste the contents of <a href="https://github.com/Lennon512/team-portal/blob/main/sql/staff_pay.sql" target="_blank" rel="noopener">sql/staff_pay.sql</a>, and click Run. Then refresh this page. Anything already on this page is copied over.' : 'Ask the owner to run the setup, then refresh this page.'}</p></div>`; return; }
   const bad = [s, p, r, d].find(x => x.error);
   if (bad) { $('hrBody').innerHTML = '<p class="err">Could not load leadership data. ' + esc(bad.error.message) + '</p>'; return; }
+  if (hrScoped()) hr.studio = ME.location_id || '';
   hr.staff = s.data || []; hr.pay = p.data || []; hr.rev = r.data || []; hr.dis = d.data || []; hr.accts = a.data || [];
   $('hrTools').hidden = false; $('hrTabs').hidden = false;
-  $('hrStudio').innerHTML = '<option value="">All studios</option>' + locs.map(l => `<option value="${l.id}" ${l.id === hr.studio ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
+  $('hrUp').hidden = hrScoped();
+  $('hrStudio').disabled = hrScoped();
+  $('hrStudio').innerHTML = (hrScoped() ? '' : '<option value="">All studios</option>') + locs.filter(l => !hrScoped() || l.id === ME.location_id).map(l => `<option value="${l.id}" ${l.id === hr.studio ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
   $('hrFilter').innerHTML = hrOpts(HRSHOW, hr.show);
   drawHr();
 }
@@ -102,7 +105,7 @@ function hrPerson(id, focus) {
   const td = todayStr(), sum = isNew ? {} : hrSum(s), cur = sum.cur || {}, by = (k, f) => isNew ? [] : hr[k].filter(x => x.staff_id === id).sort((a, b) => a[f] < b[f] ? 1 : -1);
   const pays = isNew ? [] : hrPays(id).reverse(), revs = by('rev', 'review_date'), diss = by('dis', 'incident_date');
   const linked = new Set(hr.staff.filter(x => x.user_id && x.id !== id).map(x => x.user_id));
-  const details = `<div class="grid2"><label>Name<input id="hfName" value="${esc(s.full_name || '')}" maxlength="80" placeholder="First and last name"></label><label>Studio<select id="hfStudio"><option value="">No studio</option>${locs.map(l => `<option value="${l.id}" ${l.id === s.studio_id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
+  const details = `<div class="grid2"><label>Name<input id="hfName" value="${esc(s.full_name || '')}" maxlength="80" placeholder="First and last name"></label><label>Studio<select id="hfStudio">${hrScoped() ? '' : '<option value="">No studio</option>'}${locs.filter(l => !hrScoped() || l.id === ME.location_id).map(l => `<option value="${l.id}" ${l.id === s.studio_id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
       <label>Role<input id="hfRole" value="${esc(s.role || '')}" maxlength="60" list="hrRoles" placeholder="Practitioner"></label><label>Hire date<input id="hfHire" type="date" value="${s.hire_date || ''}"></label>
       <label>Next review due<input id="hfNext" type="date" value="${s.next_review_due || ''}"></label><label>Status<select id="hfStat">${hrOpts(HRSTAT, s.status || 'active')}</select></label>
       <label>Employment type<select id="hfType">${hrOpts(EMPT, s.employment_type)}</select></label><label>Portal login <small class="muted">(optional)</small><select id="hfUser"><option value="">Not linked</option>${hr.accts.filter(a => !linked.has(a.id)).map(a => `<option value="${a.id}" ${a.id === s.user_id ? 'selected' : ''}>${esc(a.full_name || '')}</option>`).join('')}</select></label></div>
