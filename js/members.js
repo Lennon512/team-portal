@@ -1,7 +1,7 @@
 // ---------- Members (ClubReady reports) ----------
 const DAY = 864e5;
-let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'attn', find: '', mine: false, win: 60, bill: (() => { try { return +localStorage.getItem('memBill') || 60; } catch (_) { return 60; } })(), quick: null, form: null, doneOpen: false };
-const SUBS = { risk: [['attn', 'Needs attention'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'New member checklist'], ['check', 'Billing check']] };
+let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'credits', find: '', mine: false, win: 60, bill: (() => { try { return +localStorage.getItem('memBillDays') || 30; } catch (_) { return 30; } })(), quick: null, form: null, doneOpen: false };
+const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'New member checklist'], ['check', 'Billing check']] };
 let imp = { data: {}, store: null, asOf: null };
 const daysAgo = s => s ? Math.floor((new Date(todayStr() + 'T00:00') - new Date(s + 'T00:00')) / DAY) : null;
 const lc = r => { const a = (mem.contacts[r.club_id] || [])[0], x = a ? a.contacted_on : null, y = r.last_contact; return x && y ? (x > y ? x : y) : (x || y); };
@@ -74,16 +74,17 @@ async function loadMem() {
 }
 
 const tile = (n, l, sub, key) => key ? `<button class="mtile${mem.g + '|' + (mem.quick || '') === key ? ' on' : ''}" data-tile="${key}"><b>${n}</b>${l}${sub ? `<span>${sub}</span>` : ''}</button>` : `<div><b>${n}</b>${l}${sub ? `<br><span>${sub}</span>` : ''}</div>`;
+// The member success list: billing in the window, frozen excluded, nothing booked
+const notBooked = () => mem.rows.filter(r => r.grp === 'member' && !r.frozen && billOk(r) && !r.next_booking).map(r => ({ r, c: calc(r) }));
 function sumRisk() {
   if (!mem.meta) { $('memSum').innerHTML = ''; return; }
-  const m = mem.rows.filter(r => r.grp === 'member' && !r.frozen && billOk(r)).map(r => ({ r, c: calc(r) })), fl = m.filter(x => x.c.attn);
-  const due7 = fl.filter(x => x.r.next_due && daysAgo(x.r.next_due) <= 0 && daysAgo(x.r.next_due) >= -7).length;
-  const money = fl.reduce((n, x) => n + (+x.r.amount || 0), 0);
-  const cold = m.filter(x => { const d = daysAgo(x.r.last_session); return d === null || d > 30; }).length;
-  const inv = hasInv(), cred = m.filter(x => (x.r.credits || 0) >= 4).length;
-  $('memSum').innerHTML = tile(fl.length, 'Need attention', inv ? '$' + Math.round(money).toLocaleString() + ' in upcoming invoices' : 'reach out this week', 'attn|') +
-    (inv ? tile(due7, 'Flagged and billing in 7 days', 'reach out first', 'attn|due7') : tile(cred, 'Holding 4+ unused credits', 'sitting on sessions', 'member|cred')) +
-    tile(cold, 'No visit in 30+ days', 'of ' + m.length + ' members', 'member|cold') + tile(m.length, inv ? 'Members being charged' : 'Members', inv && mem.bill < 9999 ? `billing in the next ${mem.bill} days` : 'see everyone', 'member|');
+  const L = notBooked(), inv = hasInv(), win = mem.bill < 9999 ? `next ${mem.bill} days` : 'upcoming';
+  const money = L.reduce((n, x) => n + (+x.r.amount || 0), 0);
+  const due7 = L.filter(x => x.r.next_due && -daysAgo(x.r.next_due) <= 7).length;
+  const cold = L.filter(x => x.c.dl === null || x.c.dl > 30).length, nocon = L.filter(x => x.c.dc === null || x.c.dc > 30).length;
+  $('memSum').innerHTML = tile(L.length, inv ? `Billing ${win === 'upcoming' ? 'soon' : 'in the ' + win}, not booked` : 'Members not booked', inv ? '$' + Math.round(money).toLocaleString() + ' due' : 'add Invoices Coming Due to see billing', 'attn|') +
+    (inv ? tile(due7, 'Billing within 7 days', 'call these first', 'attn|due7') : '') +
+    tile(cold, 'No session in 30+ days', 'of the list', 'attn|cold') + tile(nocon, 'No contact in 30+ days', 'of the list', 'attn|nocon');
 }
 function sumNew() {
   if (!mem.nrows.length) { $('memSum').innerHTML = ''; return; }
@@ -104,16 +105,17 @@ function drawMem() {
   $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[0] === 'member' && mem.rows.length && !hasInv() ? 'All members' : x[1]}</button>`).join('');
   mem.sec === 'risk' ? sumRisk() : sumNew();
   $('memWin').hidden = mem.g !== 'list'; $('memBill').hidden = true;
+  $('memMine').closest('label').hidden = mem.sec === 'risk'; if (mem.sec === 'risk') mem.mine = false;
   if (mem.g === 'list') { $('memSort').hidden = true; return drawNew(); }
   const g = mem.g === 'attn' ? 'member' : mem.g, q = mem.find.toLowerCase();
   $('memSort').hidden = g !== 'member'; $('memSort').value = mem.sort;
   const all = mem.rows.filter(r => r.grp === g && billOk(r));
   $('memBill').hidden = !(mem.sec === 'risk' && g === 'member' && hasInv()); $('memBill').value = String(mem.bill);
-  const quickOk = x => !mem.quick || (mem.quick === 'due7' ? (x.r.next_due && daysAgo(x.r.next_due) <= 0 && daysAgo(x.r.next_due) >= -7) : mem.quick === 'cold' ? (x.c.dl === null || x.c.dl > 30) : mem.quick === 'cred' ? (x.r.credits || 0) >= 4 : true);
+  const quickOk = x => !mem.quick || (mem.quick === 'due7' ? (x.r.next_due && -daysAgo(x.r.next_due) <= 7) : mem.quick === 'cold' ? (x.c.dl === null || x.c.dl > 30) : mem.quick === 'nocon' ? (x.c.dc === null || x.c.dc > 30) : mem.quick === 'cred' ? (x.r.credits || 0) >= 4 : true);
   const pool = all.filter(r => (!q || r.name.toLowerCase().includes(q)) && mineOk(r)).map(r => ({ r, c: calc(r) })).filter(quickOk);
   if (mem.g === 'attn') return drawAttn(pool);
   const rows = pool;
-  const by = { attn: (a, b) => (b.c.attn - a.c.attn) || (b.r.credits - a.r.credits), credits: (a, b) => b.r.credits - a.r.credits, due: (a, b) => (a.r.next_due || 'z') < (b.r.next_due || 'z') ? -1 : 1, last: (a, b) => (a.r.last_session || '') < (b.r.last_session || '') ? -1 : 1 };
+  const by = { attn: (a, b) => (b.c.attn - a.c.attn) || (b.r.credits - a.r.credits), credits: (a, b) => b.r.credits - a.r.credits, due: (a, b) => (a.r.next_due || 'z') < (b.r.next_due || 'z') ? -1 : 1, last: (a, b) => (a.r.last_session || '') < (b.r.last_session || '') ? -1 : 1, contact: (a, b) => (lc(a.r) || '') < (lc(b.r) || '') ? -1 : 1 };
   rows.sort(g === 'member' ? by[mem.sort] : g === 'package' ? (a, b) => a.r.credits - b.r.credits : (a, b) => (b.r.signed_on || '') < (a.r.signed_on || '') ? -1 : 1);
   const attn = rows.filter(x => x.c.attn).length, fz = all.filter(r => r.frozen).length;
   const blurb = { member: (mem.quick === 'cred' ? `${rows.length} members holding 4+ unused credits. <button class="linkish" data-quick="">Show everyone</button>` : mem.quick === 'cold' ? `${rows.length} members with no visit in 30+ days. <button class="linkish" data-quick="">Show everyone</button>` : `${hasInv() ? (mem.bill < 9999 ? `Members billing in the next ${mem.bill} days` : 'Everyone with an upcoming invoice') : 'Everyone in your latest reports'}. Click a heading to sort, or a member to log a contact.`) + (fz ? ' ' + fz + ' frozen members are listed but never flagged.' : ''),
@@ -124,67 +126,30 @@ function drawMem() {
     : '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>';
 }
 
-// ----- Needs attention: a work list, like Tasks -----
-const OUTCOMES = ['No answer', 'Left voicemail', 'Talked', 'Booked a session', 'Sent a text'];
+// ----- Not booked: everyone billing soon with nothing on the books -----
+// Color scale for how long ago something happened: green (recent) -> red (long ago / never)
+const heat = (n, cuts) => n === null ? 'h4' : n <= cuts[0] ? 'h0' : n <= cuts[1] ? 'h1' : n <= cuts[2] ? 'h2' : n <= cuts[3] ? 'h3' : 'h4';
+const dateChip = (d, n, cuts, none) => `<span class="hchip ${heat(n, cuts)}">${d ? `<b>${fmt(d)}</b> ${ago(n)}` : none}</span>`;
 function drawAttn(pool) {
-  const by = { attn: (a, b) => (b.r.credits || 0) - (a.r.credits || 0), credits: (a, b) => (b.r.credits || 0) - (a.r.credits || 0), due: (a, b) => (a.r.next_due || 'z') < (b.r.next_due || 'z') ? -1 : 1, last: (a, b) => (a.r.last_session || '') < (b.r.last_session || '') ? -1 : 1 };
-  const todo = pool.filter(x => x.c.attn).sort(by[mem.sort] || by.attn), done = pool.filter(x => x.c.reached).sort((a, b) => (a.c.dc ?? 99) - (b.c.dc ?? 99));
   if (!mem.meta) { $('memBody').innerHTML = '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>'; return; }
-  const card = ({ r, c }, isDone) => {
-    const k = r.next_due ? -daysAgo(r.next_due) : null, a = (mem.notes[r.club_id] || {}).assigned_to, who = asg(r), note = noteOf(r), last = (mem.contacts[r.club_id] || [])[0];
-    const tags = [];
-    if (c.label === 'Behind') tags.push(`<span class="mtag">Behind pace • ${r.sessions_30d || 0} of ${r.plan_sessions}</span>`);
-    if ((r.credits || 0) >= 4) tags.push(`<span class="mtag">${r.credits} unused credits</span>`);
-    if (k !== null && k >= 0 && k <= 14) tags.push(`<span class="mtag${k <= 7 ? ' hot' : ''}">Invoice ${dueIn(r.next_due)}${r.amount != null ? ' • $' + Number(r.amount).toFixed(0) : ''}</span>`);
-    const open = String(mem.form) === String(r.club_id);
-    return `<div class="mcard${isDone ? ' done' : ''}" data-m="${r.club_id}">
-      <div class="mcard-top">
-        ${visitDot(c)}
-        <div class="mcard-who"><b>${esc(r.name)}</b>
-          <small>Last visit ${c.dl === null ? 'none on record' : ago(c.dl)} • ${isDone && last ? `${esc(last.method || 'Contacted')} ${ago(daysAgo(last.contacted_on))}${last.note ? ': ' + esc(last.note) : ''}` : 'last contact ' + ago(c.dc)}${who ? ' • <span class="mwho">' + who + '</span>' : ''}</small></div>
-        <div class="mcard-acts">${!isDone && !a ? `<button class="quiet sm" data-take="${r.club_id}">I'll take it</button>` : ''}<button class="sm${isDone ? ' quiet' : ''}" data-log="${r.club_id}">${open ? 'Cancel' : isDone ? 'Log another' : 'Log contact'}</button></div>
-      </div>
-      ${tags.length && !isDone ? `<div class="mtags">${tags.join('')}</div>` : ''}
-      ${note ? `<p class="mnote">“${note}”</p>` : ''}
-      ${open ? quickForm(r.club_id) : ''}
-    </div>`;
-  };
-  $('memBody').innerHTML = (mem.quick === 'due7' ? `<p class="lead mem-lead">Flagged members billing in the next 7 days. <button class="linkish" data-quick="">Show all flagged</button></p>` :
-      `<p class="lead mem-lead">${todo.length ? `${todo.length} to reach out to. Most unused credits first.` : 'Everyone flagged has been contacted. Nice work.'} <details class="mem-why"><summary>Why are people flagged?</summary>${hasInv() ? 'Behind pace or 4+ unused credits' : '4+ unused credits'}, nothing booked in the next 7 days, and no contact in 14 days. "None on record" means no visit in the Booking Events Log you uploaded, so pull at least 90 days of it. Logging a contact moves them to “Reached out recently”.</details></p>`) +
-    `<div class="mlist">${todo.map(x => card(x, false)).join('')}</div>` +
-    (done.length ? `<details class="tk-donebox mem-done" id="memDone"${mem.doneOpen ? ' open' : ''}><summary>Reached out recently <span>${done.length}</span></summary><div class="mlist">${done.map(x => card(x, true)).join('')}</div></details>` : '');
-  const d = $('memDone'); if (d) d.ontoggle = () => { mem.doneOpen = d.open; };
-  const f = document.querySelector('.mquick textarea, .mquick input[type=text]'); if (f && mem.form) f.focus({ preventScroll: true });
-}
-const quickForm = id => `<div class="mquick" data-q="${id}">
-  <div class="mq-row"><span class="mq-lbl">How</span><span class="tabs mq-seg">${['Call', 'Text', 'Email', 'In person'].map((m, i) => `<button type="button" data-how="${m}" class="${i === 0 ? 'on' : ''}">${m}</button>`).join('')}</span></div>
-  <div class="mq-row"><span class="mq-lbl">Result</span><span class="mq-chips">${OUTCOMES.map(o => `<button type="button" class="mq-chip" data-out="${o}">${o}</button>`).join('')}</span></div>
-  <input type="text" class="mq-note" maxlength="200" placeholder="Anything to add? e.g. booked for Thursday 5pm" aria-label="Note">
-  <div class="mq-bar"><input type="date" class="mq-date" value="${todayStr()}" max="${todayStr()}" aria-label="Date"><button class="sm" data-qsave="${id}">Save contact</button></div>
-  <div class="mq-err" role="alert"></div></div>`;
-
-async function saveQuick(id) {
-  const q = document.querySelector(`.mquick[data-q="${id}"]`); if (!q) return;
-  const how = (q.querySelector('[data-how].on') || {}).dataset?.how || 'Call', out = (q.querySelector('.mq-chip.on') || {}).dataset?.out || '';
-  const extra = q.querySelector('.mq-note').value.trim(), note = [out, extra].filter(Boolean).join(': ') || null, day = q.querySelector('.mq-date').value || todayStr();
-  const btn = q.querySelector('[data-qsave]'); btn.disabled = true; btn.textContent = 'Saving...';
-  const { error } = await db.from('member_contacts').insert({ studio_id: mem.studio, club_id: +id, contacted_on: day, method: how, note });
-  if (error) { btn.disabled = false; btn.textContent = 'Save contact'; q.querySelector('.mq-err').textContent = 'Could not save. ' + error.message; return; }
-  (mem.contacts[id] = mem.contacts[id] || []).unshift({ club_id: +id, contacted_on: day, method: how, note });
-  mem.contacts[id].sort((a, b) => a.contacted_on < b.contacted_on ? 1 : -1);
-  const r = mem.rows.find(x => x.club_id == id); mem.form = null;
-  const el = document.querySelector(`.mcard[data-m="${id}"]`);
-  const go = () => { drawMem(); if (typeof toast === 'function') toast(`Logged ${how.toLowerCase()} with ${r ? r.name.split(' ')[0] : 'member'}`); };
-  if (el && !matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('leaving'); setTimeout(go, 320); } else go();
-}
-
-async function takeMember(id) {
-  const cur = mem.notes[id] || {};
-  const { error } = await db.from('member_notes').upsert({ studio_id: mem.studio, club_id: +id, note: cur.note || null, assigned_to: ME.id, updated_by: ME.id, updated_at: new Date().toISOString() }, { onConflict: 'studio_id,club_id' });
-  if (error) { alert('Could not save. ' + error.message); return; }
-  mem.notes[id] = { ...cur, club_id: +id, assigned_to: ME.id };
-  if (!mem.staff.some(x => x.id === ME.id)) mem.staff.push({ id: ME.id, full_name: ME.full_name || ME.email });
-  drawMem(); if (typeof toast === 'function') toast('Assigned to you');
+  const inv = hasInv(), list = pool.filter(x => !x.r.frozen && !x.r.next_booking);
+  const by = { credits: (a, b) => (b.r.credits || 0) - (a.r.credits || 0), due: (a, b) => (a.r.next_due || 'z') < (b.r.next_due || 'z') ? -1 : 1,
+    last: (a, b) => (a.r.last_session || '') < (b.r.last_session || '') ? -1 : 1, contact: (a, b) => (lc(a.r) || '') < (lc(b.r) || '') ? -1 : 1 };
+  const key = by[mem.sort] ? mem.sort : 'credits';
+  list.sort((a, b) => by[key](a, b) || (b.r.credits || 0) - (a.r.credits || 0));
+  const th = (label, k) => k ? `<th data-sort="${k}" class="${key === k ? 'on' : ''}" title="Sort by ${label.toLowerCase()}">${label}${key === k ? ' ▾' : ''}</th>` : `<th>${label}</th>`;
+  const what = inv ? `billing in the ${mem.bill < 9999 ? 'next ' + mem.bill + ' days' : 'upcoming invoices'}` : 'in your latest reports';
+  const quickTxt = { due7: 'billing within 7 days', cold: 'with no session in 30+ days', nocon: 'with no contact in 30+ days' }[mem.quick];
+  $('memBody').innerHTML = `<p class="lead mem-lead"><b>${list.length}</b> member${list.length === 1 ? '' : 's'} ${what} with nothing booked${quickTxt ? ', ' + quickTxt + ` <button class="linkish" data-quick="">Show all</button>` : ''}.` +
+      (inv ? '' : ' <b>Add the Invoices Coming Due report</b> to limit this to people about to be charged and show due dates.') + '</p>' +
+    (list.length ? `<div class="table-wrap"><table class="mt nb"><thead><tr>${th('Member')}${th('Credits', 'credits')}${inv ? th('Next due', 'due') + th('Amount') : ''}${th('Last session', 'last')}${th('Last contact', 'contact')}</tr></thead><tbody>` +
+      list.map(({ r, c }) => { const k = r.next_due ? -daysAgo(r.next_due) : null; return `<tr>
+        <td><b>${esc(r.name)}</b></td>
+        <td class="num${(r.credits || 0) >= 10 ? ' strong' : ''}">${r.credits ?? 0}</td>
+        ${inv ? `<td class="${k !== null && k <= 7 ? 'due-soon' : ''}">${r.next_due ? `${fmt(r.next_due)} <span class="muted">${dueIn(r.next_due)}</span>` : '-'}</td><td class="num">${r.amount != null ? '$' + Number(r.amount).toFixed(2) : '-'}</td>` : ''}
+        <td>${dateChip(r.last_session, c.dl, [7, 30, 60, 90], 'None on record')}</td>
+        <td>${dateChip(lc(r), c.dc, [7, 14, 30, 60], 'Never')}</td></tr>`; }).join('') + '</tbody></table></div>' +
+      `<p class="legend nb-legend"><span><i class="hchip h0"></i>0–7 days</span><span><i class="hchip h1"></i>8–30</span><span><i class="hchip h2"></i>31–60</span><span><i class="hchip h3"></i>61–90</span><span><i class="hchip h4"></i>90+ or none</span><span class="muted">(last contact: 7 / 14 / 30 / 60 days)</span></p>` : '');
 }
 
 const NT = [['welcome', 'Welcome email'], ['app', 'App setup'], ['flex', 'Flex points'], ['feedback', 'Feedback'], ['review', 'Google review'], ['referrals', 'Referrals']];
@@ -216,17 +181,12 @@ function memCard(id) {
   const r = mem.rows.find(x => x.club_id == id) || mem.nrows.find(x => x.club_id == id); if (!r) return;
   const hist = (mem.contacts[id] || []).slice(0, 8);
   $('dlgBody').innerHTML = `<h2>${esc(r.name)}</h2><p class="lead" style="margin:.25rem 0 1rem">${esc(r.detail || (r.frozen ? 'Frozen' : ''))}</p>
-    <h3 class="sub">Log a contact</h3>
-    <div class="grid2"><label>Date <input id="cDate" type="date" value="${todayStr()}" max="${todayStr()}"></label>
-    <label>How <select id="cHow"><option>Call</option><option>Text</option><option>Email</option><option>In person</option></select></label></div>
-    <label>What happened <input id="cWhat" maxlength="200" placeholder="Left voicemail, booked for Thursday..."></label>
-    <div class="acts"><button data-act="mLog" data-id="${id}">Log contact</button></div>
-    <h3 class="sub" style="margin-top:1.4rem">Note and owner</h3>
+    <h3 class="sub">Note and owner</h3>
     <label>Note <textarea id="mNote" maxlength="600" placeholder="Anything the team should know about this member">${noteOf(r)}</textarea></label>
     <label>Assigned to <select id="mAsg"><option value="">Nobody yet</option>${mem.staff.map(x => `<option value="${x.id}" ${x.id === (mem.notes[id] || {}).assigned_to ? 'selected' : ''}>${esc(x.full_name)}</option>`).join('')}</select></label>
     <div class="acts"><button class="quiet" data-act="mSave" data-id="${id}">Save note</button><button class="quiet" data-act="close">Close</button></div>
     <div id="mErr" style="color:var(--danger)" role="alert"></div>` +
-    (hist.length ? '<h3 class="sub" style="margin-top:1.4rem">Contact history</h3><ul class="mhist">' + hist.map(c => `<li><b>${fmt(c.contacted_on)}</b> ${esc(c.method || '')}${c.note ? ' \u2022 ' + esc(c.note) : ''}</li>`).join('') + '</ul>' : '<p class="lead" style="margin-top:1rem">No contacts logged in the portal yet.</p>');
+    (hist.length ? '<h3 class="sub" style="margin-top:1.4rem">Contact history</h3><ul class="mhist">' + hist.map(c => `<li><b>${fmt(c.contacted_on)}</b> ${esc(c.method || '')}${c.note ? ' \u2022 ' + esc(c.note) : ''}</li>`).join('') + '</ul>' : '');
   if (!$('dlg').open) $('dlg').showModal();
 }
 
@@ -381,7 +341,7 @@ $('memBody').onchange = async e => {
   (mem.nt[id] = mem.nt[id] || {})[f] = c.checked; drawNew();
 };
 $('memSort').onchange = e => { mem.sort = e.target.value; drawMem(); };
-$('memBill').onchange = e => { mem.bill = +e.target.value; try { localStorage.setItem('memBill', mem.bill); } catch (_) {} drawMem(); };
+$('memBill').onchange = e => { mem.bill = +e.target.value; try { localStorage.setItem('memBillDays', mem.bill); } catch (_) {} drawMem(); };
 $('memFind').oninput = e => { mem.find = e.target.value; drawMem(); };
 $('memStudio').onchange = e => { mem.studio = e.target.value; loadMem(); };
 $('memUp').onclick = upForm;
@@ -389,15 +349,10 @@ $('memBody').onclick = e => {
   const at = s => e.target.closest(s);
   const th = at('th[data-sort]'); if (th) { mem.sort = th.dataset.sort; drawMem(); return; }
   const qk = at('[data-quick]'); if (qk) { mem.quick = qk.dataset.quick || null; drawMem(); return; }
-  const lg = at('[data-log]'); if (lg) { mem.form = mem.form === lg.dataset.log ? null : lg.dataset.log; drawMem(); return; }
-  const tk_ = at('[data-take]'); if (tk_) { takeMember(tk_.dataset.take); return; }
-  const how = at('[data-how]'); if (how) { how.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === how)); return; }
-  const out = at('[data-out]'); if (out) { const on = !out.classList.contains('on'); out.parentNode.querySelectorAll('button').forEach(b => b.classList.remove('on')); out.classList.toggle('on', on); return; }
-  const sv = at('[data-qsave]'); if (sv) { saveQuick(sv.dataset.qsave); return; }
-  if (at('.mquick') || at('summary') || at('details.mem-why') || at('input')) return;
+  if (at('summary') || at('input')) return;
   const tr = at('[data-m]'); if (tr) memCard(tr.dataset.m);
 };
-$('memBody').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('mq-note')) { e.preventDefault(); saveQuick(e.target.closest('.mquick').dataset.q); } });
+
 
 $('dlgBody').addEventListener('click', async e => {
   const a = e.target.dataset.act, id = e.target.dataset.id, fail = m => { $('mErr').textContent = m; };

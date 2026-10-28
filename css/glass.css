@@ -350,3 +350,15 @@ td.due-soon { color:#7d5608; font-weight:500; }
 .upcheck li.ok { background:rgba(15,138,95,.1); } .upcheck li.ok .upmark { color:var(--em); }
 .upcheck li.need .upmark { color:#a5321f; }
 .upcheck li.bad { background:rgba(196,69,47,.1); color:#a5321f; }
+
+/* ---------- Members: not-booked list ---------- */
+.mt.nb td { vertical-align:middle; }
+.mt.nb td.num { font-variant-numeric:tabular-nums; }
+.mt.nb td.strong { font-weight:650; }
+.hchip { display:inline-block; padding:.18rem .6rem; border-radius:8px; font-size:.85rem; white-space:nowrap; color:var(--muted); }
+.hchip b { color:var(--ink); font-weight:600; margin-right:.25rem; }
+.hchip.h0 { background:rgba(31,157,106,.18); } .hchip.h1 { background:rgba(150,190,80,.22); }
+.hchip.h2 { background:rgba(232,184,74,.3); } .hchip.h3 { background:rgba(230,130,70,.3); }
+.hchip.h4 { background:rgba(208,83,60,.24); color:#8f2a1a; } .hchip.h4 b { color:#7a2416; }
+.nb-legend .hchip { width:.9rem; height:.9rem; padding:0; border-radius:4px; vertical-align:-2px; margin-right:.35rem; }
+.nb-legend { align-items:center; }
