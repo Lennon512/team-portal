@@ -126,3 +126,50 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
   main, #homeView, .card, dialog, .navmenu { background:rgba(248,243,235,.9); }
 }
+
+/* ---------- Tasks page ---------- */
+.tk { display:grid; grid-template-columns:1fr auto; align-items:center; gap:0 .5rem; padding:0; margin-bottom:.5rem; background:rgba(255,255,255,.66); border-radius:16px; transition:opacity .3s, transform .3s, background .2s; }
+.tk:hover { background:rgba(255,255,255,.8); }
+.tk-main { display:flex; align-items:center; gap:.85rem; margin:0; padding:.85rem 1rem; min-height:3.2rem; font-weight:400; font-size:.98rem; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.tk.ro .tk-main { cursor:default; }
+.tk-title { line-height:1.4; }
+/* one consistent round checkbox */
+.tk input[type=checkbox], .tg input[type=checkbox] { flex:none; }
+.tk input[type=checkbox] { appearance:none; -webkit-appearance:none; width:1.45rem; height:1.45rem; margin:0; border:2px solid rgba(38,30,20,.35); border-radius:50%; background:rgba(255,255,255,.8); display:grid; place-items:center; cursor:pointer; transition:background .2s, border-color .2s, transform .2s; }
+.tk input[type=checkbox]::after { content:""; width:.42rem; height:.72rem; border:solid #fff; border-width:0 2.5px 2.5px 0; transform:translateY(-1px) rotate(45deg) scale(0); transition:transform .2s cubic-bezier(.2,.9,.3,1.4); }
+.tk input[type=checkbox]:checked { background:var(--em); border-color:var(--em); }
+.tk input[type=checkbox]:checked::after { transform:translateY(-1px) rotate(45deg) scale(1); }
+.tk input[type=checkbox]:disabled { cursor:default; }
+.tk input[type=checkbox]:focus-visible { outline:2px solid var(--dark); outline-offset:2px; }
+.tk.done .tk-title { color:var(--muted); text-decoration:line-through; text-decoration-color:rgba(38,30,20,.3); }
+.tk.done { background:rgba(255,255,255,.4); }
+.tk.just-done { transform:scale(.985); opacity:.55; }
+.tk.just-done input[type=checkbox] { transform:scale(1.18); }
+.tk.just-undone { opacity:.55; }
+.tk-more { margin-right:.75rem; padding:.3rem .8rem; font-size:.8rem; background:rgba(255,255,255,.6); color:var(--ink); border:1px solid rgba(38,30,20,.12); }
+.tk-more:hover { background:#fff; }
+.tk-detail { grid-column:1 / -1; margin:-.3rem 1rem .9rem 3.3rem; color:var(--muted); font-size:.9rem; line-height:1.55; }
+.tk-group { display:flex; flex-wrap:wrap; align-items:baseline; gap:.1rem .6rem; margin:1.6rem 0 .6rem; }
+.tk-group span { white-space:nowrap; font-size:.8rem; font-weight:500; color:var(--muted); letter-spacing:0; }
+.tk-clear { margin:0 0 .5rem; padding:.7rem 1rem; color:var(--em); font-size:.9rem; background:rgba(255,255,255,.3); border-radius:14px; }
+.tk-donebox { margin-top:1.6rem; }
+.tk-donebox summary { cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:.5rem; padding:.45rem 1rem; border-radius:999px; background:rgba(255,255,255,.42); border:1px solid rgba(255,255,255,.7); font-weight:500; font-size:.9rem; margin-bottom:.7rem; }
+.tk-donebox summary::-webkit-details-marker { display:none; }
+.tk-donebox summary::before { content:"\203A"; display:inline-block; transition:transform .2s; font-size:1.1rem; line-height:1; }
+.tk-donebox[open] summary::before { transform:rotate(90deg); }
+.tk-donebox summary span { background:var(--em); color:#fff; border-radius:999px; padding:0 .5rem; font-size:.75rem; }
+.tk-progress { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+.tk-today { font-size:1.05rem; }
+.tk-today b { font-size:1.35rem; letter-spacing:-.02em; }
+.tk-meter { flex:1; min-width:160px; max-width:360px; height:10px; }
+.tk-meter i { background:var(--em); transition:width .4s ease; }
+.tk-month { margin:.4rem 0 0; color:var(--muted); font-size:.88rem; }
+.tk-month b { color:var(--ink); }
+.tk-party { display:flex; align-items:center; gap:.9rem; margin:0 0 1rem; padding:.9rem 1.1rem; border-radius:18px; background:rgba(214,245,228,.75); border:1px solid rgba(15,138,95,.25); animation:tkPop .5s cubic-bezier(.2,.9,.3,1.3); }
+.tk-party b { display:block; color:#0b5c3f; }
+.tk-party small { color:#2d6b52; }
+.tk-party-emoji { font-size:1.8rem; animation:tkWiggle 1s ease .2s; }
+@keyframes tkPop { from { transform:scale(.9); opacity:0; } to { transform:scale(1); opacity:1; } }
+@keyframes tkWiggle { 0%,100% { transform:rotate(0); } 25% { transform:rotate(-14deg); } 75% { transform:rotate(14deg); } }
+@media (prefers-reduced-motion: reduce) { .tk, .tk input[type=checkbox], .tk input[type=checkbox]::after, .tk-meter i { transition:none; } .tk-party, .tk-party-emoji { animation:none; } }
+@media (max-width:700px) { .tk-main { padding:.8rem .85rem; } .tk-detail { margin-left:1rem; } }
