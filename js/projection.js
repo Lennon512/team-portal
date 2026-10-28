@@ -225,5 +225,6 @@ $('pfBody').onclick = e => {
   if (row) { const rows = PF.netAll[PF.month] || [], r = rows.find(x => x.store === row.dataset.store); loadNetStore(row.dataset.store, r); }
 };
 $('pfBody').oninput = e => { if (e.target.id === 'mFindBox') { PF.mFind = e.target.value; drawMaster(); } else if (e.target.classList.contains('cmpsearch')) { const side = e.target.dataset.side; PF.cmp.find[side] = e.target.value; $('cmpList_' + side).innerHTML = cmpResultsHtml(side); } };
+$('pfBody').addEventListener('change', e => { if (e.target.classList.contains('cmpsel') && e.target.value) selectCmpSlot(e.target.dataset.side, e.target.value); });
 $('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'pfSave') pfSave(); });
 $('dlgBody').addEventListener('change', e => { if (e.target.id === 'pStudio' || e.target.id === 'pMonth') { const m = $('pMonth').value; if (m) pfForm($('pStudio').value, m + '-01'); } });

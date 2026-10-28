@@ -699,3 +699,4 @@ dialog.dlwide { max-width:1100px; }
 @media (max-width:600px) { .dlform .grid2 { grid-template-columns:1fr; } }
 .dlcta { display:flex; align-items:center; justify-content:space-between; gap:.8rem; flex-wrap:wrap; padding:.8rem 1rem; margin:0 0 1rem; border-radius:16px; background:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.6); font-weight:500; }
 .dlgo { margin:.6rem 0 0; text-align:right; }
+.cmpsel { display:block; width:100%; margin-top:.35rem; }

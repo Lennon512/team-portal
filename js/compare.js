@@ -18,6 +18,18 @@ async function selectCmpSlot(side, store) {
   drawCompare();
 }
 
+// Dropdown of every location: our studios first, then grouped by franchise
+function cmpSelectHtml(side) {
+  const cur = PF.cmp[side] ? PF.cmp[side].store : '', other = PF.cmp[side === 'a' ? 'b' : 'a'], ours = new Set(locs.map(l => l.club_store_id).filter(Boolean));
+  const byName = (x, y) => (x.name || x.store).localeCompare(y.name || y.store);
+  const opt = r => `<option value="${esc(r.store)}" ${r.store === cur ? 'selected' : ''} ${other && other.store === r.store ? 'disabled' : ''}>${esc(r.name || r.store)}</option>`;
+  const idx = PF.cmpIndex || [], mine = idx.filter(r => ours.has(r.store)).sort(byName), groups = new Map();
+  idx.filter(r => !ours.has(r.store)).forEach(r => { const f = r.franchise || 'Other'; if (!groups.has(f)) groups.set(f, []); groups.get(f).push(r); });
+  return `<select class="cmpsel" data-side="${side}" aria-label="Location ${side.toUpperCase()}"><option value="" ${cur ? '' : 'selected'} disabled>Choose a location (${idx.length})</option>` +
+    (mine.length ? `<optgroup label="Our studios">${mine.map(opt).join('')}</optgroup>` : '') +
+    [...groups.keys()].sort((x, y) => x === 'Other' ? 1 : y === 'Other' ? -1 : x.localeCompare(y)).map(f => `<optgroup label="${esc(f)}">${groups.get(f).sort(byName).map(opt).join('')}</optgroup>`).join('') + '</select>';
+}
+
 function cmpResultsHtml(side) {
   const q = (PF.cmp.find[side] || '').trim().toLowerCase();
   if (q.length < 2) return '';
@@ -29,8 +41,7 @@ async function drawCompare() {
   if (!PF.cmpIndex) { $('pfBody').innerHTML = '<p class="lead">Loading locations...</p>'; await loadCmpIndex(); }
   const slot = (side, label) => {
     const c = PF.cmp[side];
-    if (c) return `<div class="hcard"><b>${esc(c.name)}</b><div class="lead" style="margin:.2rem 0 .6rem">${esc([c.franchise, c.tier].filter(Boolean).join(' \u2022 '))}${c.rows.length ? ' \u2022 ' + c.rows.length + ' month' + (c.rows.length === 1 ? '' : 's') + ' on file' : ' \u2022 no history yet'}</div><button class="quiet sm" data-cmpclear="${side}">Change</button></div>`;
-    return `<div class="hcard"><label>${label}<input type="search" class="cmpsearch" id="cmpIn_${side}" data-side="${side}" placeholder="Search by name or franchise" value="${esc(PF.cmp.find[side] || '')}"></label><div id="cmpList_${side}">${cmpResultsHtml(side)}</div></div>`;
+    return `<div class="hcard"><label>${label}${cmpSelectHtml(side)}</label>${c ? `<div class="lead" style="margin:.45rem 0 0">${esc([c.franchise, c.tier].filter(Boolean).join(' \u2022 '))}${c.rows.length ? ' \u2022 ' + c.rows.length + ' month' + (c.rows.length === 1 ? '' : 's') + ' on file' : ' \u2022 no history yet'}</div>` : ''}</div>`;
   };
   let html = `<p class="lead" style="margin:0 0 1rem">Pick any two Stretch Zone locations you\u2019ve uploaded a scorecard for, yours or anyone else\u2019s.</p><div class="dgrid3">${slot('a', 'Location A')}${slot('b', 'Location B')}</div>`;
   if (PF.cmp.a && PF.cmp.b) {
