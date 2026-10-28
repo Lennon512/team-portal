@@ -10,7 +10,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/@e965/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="css/base.css?v=20261028b">
-<link rel="stylesheet" href="css/glass.css?v=20261028i">
+<link rel="stylesheet" href="css/glass.css?v=20261028j">
 </head>
 <body>
 
@@ -99,10 +99,11 @@
       <button class="quiet" id="nextM" aria-label="Next month">&rsaquo;</button>
       <select id="calStudio" aria-label="Studio" hidden></select>
       <button id="calAdd"></button>
+      <span class="tabs" id="calViewTabs"><button data-v="month">Month</button><button data-v="list">List</button></span>
     </div>
     <p class="lead" id="calNote" style="margin:0 0 .5rem"></p>
-    <div class="cal-wrap"><div class="cal" id="cal"></div></div>
-    <p class="legend" id="calLegend"><span><i class="sw ea"></i>Austin event</span><span><i class="sw es"></i>Studio event</span><span><i class="sw off"></i>Time off</span><span><i class="sw pend"></i>Time off, pending</span><span><i class="sw cel"></i>Birthday / anniversary</span></p>
+    <div class="cal-layout" id="calLayout"><div class="cal-wrap" id="calGridWrap"><div class="cal" id="cal"></div></div><aside class="cal-up" id="calUp"></aside></div>
+    <p class="legend" id="calLegend"><span><i class="sw ea"></i>Austin event</span><span><i class="sw es"></i>Studio event</span><span><i class="sw off"></i>Time off</span><span><i class="sw pend"></i>Time off, pending</span><span><i class="sw cel"></i>Birthday / anniversary</span><span><i class="sw hol"></i>Holiday</span><span><i class="sw closed"></i>Studio closed</span><span><span class="cov">2 out</span> two or more out at one studio</span></p>
     <div id="offPanel" hidden></div>
   </main>
   <main id="taskView" hidden>
@@ -212,10 +213,10 @@
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
 
 <script src="js/core.js?v=20261028e"></script>
-<script src="js/calendar.js?v=20261028"></script>
+<script src="js/calendar.js?v=20261028j"></script>
 <script src="js/tasks.js?v=20261028e"></script>
 <script src="js/members.js?v=20261028i"></script>
-<script src="js/timeoff.js?v=20261028"></script>
+<script src="js/timeoff.js?v=20261028j"></script>
 <script src="js/mypage.js?v=20261028"></script>
 <script src="js/studio.js?v=20261028"></script>
 <script src="js/performance.js?v=20261028"></script>
