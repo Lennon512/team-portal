@@ -1,6 +1,6 @@
 // ---------- Members (ClubReady reports) ----------
 const DAY = 864e5;
-let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'attn', find: '', mine: false, win: 60, quick: null, form: null, doneOpen: false };
+let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'attn', find: '', mine: false, win: 60, bill: (() => { try { return +localStorage.getItem('memBill') || 60; } catch (_) { return 60; } })(), quick: null, form: null, doneOpen: false };
 const SUBS = { risk: [['attn', 'Needs attention'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'New member checklist'], ['check', 'Billing check']] };
 let imp = { data: {}, store: null, asOf: null };
 const daysAgo = s => s ? Math.floor((new Date(todayStr() + 'T00:00') - new Date(s + 'T00:00')) / DAY) : null;
@@ -76,14 +76,14 @@ async function loadMem() {
 const tile = (n, l, sub, key) => key ? `<button class="mtile${mem.g + '|' + (mem.quick || '') === key ? ' on' : ''}" data-tile="${key}"><b>${n}</b>${l}${sub ? `<span>${sub}</span>` : ''}</button>` : `<div><b>${n}</b>${l}${sub ? `<br><span>${sub}</span>` : ''}</div>`;
 function sumRisk() {
   if (!mem.meta) { $('memSum').innerHTML = ''; return; }
-  const m = mem.rows.filter(r => r.grp === 'member' && !r.frozen).map(r => ({ r, c: calc(r) })), fl = m.filter(x => x.c.attn);
+  const m = mem.rows.filter(r => r.grp === 'member' && !r.frozen && billOk(r)).map(r => ({ r, c: calc(r) })), fl = m.filter(x => x.c.attn);
   const due7 = fl.filter(x => x.r.next_due && daysAgo(x.r.next_due) <= 0 && daysAgo(x.r.next_due) >= -7).length;
   const money = fl.reduce((n, x) => n + (+x.r.amount || 0), 0);
   const cold = m.filter(x => { const d = daysAgo(x.r.last_session); return d === null || d > 30; }).length;
   const inv = hasInv(), cred = m.filter(x => (x.r.credits || 0) >= 4).length;
   $('memSum').innerHTML = tile(fl.length, 'Need attention', inv ? '$' + Math.round(money).toLocaleString() + ' in upcoming invoices' : 'reach out this week', 'attn|') +
     (inv ? tile(due7, 'Flagged and billing in 7 days', 'reach out first', 'attn|due7') : tile(cred, 'Holding 4+ unused credits', 'sitting on sessions', 'member|cred')) +
-    tile(cold, 'No visit in 30+ days', 'of ' + m.length + ' members', 'member|cold') + tile(m.length, inv ? 'Members being charged' : 'Members', 'see everyone', 'member|');
+    tile(cold, 'No visit in 30+ days', 'of ' + m.length + ' members', 'member|cold') + tile(m.length, inv ? 'Members being charged' : 'Members', inv && mem.bill < 9999 ? `billing in the next ${mem.bill} days` : 'see everyone', 'member|');
 }
 function sumNew() {
   if (!mem.nrows.length) { $('memSum').innerHTML = ''; return; }
@@ -95,17 +95,20 @@ function sumNew() {
 }
 // True when the last upload included Invoices Coming Due (due dates, amounts, pace)
 const hasInv = () => mem.rows.some(r => r.grp === 'member' && r.next_due);
+// Billing window: only members with an invoice due in the next N days (when invoice data exists)
+const billOk = r => r.grp !== 'member' || !hasInv() || mem.bill >= 9999 || (r.next_due && -daysAgo(r.next_due) <= mem.bill);
 const mineOk = r => !mem.mine || (mem.notes[r.club_id] || {}).assigned_to === ME.id;
 
 function drawMem() {
   document.querySelectorAll('#memTabs button').forEach(b => b.classList.toggle('on', b.dataset.sec === mem.sec));
   $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[0] === 'member' && mem.rows.length && !hasInv() ? 'All members' : x[1]}</button>`).join('');
   mem.sec === 'risk' ? sumRisk() : sumNew();
-  $('memWin').hidden = mem.g !== 'list';
+  $('memWin').hidden = mem.g !== 'list'; $('memBill').hidden = true;
   if (mem.g === 'list') { $('memSort').hidden = true; return drawNew(); }
   const g = mem.g === 'attn' ? 'member' : mem.g, q = mem.find.toLowerCase();
   $('memSort').hidden = g !== 'member'; $('memSort').value = mem.sort;
-  const all = mem.rows.filter(r => r.grp === g);
+  const all = mem.rows.filter(r => r.grp === g && billOk(r));
+  $('memBill').hidden = !(mem.sec === 'risk' && g === 'member' && hasInv()); $('memBill').value = String(mem.bill);
   const quickOk = x => !mem.quick || (mem.quick === 'due7' ? (x.r.next_due && daysAgo(x.r.next_due) <= 0 && daysAgo(x.r.next_due) >= -7) : mem.quick === 'cold' ? (x.c.dl === null || x.c.dl > 30) : mem.quick === 'cred' ? (x.r.credits || 0) >= 4 : true);
   const pool = all.filter(r => (!q || r.name.toLowerCase().includes(q)) && mineOk(r)).map(r => ({ r, c: calc(r) })).filter(quickOk);
   if (mem.g === 'attn') return drawAttn(pool);
@@ -113,7 +116,7 @@ function drawMem() {
   const by = { attn: (a, b) => (b.c.attn - a.c.attn) || (b.r.credits - a.r.credits), credits: (a, b) => b.r.credits - a.r.credits, due: (a, b) => (a.r.next_due || 'z') < (b.r.next_due || 'z') ? -1 : 1, last: (a, b) => (a.r.last_session || '') < (b.r.last_session || '') ? -1 : 1 };
   rows.sort(g === 'member' ? by[mem.sort] : g === 'package' ? (a, b) => a.r.credits - b.r.credits : (a, b) => (b.r.signed_on || '') < (a.r.signed_on || '') ? -1 : 1);
   const attn = rows.filter(x => x.c.attn).length, fz = all.filter(r => r.frozen).length;
-  const blurb = { member: (mem.quick === 'cred' ? `${rows.length} members holding 4+ unused credits. <button class="linkish" data-quick="">Show everyone</button>` : mem.quick === 'cold' ? `${rows.length} members with no visit in 30+ days. <button class="linkish" data-quick="">Show everyone</button>` : `${hasInv() ? 'Everyone with an upcoming invoice' : 'Everyone in your latest reports'}. Click a heading to sort, or a member to log a contact.`) + (fz ? ' ' + fz + ' frozen members are listed but never flagged.' : ''),
+  const blurb = { member: (mem.quick === 'cred' ? `${rows.length} members holding 4+ unused credits. <button class="linkish" data-quick="">Show everyone</button>` : mem.quick === 'cold' ? `${rows.length} members with no visit in 30+ days. <button class="linkish" data-quick="">Show everyone</button>` : `${hasInv() ? (mem.bill < 9999 ? `Members billing in the next ${mem.bill} days` : 'Everyone with an upcoming invoice') : 'Everyone in your latest reports'}. Click a heading to sort, or a member to log a contact.`) + (fz ? ' ' + fz + ' frozen members are listed but never flagged.' : ''),
     check: `${all.length} recent signups with monthly billing but no invoice coming due. Worth a look in ClubReady.`,
     package: `${all.length} people on packages instead of memberships, fewest credits first. They need a nudge to join.` }[g];
   const cols = g === 'member' && !hasInv() ? COLS.member.filter(c => c[0] !== 'Next invoice' && c[0] !== 'Pace') : COLS[g];
@@ -234,17 +237,18 @@ const LABEL = { members: 'Members by Session Type', invoices: 'Invoices Coming D
 const ADDS = { members: 'unused credits (required)', bookings: 'last visit, sessions in the last 30 days, next booking', contacts: 'last contact', invoices: 'due dates, amounts and pace (optional)', agreements: 'new members and package follow-up (optional)' };
 
 function upForm() {
-  imp = { data: {}, store: null, asOf: null };
+  imp = { data: {}, store: null, asOf: null, bad: [] };
   $('dlgBody').innerHTML = `<h2>Upload ClubReady reports</h2>
-    <p class="lead" style="margin:.25rem 0 1rem">For <b>${esc(studio(mem.studio))}</b>. Pick all your ClubReady reports at once (or drag them onto the box). The portal sorts them out and builds the member success list.</p>
-    <label class="updrop" id="upDrop"><input id="upFiles" type="file" multiple accept=".xlsx"><b>Choose files</b> or drop them here</label><div id="upList">${upChecklist()}</div>
+    <p class="lead" style="margin:.25rem 0 1rem">For <b>${esc(studio(mem.studio))}</b>. Add your ClubReady reports, all at once or a few at a time (or drag them onto the box). The portal sorts them out and builds the member success list.</p>
+    <label class="updrop" id="upDrop"><input id="upFiles" type="file" multiple accept=".xlsx,.xls,.csv"><b>Choose files</b> or drop them here</label><div id="upList">${upChecklist()}</div>
     <div id="mErr" style="color:var(--danger)" role="alert"></div>
-    <div class="acts"><button data-act="upGo" id="upGo" disabled>Import</button><button class="quiet" data-act="close">Cancel</button></div>`;
-  $('upFiles').onchange = readFiles;
+    <div class="acts"><button data-act="upGo" id="upGo" disabled>Import</button><button class="quiet" data-act="close">Cancel</button><button class="quiet" id="upReset" hidden>Start over</button></div>`;
+  $('upFiles').onchange = e => { readFiles(e.target.files); e.target.value = ''; };
+  $('upReset').onclick = () => { imp = { data: {}, store: null, asOf: null, bad: [] }; $('upList').innerHTML = upChecklist(); $('mErr').textContent = ''; $('upGo').disabled = true; $('upReset').hidden = true; };
   const dz = $('upDrop');
   ['dragenter', 'dragover'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.remove('over'); }));
-  dz.addEventListener('drop', e => { if (e.dataTransfer.files.length) { $('upFiles').files = e.dataTransfer.files; readFiles(); } });
+  dz.addEventListener('drop', e => { if (e.dataTransfer.files.length) readFiles(e.dataTransfer.files); });
   $('dlg').showModal();
 }
 
@@ -255,10 +259,11 @@ function upChecklist(bad = []) {
   }).join('') + bad.map(b => `<li class="bad"><span class="upmark">\u2717</span><span>${b}</span></li>`).join('') + '</ul>';
 }
 
-async function readFiles() {
-  imp = { data: {}, store: null, asOf: null };
-  const lines = [];
-  for (const f of $('upFiles').files) {
+// Adds files to what's already been picked, so reports can be added in more than one go.
+// A newer file of the same report replaces the older one.
+async function readFiles(files) {
+  const lines = (imp.bad || []).map(b => '\u2717 ' + b);
+  for (const f of [...files]) {
     try {
       const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
       let kind = null, rows = null;
@@ -282,14 +287,16 @@ async function readFiles() {
       const sm = f.name.match(/_(\d{4,6})(?=[_.])/); if (sm) imp.store = sm[1];
       const dm = f.name.match(/_-_\d{4}-\d{2}-\d{2}_-_(\d{4}-\d{2}-\d{2})/);
       if (dm && kind !== 'invoices' && (!imp.asOf || dm[1] > imp.asOf)) imp.asOf = dm[1];
-    } catch (e) { lines.push(`\u2717 ${esc(f.name)}: could not be read`); }
+    } catch (e) { lines.push(`\u2717 ${esc(f.name)}: could not be read. If it is a PDF, export it from ClubReady as Excel instead`); }
   }
   const loc = locs.find(x => x.id === mem.studio);
   let err = '';
   if (!imp.data.members) err = 'Add the Members by Session Type report. It is the one the list is built from.';
   else if (loc && loc.club_store_id && imp.store && loc.club_store_id !== imp.store) err = `These files are for ClubReady store ${imp.store}, but ${loc.name} is store ${loc.club_store_id}. Pick the right studio.`;
-  $('upList').innerHTML = upChecklist(lines.filter(x => x.startsWith('\u2717')).map(x => x.slice(2))) + (imp.asOf ? `<p class="lead" style="margin:.4rem 0 .5rem">Data through ${fmt(imp.asOf)}</p>` : '');
-  $('mErr').textContent = err; $('upGo').disabled = !!err;
+  imp.bad = lines.filter(x => x.startsWith('\u2717')).map(x => x.slice(2));
+  $('upList').innerHTML = upChecklist(imp.bad) + (imp.asOf ? `<p class="lead" style="margin:.4rem 0 .5rem">Data through ${fmt(imp.asOf)}</p>` : '') +
+    (!imp.data.invoices && imp.data.members ? '<p class="lead" style="margin:.2rem 0 .5rem">Tip: add Invoices Coming Due to limit the list to members about to be charged.</p>' : '');
+  $('mErr').textContent = err; $('upGo').disabled = !!err; $('upReset').hidden = !Object.keys(imp.data).length && !imp.bad.length;
 }
 
 const toDT = v => {
@@ -374,6 +381,7 @@ $('memBody').onchange = async e => {
   (mem.nt[id] = mem.nt[id] || {})[f] = c.checked; drawNew();
 };
 $('memSort').onchange = e => { mem.sort = e.target.value; drawMem(); };
+$('memBill').onchange = e => { mem.bill = +e.target.value; try { localStorage.setItem('memBill', mem.bill); } catch (_) {} drawMem(); };
 $('memFind').oninput = e => { mem.find = e.target.value; drawMem(); };
 $('memStudio').onchange = e => { mem.studio = e.target.value; loadMem(); };
 $('memUp').onclick = upForm;
