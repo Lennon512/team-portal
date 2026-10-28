@@ -1,7 +1,7 @@
 // ---------- Members (ClubReady reports) ----------
 const DAY = 864e5;
-let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'credits', find: '', mine: false, win: 60, bill: (() => { try { return +localStorage.getItem('memBillDays') || 30; } catch (_) { return 30; } })(), quick: null, form: null, doneOpen: false };
-const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'New member checklist'], ['check', 'Billing check']] };
+let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'credits', find: '', mine: false, win: 60, bill: (() => { try { return +localStorage.getItem('memBillDays') || 30; } catch (_) { return 30; } })(), quick: null, form: null, doneOpen: false, gradOpen: false, editNote: null };
+const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'First 30 days'], ['check', 'Billing check']] };
 let imp = { data: {}, store: null, asOf: null };
 const daysAgo = s => s ? Math.floor((new Date(todayStr() + 'T00:00') - new Date(s + 'T00:00')) / DAY) : null;
 const lc = r => { const a = (mem.contacts[r.club_id] || [])[0], x = a ? a.contacted_on : null, y = r.last_contact; return x && y ? (x > y ? x : y) : (x || y); };
@@ -88,11 +88,11 @@ function sumRisk() {
 }
 function sumNew() {
   if (!mem.nrows.length) { $('memSum').innerHTML = ''; return; }
-  const rs = mem.nrows.filter(r => daysAgo(r.signed_on) <= mem.win).map(r => ({ r, c: nmCalc(r) })), act = rs.filter(x => !x.r.cancelled), cx = rs.length - act.length;
-  const avg = act.length ? Math.round(act.reduce((n, x) => n + x.c.pct, 0) / act.length) : 0;
-  const old = rs.filter(x => !x.r.is_package && daysAgo(x.r.signed_on) >= 30), made = old.filter(x => x.c.m2 === 'Yes').length;
-  $('memSum').innerHTML = tile(act.length, 'Active new members', mem.win < 9999 ? 'signed up in the last ' + mem.win + ' days' : 'all signups') + tile(avg + '%', 'Average progress', 'active members') +
-    tile(cx, 'Cancelled', rs.length ? Math.round(100 * cx / rs.length) + '% of signups' : '') + tile(old.length ? made + ' of ' + old.length : '-', 'Made it to month 2', 'signed up 30+ days ago');
+  const rs = mem.nrows.filter(r => daysAgo(r.signed_on) <= mem.win).map(r => ({ r, c: nmCalc(r) })), cur = rs.filter(x => !x.c.past), act = cur.filter(x => !x.r.cancelled);
+  const n = k => act.filter(x => x.c.health === k).length;
+  const old = rs.filter(x => !x.r.is_package && x.c.past), made = old.filter(x => x.c.m2 === 'Yes').length;
+  $('memSum').innerHTML = tile(n('ok'), 'On track', `of ${act.length} active in first 30 days`, 'list|ok') + tile(n('watch'), 'Need a nudge', 'one warning sign', 'list|watch') +
+    tile(n('risk'), 'At risk', 'two or more warning signs', 'list|risk') + tile(old.length ? made + ' of ' + old.length : '-', 'Made it to month 2', 'see past 30 days', 'list|past');
 }
 // True when the last upload included Invoices Coming Due (due dates, amounts, pace)
 const hasInv = () => mem.rows.some(r => r.grp === 'member' && r.next_due);
@@ -152,29 +152,75 @@ function drawAttn(pool) {
       `<p class="legend nb-legend"><span><i class="hchip h0"></i>0–7 days</span><span><i class="hchip h1"></i>8–30</span><span><i class="hchip h2"></i>31–60</span><span><i class="hchip h3"></i>61–90</span><span><i class="hchip h4"></i>90+ or none</span><span class="muted">(last contact: 7 / 14 / 30 / 60 days)</span></p>` : '');
 }
 
-const NT = [['welcome', 'Welcome email'], ['app', 'App setup'], ['flex', 'Flex points'], ['feedback', 'Feedback'], ['review', 'Google review'], ['referrals', 'Referrals']];
+// ----- New members: the first 30 days -----
+// Checklist columns. Two pairs are combined, matching the team's sheet; ticking one sets both fields.
+const NT = [['welcome', 'Welcome email', ['welcome']], ['appflex', 'App / Flex points', ['app', 'flex']], ['fbrev', 'Feedback / Review', ['feedback', 'review']], ['referrals', 'Referrals', ['referrals']]];
+const ntOn = (id, fields) => fields.some(f => (mem.nt[id] || {})[f]);
+// Joins a new member to their row in the at-risk snapshot for last session / last contact
+const snapOf = id => mem.rows.find(x => x.club_id == id);
 function nmCalc(r) {
-  const t = mem.nt[r.club_id] || {}, d = s => new Date(s + 'T00:00');
-  const auto = [r.sessions_booked >= 1, r.plan_sessions ? r.sessions_done >= r.plan_sessions : r.sessions_done >= 1];
-  const done = NT.filter(x => t[x[0]]).length + auto.filter(Boolean).length;
-  const m2 = r.is_package ? 'N/A' : r.cancelled ? ((r.cancel_date && (d(r.cancel_date) - d(r.signed_on)) / DAY >= 30) ? 'Yes' : 'No') : daysAgo(r.signed_on) >= 30 ? 'Yes' : 'Not yet';
-  return { pct: Math.round(100 * done / 8), m2 };
+  const d = s => new Date(s + 'T00:00'), day = Math.max(1, daysAgo(r.signed_on) + 1), snap = snapOf(r.club_id) || {};
+  const lastS = snap.last_session || null, lastC = snap.club_id ? lc(snap) : ((mem.contacts[r.club_id] || [])[0] || {}).contacted_on || null;
+  const dl = lastS ? daysAgo(lastS) : null, dc = lastC ? daysAgo(lastC) : null;
+  // Sessions they should have done by now, pro-rated over the first 30 days
+  const expect = r.plan_sessions ? r.plan_sessions * Math.min(day, 30) / 30 : null, ratio = expect ? r.sessions_done / Math.max(expect, 1) : null;
+  const m2 = r.is_package ? 'N/A' : r.cancelled ? ((r.cancel_date && (d(r.cancel_date) - d(r.signed_on)) / DAY >= 30) ? 'Yes' : 'No') : day > 30 ? 'Yes' : 'Not yet';
+  let health = 'ok', why = [];
+  if (r.cancelled) health = 'cx';
+  else {
+    if (!(r.sessions_booked > 0)) why.push('nothing booked');
+    if (ratio !== null && day >= 7 && ratio < .5) why.push('behind on sessions');
+    // Normal gap between visits depends on the plan: ~11 days for 4x/month, ~22 for 2x
+    const gap = r.plan_sessions ? Math.max(10, Math.round(30 / r.plan_sessions * 1.5)) : 14;
+    if (dl !== null ? dl > gap : day > 7 && !r.sessions_done) why.push(dl === null ? 'no session yet' : `no session in ${dl} days`);
+    health = why.length >= 2 ? 'risk' : why.length ? 'watch' : 'ok';
+  }
+  const done = NT.filter(x => ntOn(r.club_id, x[2])).length;
+  return { day, lastS, lastC, dl, dc, ratio, m2, health, why: why.join(', '), done, past: day > 30 };
 }
+const HEALTH = { ok: 'On track', watch: 'Needs a nudge', risk: 'At risk', cx: 'Cancelled' };
 
 function drawNew() {
   const w = document.querySelector('#memBody .table-wrap'), sl = w ? w.scrollLeft : 0, q = mem.find.toLowerCase();
   if (!mem.meta || !mem.nrows.length) { $('memBody').innerHTML = '<p class="lead">No new-member data yet. Upload the Agreements Log along with the other reports.</p>'; return; }
-  const rows = mem.nrows.filter(r => daysAgo(r.signed_on) <= mem.win && (!q || r.name.toLowerCase().includes(q)) && mineOk(r)).map(r => ({ r, c: nmCalc(r) })).sort((a, b) => a.r.signed_on < b.r.signed_on ? 1 : -1);
-  const act = rows.filter(x => !x.r.cancelled), avg = act.length ? Math.round(act.reduce((n, x) => n + x.c.pct, 0) / act.length) : 0;
-  const box = (r, f) => `<td><input type="checkbox" data-nt="${f}" data-id="${r.club_id}" aria-label="${f} for ${esc(r.name)}" ${(mem.nt[r.club_id] || {})[f] ? 'checked' : ''}></td>`;
-  const head = ['Member', 'Signed up', 'Membership', 'Cancelled?', 'Cancel date', 'Welcome email', 'App setup', 'Flex points', 'Booked out', 'Completed', 'Feedback', 'Google review', 'Referrals', 'Month 2?', 'Assigned', 'Notes', 'Progress'];
-  $('memBody').innerHTML = `<p class="lead">Booked out, completed, and month 2 fill in from your reports. Tick the rest as your team does them.</p>` +
-    `<div class="table-wrap"><table class="mt"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>` +
-    rows.map(({ r, c }) => `<tr data-m="${r.club_id}" class="${r.cancelled ? 'cx' : ''}"><td><b>${esc(r.name)}</b></td>${dcell(r.signed_on)}<td>${esc(r.membership || '')}</td><td>${r.cancelled ? '<span class="pill warn" style="margin:0">Yes</span>' : 'No'}</td>${dcell(r.cancel_date)}` +
-      box(r, 'welcome') + box(r, 'app') + box(r, 'flex') + `<td>${r.sessions_booked || 0}</td><td>${r.sessions_done}${r.plan_sessions ? '/' + r.plan_sessions : ''}</td>` + box(r, 'feedback') + box(r, 'review') + box(r, 'referrals') +
-      `<td>${c.m2}</td><td>${asg(r)}</td><td class="nt">${noteOf(r)}</td><td><div style="display:flex;gap:.5rem;align-items:center"><div class="meter" style="width:70px"><i style="width:${c.pct}%"></i></div>${c.pct}%</div></td></tr>`).join('') +
-    '</tbody></table></div>';
+  const all = mem.nrows.filter(r => daysAgo(r.signed_on) <= mem.win && (!q || r.name.toLowerCase().includes(q)) && mineOk(r)).map(r => ({ r, c: nmCalc(r) }));
+  const ORD = { risk: 0, watch: 1, ok: 2, cx: 3 };
+  const cur = all.filter(x => !x.c.past && (!mem.quick || x.c.health === mem.quick)).sort((a, b) => ORD[a.c.health] - ORD[b.c.health] || (a.r.signed_on < b.r.signed_on ? -1 : 1));
+  const past = all.filter(x => x.c.past).sort((a, b) => a.r.signed_on < b.r.signed_on ? 1 : -1);
+  const box = (r, x) => `<td class="ck"><input type="checkbox" data-nt="${x[0]}" data-id="${r.club_id}" aria-label="${x[1]} for ${esc(r.name)}" ${ntOn(r.club_id, x[2]) ? 'checked' : ''}></td>`;
+  const sess = ({ r, c }) => { const cls = c.ratio === null ? '' : c.ratio >= .8 ? 'h0' : c.ratio >= .5 ? 'h2' : 'h4';
+    return `<span class="hchip ${cls}" title="${r.plan_sessions ? 'About ' + Math.round(r.plan_sessions * Math.min(c.day, 30) / 30) + ' expected by day ' + Math.min(c.day, 30) : ''}"><b>${r.sessions_done}${r.plan_sessions ? ' of ' + r.plan_sessions : ''}</b></span>`; };
+  const noteCell = r => mem.editNote === String(r.club_id)
+    ? `<td class="nt-edit"><textarea data-note="${r.club_id}" rows="2" maxlength="600">${noteOf(r)}</textarea></td>`
+    : `<td class="nt2" data-editnote="${r.club_id}" title="Click to add a note">${noteOf(r) || '<span class="muted">+ note</span>'}</td>`;
+  const row = (x, isPast) => { const { r, c } = x; return `<tr class="nm-${c.health}">
+    <td><b>${esc(r.name)}</b><small class="nm-sub">${esc(r.membership || '')}${isPast ? '' : ` • day ${Math.min(c.day, 30)} of 30`}</small></td>
+    <td>${fmt(r.signed_on)}</td>
+    <td>${r.cancelled ? `<span class="nm-pill cx">Cancelled ${r.cancel_date ? fmt(r.cancel_date) : ''}</span>` : isPast ? `<span class="nm-pill ${c.m2 === 'Yes' ? 'ok' : 'cx'}">${c.m2 === 'Yes' ? 'Made it to month 2' : c.m2}</span>` : `<span class="nm-pill ${c.health}">${HEALTH[c.health]}</span>${c.why ? `<small class="nm-sub">${esc(c.why)}</small>` : ''}`}</td>
+    <td>${sess(x)}</td>
+    <td class="num"><span class="hchip ${r.cancelled ? '' : r.sessions_booked > 0 ? 'h0' : 'h4'}"><b>${r.sessions_booked || 0}</b></span></td>
+    <td>${dateChip(c.lastS, c.dl, [7, 14, 21, 30], 'None yet')}</td>
+    <td>${dateChip(c.lastC, c.dc, [7, 14, 21, 30], 'Never')}</td>
+    ${NT.map(n => box(r, n)).join('')}${noteCell(r)}</tr>`; };
+  const head = `<thead><tr><th>Member</th><th>Signed up</th><th>Status</th><th>Sessions done</th><th>Booked out</th><th>Last session</th><th>Last contact</th>${NT.map(n => `<th class="ck">${n[1]}</th>`).join('')}<th>Notes / month 2 plan</th></tr></thead>`;
+  const quickTxt = { risk: 'at risk', watch: 'needing a nudge', ok: 'on track' }[mem.quick];
+  $('memBody').innerHTML = `<p class="lead mem-lead"><b>${cur.length}</b> member${cur.length === 1 ? '' : 's'} in their first 30 days${quickTxt ? ', ' + quickTxt + ' <button class="linkish" data-quick="">Show all</button>' : ''}. Sessions, bookings and last session fill in from your reports; tick the checklist and add notes as you go.</p>` +
+    (cur.length ? `<div class="table-wrap"><table class="mt nm">${head}<tbody>${cur.map(x => row(x, false)).join('')}</tbody></table></div>` : '') +
+    `<p class="legend nb-legend"><span><i class="hchip h0"></i>Within 7 days / on pace</span><span><i class="hchip h2"></i>Getting behind</span><span><i class="hchip h4"></i>Over 30 days, none, or nothing booked</span></p>` +
+    (past.length ? `<details class="tk-donebox mem-done" id="nmPast"${mem.gradOpen ? ' open' : ''}><summary>Past 30 days, ready to come off the list <span>${past.length}</span></summary>
+      <div class="table-wrap"><table class="mt nm">${head}<tbody>${past.map(x => row(x, true)).join('')}</tbody></table></div></details>` : '');
+  const d = $('nmPast'); if (d) d.ontoggle = () => { mem.gradOpen = d.open; };
   const w2 = document.querySelector('#memBody .table-wrap'); if (w2) w2.scrollLeft = sl;
+  const ta = document.querySelector('[data-note]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+async function saveNote(id, text) {
+  const cur = mem.notes[id] || {}, note = text.trim() || null;
+  mem.editNote = null;
+  if ((cur.note || null) === note) { drawNew(); return; }
+  const { error } = await db.from('member_notes').upsert({ studio_id: mem.studio, club_id: +id, note, assigned_to: cur.assigned_to || null, updated_by: ME.id, updated_at: new Date().toISOString() }, { onConflict: 'studio_id,club_id' });
+  if (error) { alert('Could not save the note. ' + error.message); drawNew(); return; }
+  mem.notes[id] = { ...cur, club_id: +id, note }; drawNew(); toast('Note saved');
 }
 
 function memCard(id) {
@@ -329,17 +375,25 @@ function buildRows() {
   return rows;
 }
 
-$('memTabs').onclick = e => { const b = e.target.closest('[data-sec]'); if (b) { mem.sec = b.dataset.sec; mem.g = SUBS[mem.sec][0][0]; drawMem(); } };
+$('memTabs').onclick = e => { const b = e.target.closest('[data-sec]'); if (b) { mem.sec = b.dataset.sec; mem.g = SUBS[mem.sec][0][0]; mem.quick = null; drawMem(); } };
 $('memSubs').onclick = e => { const b = e.target.closest('[data-g]'); if (b) { mem.g = b.dataset.g; mem.quick = null; mem.form = null; drawMem(); } };
-$('memSum').onclick = e => { const t = e.target.closest('[data-tile]'); if (!t) return; const [g, q] = t.dataset.tile.split('|'); mem.sec = 'risk'; mem.g = g; mem.quick = q || null; mem.form = null; drawMem(); };
+$('memSum').onclick = e => { const t = e.target.closest('[data-tile]'); if (!t) return; const [g, q] = t.dataset.tile.split('|'); if (q === 'past') { mem.sec = 'new'; mem.g = 'list'; mem.quick = null; mem.gradOpen = true; drawMem(); const d = $('nmPast'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } mem.sec = g === 'list' ? 'new' : 'risk'; mem.g = g; mem.quick = q || null; mem.form = null; drawMem(); };
 $('memWin').onchange = e => { mem.win = +e.target.value; drawMem(); };
 $('memMine').onchange = e => { mem.mine = e.target.checked; drawMem(); };
 $('memBody').onchange = async e => {
-  const c = e.target, id = c.dataset.id, f = c.dataset.nt; if (!f) return;
-  const { error } = await db.from('new_member_tasks').upsert({ studio_id: mem.studio, club_id: +id, [f]: c.checked, updated_by: ME.id, updated_at: new Date().toISOString() }, { onConflict: 'studio_id,club_id' });
+  const c = e.target, id = c.dataset.id, k = c.dataset.nt; if (!k) return;
+  const fields = (NT.find(x => x[0] === k) || [0, 0, [k]])[2], patch = Object.fromEntries(fields.map(f => [f, c.checked]));
+  const { error } = await db.from('new_member_tasks').upsert({ studio_id: mem.studio, club_id: +id, ...patch, updated_by: ME.id, updated_at: new Date().toISOString() }, { onConflict: 'studio_id,club_id' });
   if (error) { c.checked = !c.checked; alert('Could not save that. ' + error.message); return; }
-  (mem.nt[id] = mem.nt[id] || {})[f] = c.checked; drawNew();
+  Object.assign(mem.nt[id] = mem.nt[id] || {}, patch); sumNew();
 };
+// Notes: click to edit in place, saved when you click away or press Enter
+$('memBody').addEventListener('focusout', e => { const t = e.target; if (t.dataset && t.dataset.note) saveNote(t.dataset.note, t.value); });
+$('memBody').addEventListener('keydown', e => {
+  const t = e.target; if (!t.dataset || !t.dataset.note) return;
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); t.blur(); }
+  else if (e.key === 'Escape') { mem.editNote = null; drawNew(); }
+});
 $('memSort').onchange = e => { mem.sort = e.target.value; drawMem(); };
 $('memBill').onchange = e => { mem.bill = +e.target.value; try { localStorage.setItem('memBillDays', mem.bill); } catch (_) {} drawMem(); };
 $('memFind').oninput = e => { mem.find = e.target.value; drawMem(); };
@@ -349,6 +403,8 @@ $('memBody').onclick = e => {
   const at = s => e.target.closest(s);
   const th = at('th[data-sort]'); if (th) { mem.sort = th.dataset.sort; drawMem(); return; }
   const qk = at('[data-quick]'); if (qk) { mem.quick = qk.dataset.quick || null; drawMem(); return; }
+  const en = at('[data-editnote]'); if (en) { mem.editNote = en.dataset.editnote; drawNew(); return; }
+  if (at('.nm')) return;
   if (at('summary') || at('input')) return;
   const tr = at('[data-m]'); if (tr) memCard(tr.dataset.m);
 };

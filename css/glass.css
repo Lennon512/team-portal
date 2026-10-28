@@ -362,3 +362,21 @@ td.due-soon { color:#7d5608; font-weight:500; }
 .hchip.h4 { background:rgba(208,83,60,.24); color:#8f2a1a; } .hchip.h4 b { color:#7a2416; }
 .nb-legend .hchip { width:.9rem; height:.9rem; padding:0; border-radius:4px; vertical-align:-2px; margin-right:.35rem; }
 .nb-legend { align-items:center; }
+
+/* ---------- Members: new members (first 30 days) ---------- */
+.mt.nm td { vertical-align:middle; }
+.mt.nm .nm-sub { display:block; color:var(--muted); font-size:.76rem; font-weight:400; }
+.mt.nm th.ck, .mt.nm td.ck { text-align:center; white-space:normal; min-width:4.8rem; }
+.mt.nm td.ck input { display:inline-block; margin:0; width:1.1rem; height:1.1rem; accent-color:var(--em); }
+.nm-pill { display:inline-block; padding:.15rem .6rem; border-radius:999px; font-size:.76rem; font-weight:600; white-space:nowrap; }
+.nm-pill.ok { background:rgba(15,138,95,.15); color:#0b5c3f; }
+.nm-pill.watch { background:rgba(232,184,74,.3); color:#7d5608; }
+.nm-pill.risk { background:rgba(208,83,60,.2); color:#8f2a1a; }
+.nm-pill.cx { background:rgba(38,30,20,.1); color:var(--muted); }
+.mt.nm tr.nm-cx td { opacity:.55; }
+.mt.nm tr.nm-cx td:first-child { opacity:1; } .mt.nm tr.nm-cx td:first-child b { color:var(--muted); text-decoration:line-through; text-decoration-color:rgba(38,30,20,.3); }
+.mt.nm td.nt2 { min-width:220px; max-width:320px; white-space:normal; font-size:.85rem; line-height:1.4; cursor:text; }
+.mt.nm td.nt2:hover { background:rgba(255,255,255,.55); }
+.mt.nm td.nt-edit { min-width:260px; }
+.mt.nm td.nt-edit textarea { width:100%; min-height:3.4rem; font-size:.85rem; padding:.4rem .55rem; }
+.mt.nm tbody tr { cursor:default; }
