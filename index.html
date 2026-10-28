@@ -123,6 +123,7 @@
       <div class="mem-filters">
         <input id="memFind" type="search" placeholder="Find a member" aria-label="Find a member">
         <select id="memSort" aria-label="Sort"><option value="attn">Needs attention first</option><option value="credits">Most unused credits</option><option value="due">Invoice date (soonest first)</option><option value="last">Last visit (oldest first)</option></select>
+        <select id="memBill" aria-label="Billing window" hidden><option value="30">Billing in next 30 days</option><option value="60">Billing in next 60 days</option><option value="9999">All upcoming invoices</option></select>
         <select id="memWin" aria-label="Signed up" hidden><option value="30">Signed up: last 30 days</option><option value="60" selected>Signed up: last 60 days</option><option value="90">Signed up: last 90 days</option><option value="9999">Signed up: all</option></select>
         <label class="mem-mine"><input type="checkbox" id="memMine"> Mine only</label>
       </div>
@@ -213,7 +214,7 @@
 <script src="js/core.js?v=20261028e"></script>
 <script src="js/calendar.js?v=20261028"></script>
 <script src="js/tasks.js?v=20261028e"></script>
-<script src="js/members.js?v=20261028f"></script>
+<script src="js/members.js?v=20261028g"></script>
 <script src="js/timeoff.js?v=20261028"></script>
 <script src="js/mypage.js?v=20261028"></script>
 <script src="js/studio.js?v=20261028"></script>
