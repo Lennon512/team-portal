@@ -161,22 +161,50 @@ async function loadMaster() {
   drawMaster();
 }
 
+// KPI groups so the network table doesn't need 16 columns at once
+const M_GROUPS = { all: ['All KPIs', null], rev: ['Revenue', ['revenue', 'eft', 'eft_rev', 'pps', 'adj_pps']], sales: ['Sales', ['leads', 'demos', 'l2d', 'show', 'fv_close', 'contacts']], mem: ['Members', ['members', 'nmg', 'attrition', 'at_risk', 'basic']] };
+// Rank of every location on every KPI for the month (1 = best)
+function netRanks(rows) {
+  const out = {};
+  CORP.forEach(([k]) => { const lower = CMP_LOWER.has(k), have = rows.filter(r => r.kpis && r.kpis[k] !== null && r.kpis[k] !== undefined && r.kpis[k] !== '' && !isNaN(r.kpis[k]));
+    have.sort((a, b) => lower ? a.kpis[k] - b.kpis[k] : b.kpis[k] - a.kpis[k]);
+    out[k] = { n: have.length, of: new Map() }; let prev = null, rank = 0; have.forEach((r, i) => { if (+r.kpis[k] !== prev) { rank = i + 1; prev = +r.kpis[k]; } out[k].of.set(r.store, rank); }); });
+  return out;
+}
 function drawMaster() {
   if (PF.netStore) return drawNetStore();
   const rows = PF.netAll[PF.month] || [];
-  if (!rows.length) { $('pfBody').innerHTML = '<p class="lead">No network-wide scorecard loaded for ' + esc(mLbl(PF.month, 1)) + ' yet. Use Update data \u2192 Upload corporate scorecard.</p>'; return; }
-  const yours = new Set(locs.map(l => l.club_store_id).filter(Boolean));
+  if (!rows.length) { $('pfBody').innerHTML = '<p class="lead">No network-wide scorecard loaded for ' + esc(mLbl(PF.month, 1)) + ' yet. Use Update data → Upload corporate scorecard.</p>'; return; }
+  const frs = [...new Set(rows.map(r => r.franchise).filter(Boolean))].sort(), tiers = [...new Set(rows.map(r => r.tier).filter(Boolean))].sort();
+  $('pfBody').innerHTML = `<p class="lead" style="margin:0 0 .75rem">Every Stretch Zone location from the corporate scorecard for ${esc(mLbl(PF.month, 1))}. Your six studios are highlighted. Green numbers are in the network’s top 25%, red in the bottom 25%, and the small # is the rank. Click a location for its own trends, or tick up to four and compare them.</p>
+    <div class="netbar mbar"><input type="search" id="mFindBox" placeholder="Search by name" value="${esc(PF.mFind)}">
+      <select id="mFr" aria-label="Franchise"><option value="">All franchises</option>${frs.map(f => `<option ${f === PF.mFr ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>
+      <select id="mTier" aria-label="Tier"><option value="">All tiers</option>${tiers.map(t => `<option ${t === PF.mTier ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <label class="mours"><input type="checkbox" id="mOurs" ${PF.mOurs ? 'checked' : ''}> Our studios only</label></div>
+    <div class="mbar2"><span class="tabs" id="mGroups">${Object.entries(M_GROUPS).map(([g, [l]]) => `<button type="button" data-mg="${g}" class="${PF.mGroup === g ? 'on' : ''}">${l}</button>`).join('')}</span><span id="mPickBar"></span></div>
+    <div id="mTable"></div>`;
+  drawMasterTable();
+}
+function drawMasterTable() {
+  const rows = PF.netAll[PF.month] || [], yours = new Set(locs.map(l => l.club_store_id).filter(Boolean)), ranks = netRanks(rows);
   const q = PF.mFind.trim().toLowerCase();
-  const filtered = rows.filter(r => !q || (r.name || '').toLowerCase().includes(q) || (r.franchise || '').toLowerCase().includes(q) || (r.tier || '').toLowerCase().includes(q));
+  const filtered = rows.filter(r => (!q || (r.name || '').toLowerCase().includes(q) || (r.store || '').toLowerCase().includes(q)) && (!PF.mFr || r.franchise === PF.mFr) && (!PF.mTier || r.tier === PF.mTier) && (!PF.mOurs || yours.has(r.store)));
   const [sortTab, sortKey] = PF.mSort.split('->');
   const sortVal = r => sortTab === 'kpis' ? r.kpis[sortKey] : r[sortKey];
   filtered.sort((a, b) => { const av = sortVal(a), bv = sortVal(b); const an = av === null || av === undefined, bn = bv === null || bv === undefined; if (an && bn) return 0; if (an) return 1; if (bn) return -1; const cmp = av < bv ? -1 : av > bv ? 1 : 0; return PF.mDir * cmp; });
-  const th = (key, label) => `<th data-sort="${key}" class="${PF.mSort === key ? 'on' : ''}" title="Sort by ${label}">${label}${PF.mSort === key ? (PF.mDir < 0 ? ' \u25BE' : ' \u25B4') : ''}</th>`;
-  const body = filtered.map(r => `<tr class="${yours.has(r.store) ? 'yours' : ''}" data-store="${esc(r.store)}"><td><b>${esc(r.name || r.store)}</b></td><td>${esc(r.franchise || '')}</td><td>${esc(r.tier || '')}</td>` +
-    CORP.map(([k, , f]) => `<td>${fmtNet(r.kpis[k], f)}</td>`).join('') + '</tr>').join('');
-  $('pfBody').innerHTML = `<p class="lead" style="margin:0 0 .75rem">Every Stretch Zone location from the corporate scorecard for ${esc(mLbl(PF.month, 1))} \u2014 <b>${filtered.length}</b> of ${rows.length} locations${q ? ' matching your search' : ''}. Your six studios are highlighted. Click a location to see its own scorecard and trends. Click a column heading to sort.</p>
-    <div class="netbar"><input type="search" id="mFindBox" placeholder="Search by name, franchise, or tier" value="${esc(PF.mFind)}"></div>
-    <div class="table-wrap"><table class="mt"><thead><tr>${th('row->name', 'Location')}${th('row->franchise', 'Franchise')}${th('row->tier', 'Tier')}${CORP.map(([k, n]) => th('kpis->' + k, n)).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const keys = M_GROUPS[PF.mGroup][1], cols = CORP.filter(([k]) => !keys || keys.includes(k));
+  const th = (key, label) => `<th data-sort="${key}" class="${PF.mSort === key ? 'on' : ''}" title="Sort by ${label}">${label}${PF.mSort === key ? (PF.mDir < 0 ? ' ▾' : ' ▴') : ''}</th>`;
+  const cell = (r, k, f) => { const rk = ranks[k], pos = rk.of.get(r.store); if (!pos) return `<td>${fmtNet(r.kpis[k], f)}</td>`;
+    const p = pos / rk.n, c = p <= .25 ? 'mtop' : p > .75 ? 'mlow' : ''; return `<td class="${c}">${fmtNet(r.kpis[k], f)}<small class="mrk">#${pos}</small></td>`; };
+  const picked = new Set(PF.mPick);
+  const body = filtered.map(r => `<tr class="${yours.has(r.store) ? 'yours' : ''}" data-store="${esc(r.store)}"><td><label class="mpick" title="Tick to compare"><input type="checkbox" data-mpick="${esc(r.store)}" ${picked.has(r.store) ? 'checked' : ''} ${!picked.has(r.store) && picked.size >= CMP_MAX ? 'disabled' : ''} aria-label="Compare ${esc(r.name || r.store)}"></label><span class="mname"><b>${esc(r.name || r.store)}</b><small>${esc([r.franchise, r.tier].filter(Boolean).join(' • '))}</small></span></td>` +
+    cols.map(([k, , f]) => cell(r, k, f)).join('') + '</tr>').join('');
+  $('mTable').innerHTML = `<p class="lead" style="margin:.2rem 0 .5rem;font-size:.85rem"><b>${filtered.length}</b> of ${rows.length} locations</p><div class="table-wrap"><table class="mt mnet"><thead><tr>${th('row->name', 'Location')}${cols.map(([k, n]) => th('kpis->' + k, n + (CMP_LOWER.has(k) ? ' ↓' : ''))).join('')}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length + 1}" class="muted">No locations match.</td></tr>`}</tbody></table></div>`;
+  drawPickBar();
+}
+function drawPickBar() {
+  const n = PF.mPick.length;
+  $('mPickBar').innerHTML = n ? `<span class="mpickbar"><b>${n} ticked</b>${n >= 2 ? `<button type="button" id="mCompare">Compare ${n}</button>` : '<span class="muted">tick one more</span>'}<button type="button" class="quiet sm" id="mClear">Clear</button></span>` : '';
 }
 
 
@@ -205,10 +233,12 @@ $('pfRange').onchange = e => { PF.range = +e.target.value; if (PF.tab === 'score
 $('pfData').onclick = () => pfMenu();
 $('pfBody').onclick = e => {
   if (e.target.closest('#netBack')) return netBackToList();
-  const cmpItem = e.target.closest('.cmpitem');
-  if (cmpItem) return selectCmpSlot(cmpItem.dataset.side, cmpItem.dataset.store);
-  const cmpClear = e.target.closest('[data-cmpclear]');
-  if (cmpClear) { PF.cmp[cmpClear.dataset.cmpclear] = null; return drawCompare(); }
+  if (e.target.closest('.mpick')) return; // checkbox handled on change
+  if (e.target.id === 'mCompare') return compareStores(PF.mPick, PF.month);
+  if (e.target.id === 'mClear') { PF.mPick = []; return drawMasterTable(); }
+  const mg = e.target.closest('[data-mg]'); if (mg) { PF.mGroup = mg.dataset.mg; document.querySelectorAll('#mGroups button').forEach(b => b.classList.toggle('on', b === mg)); return drawMasterTable(); }
+  if (e.target.id === 'cmpAdd') { if (PF.cmp.picks.length < CMP_MAX) PF.cmp.picks.push(''); return drawCompare(); }
+  const rm = e.target.closest('[data-cmprm]'); if (rm) { PF.cmp.picks.splice(+rm.dataset.cmprm, 1); return drawCompare(); }
   const cmpRow = e.target.closest('.cmprow');
   if (cmpRow) { PF.cmp.kpi = cmpRow.dataset.k; document.querySelectorAll('.cmprow').forEach(x => x.classList.toggle('on', x === cmpRow)); return drawCmpChart(); }
   const nkt = e.target.closest('.netkt');
@@ -220,11 +250,19 @@ $('pfBody').onclick = e => {
   const kt = e.target.closest('.kt, .fstep, .frate, .fnote [data-k]');
   if (kt) { PF.kpi = kt.dataset.k; document.querySelectorAll('.kt, .fstep, .frate').forEach(x => x.classList.toggle('on', x.dataset.k === PF.kpi)); drawChart(); $('pfChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   const th = e.target.closest('th[data-sort]');
-  if (th) { const key = th.dataset.sort; PF.mDir = PF.mSort === key ? -PF.mDir : -1; PF.mSort = key; drawMaster(); return; }
+  if (th) { const key = th.dataset.sort; PF.mDir = PF.mSort === key ? -PF.mDir : (key === 'row->name' ? 1 : -1); PF.mSort = key; drawMasterTable(); return; }
   const row = e.target.closest('tr[data-store]');
   if (row) { const rows = PF.netAll[PF.month] || [], r = rows.find(x => x.store === row.dataset.store); loadNetStore(row.dataset.store, r); }
 };
-$('pfBody').oninput = e => { if (e.target.id === 'mFindBox') { PF.mFind = e.target.value; drawMaster(); } else if (e.target.classList.contains('cmpsearch')) { const side = e.target.dataset.side; PF.cmp.find[side] = e.target.value; $('cmpList_' + side).innerHTML = cmpResultsHtml(side); } };
-$('pfBody').addEventListener('change', e => { if (e.target.classList.contains('cmpsel') && e.target.value) selectCmpSlot(e.target.dataset.side, e.target.value); });
+$('pfBody').oninput = e => { if (e.target.id === 'mFindBox') { PF.mFind = e.target.value; drawMasterTable(); } };
+$('pfBody').addEventListener('change', e => {
+  const t = e.target;
+  if (t.classList.contains('cmpsel') && t.value) return selectCmpSlot(+t.dataset.slot, t.value);
+  if (t.id === 'cmpMonth') { PF.cmp.month = t.value; return drawCompare(); }
+  if (t.id === 'mFr') { PF.mFr = t.value; return drawMasterTable(); }
+  if (t.id === 'mTier') { PF.mTier = t.value; return drawMasterTable(); }
+  if (t.id === 'mOurs') { PF.mOurs = t.checked; return drawMasterTable(); }
+  if (t.dataset.mpick) { const st = t.dataset.mpick; PF.mPick = t.checked ? [...new Set([...PF.mPick, st])].slice(0, CMP_MAX) : PF.mPick.filter(x => x !== st); return drawMasterTable(); }
+});
 $('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'pfSave') pfSave(); });
 $('dlgBody').addEventListener('change', e => { if (e.target.id === 'pStudio' || e.target.id === 'pMonth') { const m = $('pMonth').value; if (m) pfForm($('pStudio').value, m + '-01'); } });
