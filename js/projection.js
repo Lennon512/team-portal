@@ -213,8 +213,12 @@ $('pfBody').onclick = e => {
   if (cmpRow) { PF.cmp.kpi = cmpRow.dataset.k; document.querySelectorAll('.cmprow').forEach(x => x.classList.toggle('on', x === cmpRow)); return drawCmpChart(); }
   const nkt = e.target.closest('.netkt');
   if (nkt) { PF.netStore.kpi = nkt.dataset.k; document.querySelectorAll('.netkt').forEach(x => x.classList.toggle('on', x === nkt)); drawNetChart(); $('netChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-  const kt = e.target.closest('.kt');
-  if (kt) { PF.kpi = kt.dataset.k; document.querySelectorAll('.kt').forEach(x => x.classList.toggle('on', x === kt)); drawChart(); $('pfChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  const ovs = e.target.closest('th[data-ovs]');
+  if (ovs) { const k = ovs.dataset.ovs; PF.ovDir = PF.ovSort === k ? -PF.ovDir : -1; PF.ovSort = k; drawScore(); return; }
+  const srow = e.target.closest('tr[data-studio]');
+  if (srow) { PF.studio = srow.dataset.studio; $('pfStudio').value = PF.studio; drawPerf(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const kt = e.target.closest('.kt, .fstep, .frate, .fnote [data-k]');
+  if (kt) { PF.kpi = kt.dataset.k; document.querySelectorAll('.kt, .fstep, .frate').forEach(x => x.classList.toggle('on', x.dataset.k === PF.kpi)); drawChart(); $('pfChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   const th = e.target.closest('th[data-sort]');
   if (th) { const key = th.dataset.sort; PF.mDir = PF.mSort === key ? -PF.mDir : -1; PF.mSort = key; drawMaster(); return; }
   const row = e.target.closest('tr[data-store]');
