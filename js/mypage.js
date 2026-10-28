@@ -16,7 +16,7 @@ async function loadHome() {
     ME.role === 'owner' ? db.from('supply_items').select('*').eq('active', true) : null,
     ME.role === 'owner' ? db.from('supply_counts').select('*') : null,
     ME.role === 'owner' ? db.from('supply_thresholds').select('*') : null,
-    lead && canPage('dpr') ? db.from('dpr_daily').select('studio_id,day').gte('day', ymd(new Date(Date.now() - 30 * DAY))) : null,
+    lead && canPage('dpr') ? db.from('daily_log').select('studio_id,day').gte('day', ymd(new Date(Date.now() - 30 * DAY))) : null,
     db.from('team_directory').select('id,full_name,location_id,birthday,start_date'),
     db.from('profile_positions').select('position_id').eq('user_id', ME.id),
     db.from('task_templates').select('*').eq('active', true).order('sort_order'),
@@ -28,7 +28,7 @@ async function loadHome() {
   events = ev.data || []; offs = offs2.data || []; roster = dir.data || []; calTab = 'all'; calStudio = loc || '';
   const myPos = new Set((pp.data || []).map(x => x.position_id)), done = new Set((chk.data || []).map(x => x.template_id));
   home = { t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').map(r => r.id) : [],
-    sup: sup ? (sup.data || []) : [], sitems: sitems ? (sitems.data || []) : [], counts: scounts ? (scounts.data || []) : [], thr: sthr ? (sthr.data || []) : [], dpr: dprr ? (dprr.data || []) : null,
+    sup: sup ? (sup.data || []) : [], sitems: sitems ? (sitems.data || []) : [], counts: scounts ? (scounts.data || []) : [], thr: sthr ? (sthr.data || []) : [], dpr: dprr ? (dprr.error ? { error: true } : (dprr.data || [])) : null,
     tasks: (tpl.data || []).filter(x => myPos.has(x.position_id)), done, ms: msnap ? (msnap.data || []) : null, ns: nsnap ? (nsnap.data || []) : null, meta: meta ? (meta.data || []) : [] };
   drawHome();
 }
@@ -60,10 +60,11 @@ function drawHome() {
     if (mc.stale.length) tiles.push(tile(mc.stale[0].n + ' days', 'Since ClubReady upload', esc(mc.stale.map(x => studio(x.sid)).slice(0, 3).join(', ')) + (ME.role === 'staff' ? '' : ' • upload new reports'), '#members', 'hot'));
   }
   if (H.pendIds.length) tiles.push(tile(H.pendIds.length, `Time-off request${H.pendIds.length === 1 ? '' : 's'} waiting`, 'approve below or on the calendar', '#calendar', 'warm'));
-  if (H.dpr && H.dpr.length) {
-    const last = {}; H.dpr.forEach(r => { if (!last[r.studio_id] || r.day > last[r.studio_id]) last[r.studio_id] = r.day; });
-    const stale = Object.entries(last).filter(([sid, day]) => daysAgo(day) >= 2 && (ME.role === 'owner' || sid === ME.location_id));
-    if (stale.length) tiles.push(tile(stale.length, `DPR${stale.length === 1 ? '' : 's'} not entered`, esc(stale.map(([sid, day]) => `${studio(sid)} since ${fmt(day)}`).slice(0, 2).join(', ')), '#dpr', 'hot'));
+  if (H.dpr && !H.dpr.error) {
+    // Studios whose numbers for yesterday aren't in the Daily log yet
+    const yd = ymd(new Date(Date.now() - DAY)), have = new Set(H.dpr.filter(r => r.day === yd).map(r => r.studio_id));
+    const miss = locs.filter(l => (ME.role === 'owner' || l.id === ME.location_id) && !have.has(l.id));
+    if (miss.length) tiles.push(tile(miss.length, `Daily log${miss.length === 1 ? '' : 's'} missing`, esc(miss.map(l => l.name).slice(0, 3).join(', ')) + ' \u2022 yesterday', '#dpr', 'hot'));
   }
   // supplies: compact list
   let supCard = '';

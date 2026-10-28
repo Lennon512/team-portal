@@ -649,3 +649,51 @@ td.due-soon { color:#7d5608; font-weight:500; }
 @media (max-width:900px) { .kgrid.kg3, .kgrid.kg4 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:520px) { .kgrid.kg3, .kgrid.kg4 { grid-template-columns:1fr; } }
 .ovt .nm-sub { display:block; color:var(--muted); font-size:.76rem; font-weight:400; }
+
+/* ---------- Daily & Weekly ---------- */
+.dlnav { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .5rem; margin:.4rem 0 .2rem; }
+.dlnav .toseg { margin:0 .4rem 0 0 !important; }
+.dlrange { min-width:12rem; text-align:center; }
+.dltools { margin-left:auto; display:flex; gap:.4rem; }
+.dlchips { display:flex; flex-wrap:wrap; gap:.35rem; margin:0 0 .7rem; }
+.dlchip { padding:.4rem .9rem; font-size:.85rem; background:rgba(255,255,255,.5); color:var(--ink); border:1px solid rgba(255,255,255,.75); }
+.dlchip.done { background:#d6efe3; color:#0b5c3f; border-color:#bfe3d0; }
+.dlchip.on { background:var(--dark); color:#fbf6ee; border-color:var(--dark); }
+.dlform { display:flex; flex-direction:column; gap:.9rem; margin:0; }
+.dlsaved { margin:0; padding:.45rem .8rem; border-radius:12px; background:#d6efe3; color:#0b5c3f; font-size:.88rem; }
+.dlopen { display:flex; align-items:center; gap:.7rem; }
+.dlgrp { border:0; margin:0; padding:0; }
+.dlgrp legend { padding:0; margin:0 0 .45rem; font-size:.75rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+.dlgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:.6rem .8rem; }
+.dlin { margin:0; font-size:.86rem; font-weight:500; }
+.dlin small { display:block; font-weight:400; font-size:.74rem; }
+.dlbox { position:relative; display:block; margin-top:.25rem; }
+.dlbox input { font-variant-numeric:tabular-nums; }
+.dlbox.usd::before { content:"$"; position:absolute; left:.7rem; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+.dlbox.usd input { padding-left:1.4rem; }
+.dlform #dlSave { align-self:flex-start; padding:.7rem 1.6rem; }
+.dlt td { white-space:nowrap; }
+.dlt tr.dlmiss td { color:var(--muted); }
+.dlt tfoot tr.dltot td { font-weight:600; }
+.dlfocus { display:inline-block; padding:.12rem .55rem; border-radius:999px; background:#dbe5ef; color:#2f5f8f; font-size:.76rem; font-weight:600; white-space:nowrap; }
+.dlfocus.miss { background:#f7e6bd; color:#7d5608; }
+.dlmsgs { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:.7rem; }
+.dlmsg { padding:.8rem .9rem; border-radius:16px; background:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.8); display:flex; flex-direction:column; gap:.5rem; }
+.dlmsg-h { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.dlmsg-h b { margin-right:auto; }
+.dlmsg-h select { width:auto; max-width:14rem; padding:.3rem .5rem; font-size:.82rem; }
+.dlpre { margin:0; white-space:pre-wrap; font:inherit; font-size:.86rem; line-height:1.5; color:var(--ink); background:rgba(255,255,255,.55); border-radius:10px; padding:.6rem .7rem; }
+.dlk .rkb { margin-top:.35rem; }
+.dlflag { padding:.12rem .5rem; border-radius:999px; font-size:.72rem; font-weight:700; letter-spacing:.03em; }
+.dlflag.revenue { background:#f6d6cf; color:#8f2a1a; } .dlflag.labor { background:#fbe7d4; color:#7a3d12; } .dlflag.booking { background:#f7e6bd; color:#7d5608; } .dlflag.retention { background:#ecdcfb; color:#5b2d8c; } .dlflag.monitor { background:#d6efe3; color:#0b5c3f; }
+.dlnotes { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.4rem; font-size:.9rem; }
+.dlnotes li { padding:.55rem .8rem; border-radius:12px; background:rgba(255,255,255,.55); }
+.dlact { color:#2f5f8f; }
+dialog.dlwide { max-width:1100px; }
+.dltg input { width:6.5rem; padding:.35rem .5rem; }
+.dltg td:first-child { white-space:nowrap; }
+@media (max-width:700px) { .dltools { margin-left:0; } .dlmsgs { grid-template-columns:1fr; } .dlgrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.dlform .grid2 { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem; }
+.dlform .grid2 label { margin:0; font-size:.86rem; font-weight:500; }
+.dlform textarea { display:block; width:100%; margin-top:.25rem; min-height:3.6rem; }
+@media (max-width:600px) { .dlform .grid2 { grid-template-columns:1fr; } }
