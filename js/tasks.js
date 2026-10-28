@@ -77,7 +77,8 @@ function renderMine() {
     const item = r => {
       const [head, more] = splitTitle(r.title), open = tk.open.has(r.id);
       return `<div class="tk${isDone(r) ? ' done' : ''}${ro ? ' ro' : ''}" data-row-t="${r.id}"><label class="tk-main">${box(r, day)}<span class="tk-title">${esc(head)}</span></label>` +
-        (more ? `<button type="button" class="tk-more" data-more="${r.id}" aria-expanded="${open}">${open ? 'Hide' : 'Details'}</button><div class="tk-detail"${open ? '' : ' hidden'}>${esc(more)}</div>` : '') + '</div>';
+        `<span class="tk-side">${/member success/i.test(r.title) ? '<a class="tk-link" href="#members">Open report</a>' : ''}${more ? `<button type="button" class="tk-more" data-more="${r.id}" aria-expanded="${open}">${open ? 'Hide' : 'Details'}</button>` : ''}</span>` +
+        (more ? `<div class="tk-detail"${open ? '' : ' hidden'}>${esc(more)}</div>` : '') + '</div>';
     };
     const doneRows = tk.rows.filter(isDone);
     h += groups.map(g => {
@@ -244,16 +245,6 @@ async function removeTask(id) {
   });
 }
 
-// Small message above the tab bar, with an optional Undo
-function toast(msg, undo) {
-  let el = $('toast');
-  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
-  clearTimeout(el._t);
-  el.innerHTML = `<span>${esc(msg)}</span>` + (undo ? '<button type="button">Undo</button>' : '');
-  if (undo) el.querySelector('button').onclick = () => { el.classList.remove('show'); undo(); };
-  el.classList.add('show');
-  el._t = setTimeout(() => el.classList.remove('show'), undo ? 6000 : 2200);
-}
 
 $('taskTabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) { tk.tab = b.dataset.tab; loadTasks(); } };
 $('taskBar').onclick = e => {
@@ -280,7 +271,7 @@ function goDay(d) {
 $('taskBody').onclick = async e => {
   const t = e.target, at = sel => t.closest(sel), row = at('[data-row]'), more = at('[data-more]');
   if (more) {
-    const id = more.dataset.more, open = !tk.open.has(id), d = more.nextElementSibling;
+    const id = more.dataset.more, open = !tk.open.has(id), d = more.closest('.tk').querySelector('.tk-detail');
     open ? tk.open.add(id) : tk.open.delete(id);
     d.hidden = !open; more.textContent = open ? 'Hide' : 'Details'; more.setAttribute('aria-expanded', String(open));
     return;

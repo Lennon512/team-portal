@@ -230,3 +230,14 @@ $('dlgBody').onclick = async e => {
     } catch (err) { $('fErr').textContent = 'Could not save. ' + (err.message || ''); $('fSave').disabled = false; }
   }
 };
+
+// Small message above the tab bar, with an optional Undo
+function toast(msg, undo) {
+  let el = $('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  clearTimeout(el._t);
+  el.innerHTML = `<span>${esc(msg)}</span>` + (undo ? '<button type="button">Undo</button>' : '');
+  if (undo) el.querySelector('button').onclick = () => { el.classList.remove('show'); undo(); };
+  el.classList.add('show');
+  el._t = setTimeout(() => el.classList.remove('show'), undo ? 6000 : 2200);
+}
