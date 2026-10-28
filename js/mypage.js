@@ -1,57 +1,124 @@
 // ---------- My page ----------
-async function homeAttn() {
-  if (!ME.location_id) return null;
-  if (mem.studio !== ME.location_id || !mem.meta) { mem.studio = ME.location_id; await loadMem(); }
-  return mem.meta ? mem.rows.filter(r => r.grp === 'member' && calc(r).attn).length : null;
-}
+// Home: greeting, a "needs your attention" row, then tasks / time off / coming up.
+let home = {};
 
 async function loadHome() {
   const now = new Date(), td = todayStr(), mo = ymd(new Date(now.getFullYear(), now.getMonth(), 1)), in14 = ymd(new Date(now.getTime() + 14 * DAY)), in30 = ymd(new Date(now.getTime() + 30 * DAY));
-  const [ov, mine, ev, offs2, pend, att, sup, sitems, scounts, sthr, dprr] = await Promise.all([
+  const lead = ME.role !== 'staff', loc = ME.role === 'owner' ? null : ME.location_id;
+  const byLoc = q => loc ? q.eq('studio_id', loc) : q;
+  const [ov, mine, ev, offs2, pend, sup, sitems, scounts, sthr, dprr, dir, pp, tpl, chk, msnap, nsnap, meta] = await Promise.all([
     db.rpc('task_overview', { p_month: mo, p_today: td }),
     db.from('time_off_requests').select('id,start_date,end_date,status').eq('user_id', ME.id).gte('end_date', td).in('status', ['pending', 'approved']).order('start_date').limit(3),
     db.from('events').select('*').or(`ends_on.gte.${td},event_date.gte.${td}`).lte('event_date', in30).order('event_date').limit(60),
-    db.from('time_off_calendar').select('*').gte('end_date', td).lte('start_date', in14).order('start_date'),
-    ME.role === 'staff' ? null : db.from('time_off_requests').select('id,user_id').eq('status', 'pending'),
-    canPage('members') ? homeAttn() : null,
+    db.from('time_off_calendar').select('*').gte('end_date', td).lte('start_date', in30).order('start_date'),
+    lead ? db.from('time_off_requests').select('id,user_id,status').eq('status', 'pending') : null,
     ME.role === 'owner' ? db.from('supply_requests').select('*, supply_items(name)') : null,
     ME.role === 'owner' ? db.from('supply_items').select('*').eq('active', true) : null,
     ME.role === 'owner' ? db.from('supply_counts').select('*') : null,
     ME.role === 'owner' ? db.from('supply_thresholds').select('*') : null,
-    ME.role !== 'staff' && canPage('dpr') ? db.from('dpr_daily').select('studio_id,day').gte('day', ymd(new Date(Date.now() - 30 * DAY))) : null]);
-  drawHome({ t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], ev: ev.data || [], offs: offs2.data || [],
-    pend: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').length : null, att, day: now.getDate(), sup: sup ? (sup.data || []) : [], sitems: sitems ? (sitems.data || []) : [], counts: scounts ? (scounts.data || []) : [], thr: sthr ? (sthr.data || []) : [], dpr: dprr ? (dprr.data || []) : null });
+    lead && canPage('dpr') ? db.from('dpr_daily').select('studio_id,day').gte('day', ymd(new Date(Date.now() - 30 * DAY))) : null,
+    db.from('team_directory').select('id,full_name,location_id,birthday,start_date'),
+    db.from('profile_positions').select('position_id').eq('user_id', ME.id),
+    db.from('task_templates').select('*').eq('active', true).order('sort_order'),
+    db.from('task_checks').select('template_id').eq('user_id', ME.id).eq('check_date', td),
+    lead && canPage('members') ? byLoc(db.from('member_snapshot').select('studio_id,club_id,grp,frozen,next_due,next_booking,last_session').eq('grp', 'member')).limit(5000) : null,
+    lead && canPage('members') ? byLoc(db.from('new_member_snapshot').select('*')).limit(2000) : null,
+    lead && canPage('members') ? byLoc(db.from('snapshot_meta').select('*')) : null]);
+  // Reuse the calendar's data so the "coming up" list matches the Calendar page
+  events = ev.data || []; offs = offs2.data || []; roster = dir.data || []; calTab = 'all'; calStudio = loc || '';
+  const myPos = new Set((pp.data || []).map(x => x.position_id)), done = new Set((chk.data || []).map(x => x.template_id));
+  home = { t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').map(r => r.id) : [],
+    sup: sup ? (sup.data || []) : [], sitems: sitems ? (sitems.data || []) : [], counts: scounts ? (scounts.data || []) : [], thr: sthr ? (sthr.data || []) : [], dpr: dprr ? (dprr.data || []) : null,
+    tasks: (tpl.data || []).filter(x => myPos.has(x.position_id)), done, ms: msnap ? (msnap.data || []) : null, ns: nsnap ? (nsnap.data || []) : null, meta: meta ? (meta.data || []) : [] };
+  drawHome();
 }
 
-function drawHome(d) {
-  const T = d.t, tp = T && T.assigned ? Math.round(100 * T.done_today / T.assigned) : 0, mp = T && T.assigned ? mtd(T.done_month, T.done_today, T.assigned, true, d.day) : null;
-  const rng = r => fmt(r.start_date) + (r.end_date !== r.start_date ? ' \u2013 ' + fmt(r.end_date) : '');
-  const evs = d.ev.filter(e => !e.location_id || !ME.location_id || e.location_id === ME.location_id).slice(0, 4);
-  const out = d.offs.filter(o => o.user_id !== ME.id && (!ME.location_id || o.location_id === ME.location_id)).slice(0, 5);
-  const card = (title, body, link, cls) => link && !canHref(link[0]) ? '' : `<div class="hcard ${cls || ''}"><h3>${title}</h3>${body}${link ? `<p style="margin-top:.75rem"><a href="${link[0]}">${link[1]}</a></p>` : ''}</div>`;
-  const none = t => `<p class="lead" style="margin:0">${t}</p>`;
-  const needs = (d.sup || []).filter(r => r.status === 'needed'), ord = (d.sup || []).filter(r => r.status === 'ordered');
-  const lowN = ME.role === 'owner' ? locs.reduce((n, l) => n + (d.sitems || []).filter(it => spState(l.id, it, { thr: d.thr || [], counts: d.counts || [] }).low && !(d.sup || []).some(r => r.studio_id === l.id && r.item_id === it.id)).length, 0) : 0;
-  let supCard = '';
-  if (ME.role === 'owner' && (needs.length || ord.length || lowN)) {
-    const g = {}; needs.forEach(r => { const n = (r.supply_items && r.supply_items.name) || 'Item'; (g[n] = g[n] || []).push(studio(r.studio_id) + (r.qty ? ': ' + r.qty : '')); });
-    const names = Object.keys(g);
-    supCard = card('Supplies needed', (names.slice(0, 6).map(n => `<p><b>${esc(n)}</b> <span style="color:var(--muted);font-size:.85rem">${esc(g[n].join(' \u2022 '))}</span></p>`).join('') + (names.length > 6 ? `<p class="lead" style="margin:0">and ${names.length - 6} more</p>` : '') || none('Nothing requested yet.'))
-      + (lowN ? `<p style="margin:.5rem 0 0;color:#ff9b8f">${lowN} more below minimum, not requested yet</p>` : '') + (ord.length ? `<p class="lead" style="margin:.5rem 0 0">${ord.length} on order</p>` : ''), ['#supplies', 'Review and order'], names.length || lowN ? 'alert' : '');
-  }
-  let dprCard = '';
-  if (d.dpr && d.dpr.length) {
-    const last = {}; d.dpr.forEach(r => { if (!last[r.studio_id] || r.day > last[r.studio_id]) last[r.studio_id] = r.day; });
-    const stale = Object.entries(last).map(([sid, day]) => ({ sid, day, n: Math.floor((new Date(todayStr() + 'T00:00') - new Date(day + 'T00:00')) / DAY) })).filter(x => x.n >= 2 && (ME.role === 'owner' || x.sid === ME.location_id));
-    if (stale.length) dprCard = card('DPR not entered', stale.map(x => `<p><b>${esc(studio(x.sid))}</b> <span style="color:var(--muted);font-size:.85rem">last entry ${fmt(x.day)} (${x.n} days ago)</span></p>`).join(''), ['#dpr', 'Open the DPR'], 'alert');
-  }
-  $('alertCards').innerHTML = dprCard + supCard;
-  $('alertCards').hidden = !(dprCard || supCard);
-  const pillCls = st => st === 'approved' ? 'ok' : st === 'denied' ? 'warn' : 'ice';
-  $('myCards').innerHTML =
-    card('My tasks', T && T.assigned ? `<div class="meter"><i style="width:${Math.min(tp, 100)}%"></i></div><p style="margin-top:.5rem">Today <b>${tp}%</b> (${T.done_today} of ${T.assigned}) \u2022 month so far <b>${mp === null ? 'starts tomorrow' : mp + '%'}</b></p>` : none('No tasks assigned yet.'), ['#tasks', 'Open my tasks']) +
-    card('My time off', (d.pend ? `<p><b>${d.pend}</b> request${d.pend === 1 ? '' : 's'} waiting for your approval</p>` : '') + (d.mine.map(r => `<p>${rng(r)} <span class="pill ${pillCls(r.status)}" style="margin:0 0 0 .4rem">${r.status}</span></p>`).join('') || none('Nothing scheduled.')), ['#timeoff', 'Request time off']) +
-    card('Calendar', `<div class="hsplit"><div><b style="font-size:.85rem;color:var(--muted)">COMING UP</b>${evs.map(e => `<p style="margin:.35rem 0 0"><b>${fmt(e.event_date)}</b> ${esc(e.title)}<br><span style="color:var(--muted);font-size:.85rem">${esc(e.location_id ? studio(e.location_id) : 'All Austin')}</span></p>`).join('') || none('No events in the next 30 days.')}</div>
-      <div><b style="font-size:.85rem;color:var(--muted)">OUT IN THE NEXT 2 WEEKS</b>${out.map(o => `<p style="margin:.35rem 0 0">${esc(o.full_name.split(' ')[0])} ${rng(o)}${o.status === 'pending' ? ' <span class="pill ice" style="margin:0">pending</span>' : ''}${ME.location_id ? '' : '<br><span style="color:var(--muted);font-size:.85rem">' + esc(studio(o.location_id)) + '</span>'}</p>`).join('') || none('No one is off.')}</div></div>`, ['#calendar', 'Open the calendar']) +
-    (d.att === null || d.att === undefined ? '' : card('Members', `<p><b>${d.att}</b> member${d.att === 1 ? '' : 's'} need attention</p>`, ['#members', 'Open members']));
+// Counts for the attention row, using the same rules as the Members page
+function memberCounts() {
+  const H = home; if (!H.ms) return null;
+  const hasInvFor = sid => H.ms.some(r => r.studio_id === sid && r.next_due);
+  const toCall = H.ms.filter(r => !r.frozen && !r.next_booking && (hasInvFor(r.studio_id) ? r.next_due && -daysAgo(r.next_due) <= 7 : false)).length;
+  const notBookedAny = H.ms.filter(r => !r.frozen && !r.next_booking).length, anyInv = H.ms.some(r => r.next_due);
+  const last = {}; H.ms.forEach(r => last[r.club_id] = r.last_session);
+  const risk = (H.ns || []).filter(r => {
+    const day = Math.max(1, daysAgo(r.signed_on) + 1); if (day > 30) return false;
+    const dl = last[r.club_id] ? daysAgo(last[r.club_id]) : null, exp = r.plan_sessions ? r.plan_sessions * day / 30 : null;
+    return nmHealth(r, day, dl, exp ? r.sessions_done / Math.max(exp, 1) : null).health === 'risk';
+  }).length;
+  const stale = H.meta.map(m => ({ sid: m.studio_id, n: daysAgo(m.as_of) })).filter(x => x.n > 7).sort((a, b) => b.n - a.n);
+  return { toCall: anyInv ? toCall : notBookedAny, anyInv, risk, stale };
 }
+
+function drawHome() {
+  const H = home, T = H.t, td = todayStr();
+  const tile = (n, label, sub, href, cls) => `<a class="mtile hatile ${cls || ''}" href="${href}"><b>${n}</b>${label}${sub ? `<span>${sub}</span>` : ''}</a>`;
+  // ---- needs your attention ----
+  const tiles = [], mc = memberCounts();
+  if (mc) {
+    if (mc.toCall) tiles.push(tile(mc.toCall, mc.anyInv ? 'Members to call' : 'Members not booked', mc.anyInv ? 'billing within 7 days, nothing booked' : 'nothing on the books', '#members', 'warm'));
+    if (mc.risk) tiles.push(tile(mc.risk, 'New members at risk', 'two or more warning signs', '#members', 'warm'));
+    if (mc.stale.length) tiles.push(tile(mc.stale[0].n + ' days', 'Since ClubReady upload', esc(mc.stale.map(x => studio(x.sid)).slice(0, 3).join(', ')) + (ME.role === 'staff' ? '' : ' • upload new reports'), '#members', 'hot'));
+  }
+  if (H.pendIds.length) tiles.push(tile(H.pendIds.length, `Time-off request${H.pendIds.length === 1 ? '' : 's'} waiting`, 'approve below or on the calendar', '#calendar', 'warm'));
+  if (H.dpr && H.dpr.length) {
+    const last = {}; H.dpr.forEach(r => { if (!last[r.studio_id] || r.day > last[r.studio_id]) last[r.studio_id] = r.day; });
+    const stale = Object.entries(last).filter(([sid, day]) => daysAgo(day) >= 2 && (ME.role === 'owner' || sid === ME.location_id));
+    if (stale.length) tiles.push(tile(stale.length, `DPR${stale.length === 1 ? '' : 's'} not entered`, esc(stale.map(([sid, day]) => `${studio(sid)} since ${fmt(day)}`).slice(0, 2).join(', ')), '#dpr', 'hot'));
+  }
+  // supplies: compact list
+  let supCard = '';
+  if (ME.role === 'owner') {
+    const needs = H.sup.filter(r => r.status === 'needed'), ord = H.sup.filter(r => r.status === 'ordered');
+    const lowN = locs.reduce((n, l) => n + H.sitems.filter(it => spState(l.id, it, { thr: H.thr, counts: H.counts }).low && !H.sup.some(r => r.studio_id === l.id && r.item_id === it.id)).length, 0);
+    const qty = q => q ? String(q).replace(/^\s*low:?\s*have\s*(\d+)\s*$/i, '$1 left') : '';
+    if (needs.length || lowN) supCard = `<div class="hcard hsup"><h3>Supplies to order <span class="hcount">${needs.length}</span></h3><ul class="hlist">` +
+      needs.slice(0, 5).map(r => `<li><b>${esc((r.supply_items && r.supply_items.name) || 'Item')}</b> <span class="muted">• ${esc(studio(r.studio_id))}${r.qty ? ' • ' + esc(qty(r.qty)) : ''}</span></li>`).join('') + '</ul>' +
+      (needs.length > 5 ? `<p class="muted hsmall">and ${needs.length - 5} more</p>` : '') + (lowN ? `<p class="hsmall warn-t">${lowN} more below minimum, not requested yet</p>` : '') + (ord.length ? `<p class="muted hsmall">${ord.length} on order</p>` : '') +
+      '<a class="hlink" href="#supplies">Review and order →</a></div>';
+  }
+  $('alertCards').innerHTML = (tiles.length ? `<div class="hattn">${tiles.join('')}</div>` : (ME.role !== 'staff' ? '<p class="hclear">✓ All caught up. Nothing needs your attention right now.</p>' : ''));
+  $('alertCards').hidden = false;
+
+  // ---- my tasks: progress + next three open ----
+  const n = T && T.assigned ? T.assigned : H.tasks.length, d = T && T.assigned ? Math.min(T.done_today || 0, n) : H.tasks.filter(x => H.done.has(x.id)).length, pct = n ? Math.round(100 * d / n) : 0;
+  const open = H.tasks.filter(x => !H.done.has(x.id)).slice(0, 3);
+  const taskCard = `<div class="hcard"><h3>My tasks</h3>` + (n ? `<div class="tk-progress"><div class="tk-today"><b>${d} of ${n}</b> done today</div></div><div class="meter tk-meter" style="max-width:none;margin:.5rem 0 .8rem"><i style="width:${Math.min(pct, 100)}%"></i></div>` +
+      (open.length ? '<div class="hopen">' + open.map(x => `<label class="htask"><input type="checkbox" data-htask="${x.id}"><span>${esc(splitTitle(x.title)[0])}</span></label>`).join('') + '</div>' : '<p class="hclear" style="margin:0">✓ All done for today!</p>')
+    : '<p class="lead" style="margin:0">No tasks assigned yet.</p>') + `<a class="hlink" href="#tasks">${open.length && n - d > open.length ? `See all ${n - d} left →` : 'Open my tasks →'}</a></div>`;
+
+  // ---- time off: mine + approvals ----
+  const rng = r => fmt(r.start_date) + (r.end_date !== r.start_date ? ' – ' + fmt(r.end_date) : '');
+  const pillCls = st => st === 'approved' ? 'ok' : st === 'denied' ? 'warn' : 'ice';
+  const pendOffs = offs.filter(o => H.pendIds.includes(o.id) && canDecide(o)).slice(0, 3);
+  const offCard = `<div class="hcard"><h3>Time off</h3>` +
+    (pendOffs.length ? '<p class="hsub">Waiting for you</p>' + pendOffs.map(o => `<div class="happ"><div><b>${esc(o.full_name)}</b> <span class="muted">${rng(o)}${ME.location_id ? '' : ' • ' + esc(studio(o.location_id))}</span>${clashes(o).length ? `<small class="up-warn">Also out: ${esc(clashes(o).map(c => c.full_name.split(' ')[0]).join(', '))}</small>` : ''}</div><span><button class="sm" data-hdecide="approved" data-id="${o.id}">Approve</button> <button class="quiet sm" data-hdecide="denied" data-id="${o.id}">Decline</button></span></div>`).join('') : '') +
+    '<p class="hsub">Mine</p>' + (H.mine.map(r => `<p class="hline">${rng(r)} <span class="pill ${pillCls(r.status)}" style="margin:0 0 0 .4rem">${r.status}</span></p>`).join('') || '<p class="lead" style="margin:0">Nothing scheduled.</p>') +
+    '<a class="hlink" href="#timeoff">Request time off →</a></div>';
+
+  // ---- coming up: same list as the calendar, next 7 days ----
+  const to = addD(td, 6), items = calItems(td, to), byDay = {};
+  items.forEach(x => { const k = x.s < td ? td : x.s; (byDay[k] = byDay[k] || []).push(x); });
+  for (let k = td; k <= to; k = addD(k, 1)) if (coverage(k)) byDay[k] = byDay[k] || [];
+  const days = Object.keys(byDay).sort(), label = k => k === td ? 'Today' : k === addD(td, 1) ? 'Tomorrow' : fmtLong(k);
+  const calCard = `<div class="hcard"><h3>Coming up</h3>` + (days.length ? days.map(k => { const c = coverage(k);
+      return `<div class="up-day"><div class="up-date">${label(k)}${c ? `<span class="cov">${c.n} out at ${esc(studio(c.loc))}</span>` : ''}</div>` + byDay[k].map(x => `<div class="up-item ${x.k}"><span class="up-main"><i class="up-dot"></i><span>${esc(x.t)}${x.k === 'pend' ? ' <em>pending</em>' : ''}${x.e !== x.s ? ` <small>${x.k === 'off' || x.k === 'pend' ? 'until' : 'through'} ${fmt(x.e)}</small>` : ''}</span></span></div>`).join('') + '</div>'; }).join('')
+    : '<p class="lead" style="margin:0">Nothing in the next 7 days.</p>') + '<a class="hlink" href="#calendar">Open the calendar →</a></div>';
+
+  $('myCards').innerHTML = (canHref('#tasks') ? taskCard : '') + (canHref('#timeoff') ? offCard : '') + (canHref('#calendar') ? calCard : '') + supCard;
+}
+
+$('myCards').addEventListener('change', async e => {
+  const id = e.target.dataset.htask; if (!id) return;
+  e.target.disabled = true;
+  const { error } = await db.from('task_checks').insert({ user_id: ME.id, template_id: id, check_date: todayStr() });
+  if (error) { e.target.disabled = false; e.target.checked = false; alert('Could not save that. ' + error.message); return; }
+  e.target.closest('.htask').classList.add('just-done');
+  setTimeout(() => { home.done.add(id); if (home.t) home.t.done_today = (home.t.done_today || 0) + 1; drawHome(); }, 380);
+});
+$('myCards').addEventListener('click', async e => {
+  const b = e.target.closest('[data-hdecide]'); if (!b) return;
+  b.disabled = true;
+  const { error } = await db.rpc('decide_time_off', { p_id: b.dataset.id, p_status: b.dataset.hdecide });
+  if (error) { b.disabled = false; alert('That did not work: ' + error.message); return; }
+  toast(b.dataset.hdecide === 'approved' ? 'Approved' : 'Declined'); if (typeof timeOffBadge === 'function') timeOffBadge(); loadHome();
+});

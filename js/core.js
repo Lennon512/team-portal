@@ -56,7 +56,7 @@ async function showApp(user) {
   $('who').textContent = me.full_name || me.email;
   $('meta').textContent = me.role + ' \u2022 ' + (me.role === 'owner' ? 'All locations' : loc ? loc.name : 'No location yet');
   const h = new Date().getHours(), first = me.full_name ? me.full_name.split(' ')[0] : '';
-  $('hello').textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + (first ? ', ' + first : '') + '!';
+  $('hello').textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + (first ? ', ' + first : '');
   $('tag').textContent = TAGS[Math.floor(Date.now() / 864e5) % TAGS.length];
   $('note').hidden = !(me.role !== 'owner' && !loc);
   $('note').textContent = 'You have not been assigned to a studio yet. Ask the owner to add you.';
