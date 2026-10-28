@@ -614,3 +614,38 @@ td.due-soon { color:#7d5608; font-weight:500; }
 @media (max-width:900px) { .tosum { position:static; } }
 @media (max-width:520px) { .toform .grid2 { grid-template-columns:1fr; } .toseg { max-width:100%; } }
 @media (max-width:520px) { .toseg { flex-wrap:wrap; border-radius:18px; } }
+
+/* ---------- Performance: Austin scorecard ---------- */
+.scsec { margin:1.4rem 0 0; } .scsec > h3 { margin:0 0 .7rem; font-size:1.05rem; }
+.scsec.ov { margin-top:.6rem; }
+.ovt td, .ovt th { text-align:right; } .ovt td:first-child, .ovt th:first-child, .ovt td:last-child, .ovt th:last-child { text-align:left; }
+.ovt th[data-ovs] { cursor:pointer; } .ovt th.on { color:var(--ink); }
+.ovt tbody tr { cursor:pointer; } .ovt td { font-variant-numeric:tabular-nums; }
+.ovt td.good { background:rgba(31,157,106,.14); color:#0b5c3f; font-weight:600; } .ovt td.bad { background:rgba(208,83,60,.13); color:#8f2a1a; font-weight:600; }
+.ovt tfoot td { border-top:2px solid var(--line); } .ovt tr.avgrow td { color:var(--muted); font-size:.86rem; }
+.ovt .nm-sub .up, .ovt .nm-sub .dn { font-weight:600; }
+.rkb { display:inline-flex; align-items:baseline; gap:.3rem; align-self:flex-start; margin-top:.4rem; padding:.12rem .55rem; border-radius:999px; font-size:.74rem; font-weight:600; white-space:nowrap; }
+.rkb small { font-weight:500; opacity:.8; font-size:.7rem; }
+.rkb.top { background:#d6efe3; color:#0b5c3f; } .rkb.mid { background:#ece8e2; color:#5f5548; } .rkb.low { background:#f6d6cf; color:#8f2a1a; }
+.ovt .rkb { margin-top:0; }
+.schead { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin:1.4rem 0 .8rem; }
+.schead .kn { display:block; color:var(--muted); font-size:.85rem; font-weight:500; }
+.schead b { display:block; font-size:2.3rem; letter-spacing:-.04em; line-height:1.1; }
+.schd { color:var(--muted); font-size:.9rem; display:flex; gap:.8rem; flex-wrap:wrap; }
+.schr .rkb { font-size:.85rem; padding:.3rem .8rem; margin:0; }
+.scchart { background:rgba(255,255,255,.78) !important; }
+.kt .kdl { display:block; font-size:.8rem; color:var(--muted); }
+.kt b .muted { font-size:1rem; font-weight:500; }
+.funnel { display:grid; grid-template-columns:1fr auto 1fr auto 1fr auto 1fr; align-items:stretch; gap:.4rem; }
+.fstep { all:unset; box-sizing:border-box; cursor:pointer; display:flex; flex-direction:column; gap:.15rem; padding:.85rem 1rem; border-radius:18px; background:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.8); transition:transform .2s, box-shadow .2s; }
+.fstep b { font-size:1.9rem; letter-spacing:-.03em; line-height:1.15; } .fstep .kn { color:var(--muted); font-size:.85rem; } .fstep .kdl { font-size:.8rem; color:var(--muted); }
+.fstep:hover, .frate:hover { transform:translateY(-2px); box-shadow:0 10px 22px rgba(40,30,20,.1); }
+.fstep.on, .frate.on { background:rgba(255,255,255,.92); box-shadow:0 0 0 2px var(--dark) inset; }
+.frate { all:unset; box-sizing:border-box; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.05rem; min-width:4.6rem; padding:.4rem .5rem; border-radius:14px; text-align:center; transition:transform .2s; }
+.frate .farrow { color:var(--muted); font-size:1.2rem; line-height:1; } .frate b { font-size:1.15rem; } .frate small { font-size:.72rem; color:var(--muted); }
+.fnote { margin:.6rem 0 0; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; font-size:.9rem; } .fnote .rkb { margin:0; }
+@media (max-width:900px) { .funnel { grid-template-columns:1fr; } .frate { flex-direction:row; gap:.5rem; min-width:0; padding:.2rem; } .frate .farrow { transform:rotate(90deg); } }
+.kgrid.kg3 { grid-template-columns:repeat(3,minmax(0,1fr)); } .kgrid.kg4 { grid-template-columns:repeat(4,minmax(0,1fr)); }
+@media (max-width:900px) { .kgrid.kg3, .kgrid.kg4 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:520px) { .kgrid.kg3, .kgrid.kg4 { grid-template-columns:1fr; } }
+.ovt .nm-sub { display:block; color:var(--muted); font-size:.76rem; font-weight:400; }
