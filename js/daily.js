@@ -129,9 +129,9 @@ function drawDaily() {
   // Morning messages
   const msgs = rv.filter(x => canWrite(x.l.id) || ME.role !== 'staff').map(({ l, row, tt, auto, focus }) => `<div class="dlmsg"><div class="dlmsg-h"><b>${esc(l.name)}</b>${canWrite(l.id) && row ? `<select data-dlfocus="${l.id}" aria-label="Focus for ${esc(l.name)}">${FOCUSES.map(f => `<option ${f === focus ? 'selected' : ''} value="${esc(f)}">${esc(f)}${f === auto ? ' (auto)' : ''}</option>`).join('')}</select>` : `<span class="dlfocus${row ? '' : ' miss'}">${esc(focus)}</span>`}<button class="quiet sm" data-dlcopy="${l.id}">Copy message</button></div><pre class="dlpre" id="dlmsg-${l.id}">${esc(morningMsg(l, d, row, focus, tt))}</pre></div>`).join('');
   $('dlBody').innerHTML = `<div class="dlnav"><button class="quiet" data-dlday="-1" aria-label="Previous day">‹</button><label class="tk-daylbl"><b>${d === yest ? 'Yesterday' : d === todayStr() ? 'Today' : ''} <small>${dLong(d)}</small></b><input type="date" id="dlDate" value="${d}" max="${todayStr()}"></label><button class="quiet" data-dlday="1" aria-label="Next day" ${d >= todayStr() ? 'disabled' : ''}>›</button>${d !== yest ? '<button class="quiet sm" data-dlday="y">Back to yesterday</button>' : ''}
-      ${ME.role === 'owner' ? '<span class="dltools"><button class="quiet sm" id="dlTargets">Targets</button><button class="quiet sm" id="dlImport">Import from spreadsheet</button></span>' : ''}</div>` +
-    form + `<section class="scsec"><h3>Morning review • ${dLong(d)} <span class="hcount">${done} of ${rv.length} entered</span></h3>${table}</section>` +
-    `<section class="scsec"><h3>Ready-to-send morning messages</h3><p class="lead" style="margin:-.3rem 0 .7rem;font-size:.88rem">One focus per studio, picked automatically from the numbers. Change it if you know better, then copy the message into Slack or a text.</p><div class="dlmsgs">${msgs}</div></section>`;
+      ${ME.role === 'owner' && REP.sub === 'enter' ? '<span class="dltools"><button class="quiet sm" id="dlTargets">Targets</button><button class="quiet sm" id="dlImport">Import from spreadsheet</button></span>' : ''}</div>` +
+    (REP.sub === 'enter' ? (form || '<div class="pcard"><p>Only managers and the owner can enter numbers.</p></div>') + (form ? `<p class="dlgo"><button class="quiet" data-dlgo="dpr">See the daily review →</button></p>` : '') : (editable.length ? `<div class="dlcta"><span>${done} of ${rv.length} studios entered for ${dLong(d)}</span><button data-dlgo="enter">Enter numbers</button></div>` : '') + `<section class="scsec"><h3>Morning review • ${dLong(d)} <span class="hcount">${done} of ${rv.length} entered</span></h3>${table}</section>` +
+    `<section class="scsec"><h3>Ready-to-send morning messages</h3><p class="lead" style="margin:-.3rem 0 .7rem;font-size:.88rem">One focus per studio, picked automatically from the numbers. Change it if you know better, then copy the message into Slack or a text.</p><div class="dlmsgs">${msgs}</div></section>`);
 }
 
 async function dlSave() {
@@ -279,7 +279,8 @@ document.addEventListener('click', e => {
   if (t.id === 'dlSave') return dlSave();
   if (t.id === 'dlTargets') return dlTargetsForm();
   if (t.id === 'dlImport') return dlImportForm();
-  const st = at('[data-dlstudio]'); if (st) { DL.studio = st.dataset.dlstudio; drawDaily(); document.querySelector('.dlform') && document.querySelector('.dlform').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  const go = at('[data-dlgo]'); if (go) { REP.sub = go.dataset.dlgo; history.replaceState(null, '', REP.sub === 'enter' ? '#enter' : '#dpr'); updateRepTabs(); drawDaily(); scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const st = at('[data-dlstudio]'); if (st) { DL.studio = st.dataset.dlstudio; if (REP.sub !== 'enter') { REP.sub = 'enter'; history.replaceState(null, '', '#enter'); updateRepTabs(); } drawDaily(); document.querySelector('.dlform') && document.querySelector('.dlform').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   const dd = at('[data-dlday]'); if (dd) { DL.day = dd.dataset.dlday === 'y' ? dAdd(todayStr(), -1) : dAdd(DL.day, +dd.dataset.dlday); if (DL.day > todayStr()) DL.day = todayStr(); loadDpr(); return; }
   if (at('.tk-daylbl') && $('dlDate')) { try { $('dlDate').showPicker(); } catch (_) {} }
   const op = at('[data-dlopen] [data-v]'); if (op) { op.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === op)); return; }
