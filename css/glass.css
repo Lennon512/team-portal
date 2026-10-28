@@ -336,3 +336,17 @@ td.due-soon { color:#7d5608; font-weight:500; }
   .mcard-acts { grid-column:1 / -1; justify-content:flex-start; margin-left:1.4rem; }
   .mquick, .mtags, .mnote { margin-left:0; }
 }
+
+/* ---------- Upload reports ---------- */
+.updrop { position:relative; display:flex; align-items:center; justify-content:center; gap:.4rem; margin:0 0 .8rem; padding:1.4rem 1rem; border:2px dashed rgba(38,30,20,.22); border-radius:16px; background:rgba(255,255,255,.45); color:var(--muted); font-weight:400; cursor:pointer; text-align:center; transition:background .2s, border-color .2s; }
+.updrop:hover, .updrop.over { background:rgba(255,255,255,.8); border-color:var(--dark); }
+.updrop b { color:var(--ink); }
+.updrop input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+.upcheck { list-style:none; padding:0; margin:0 0 .4rem; display:flex; flex-direction:column; gap:.35rem; }
+.upcheck li { display:grid; grid-template-columns:1.4rem 1fr; gap:.4rem; padding:.45rem .7rem; border-radius:12px; background:rgba(255,255,255,.45); font-size:.9rem; }
+.upcheck li small { color:var(--muted); font-size:.8rem; }
+.upcheck .upadds { display:block; }
+.upmark { font-weight:700; color:var(--muted); text-align:center; }
+.upcheck li.ok { background:rgba(15,138,95,.1); } .upcheck li.ok .upmark { color:var(--em); }
+.upcheck li.need .upmark { color:#a5321f; }
+.upcheck li.bad { background:rgba(196,69,47,.1); color:#a5321f; }

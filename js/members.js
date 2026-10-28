@@ -34,7 +34,7 @@ const dcell = d => `<td>${d ? fmt(d) : '-'}</td>`;
 const ago = n => n === null ? 'never' : n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago';
 const dueIn = d => { if (!d) return ''; const k = -daysAgo(d); return k === 0 ? 'today' : k === 1 ? 'tomorrow' : k > 0 ? 'in ' + k + ' days' : Math.abs(k) + ' days ago'; };
 const visitDot = c => `<span class="vdot v${c.recent[0]}" title="${c.recent[1]}"></span>`;
-const visitCell = ({ c }) => `<td class="vcell">${visitDot(c)}${c.dl === null ? 'Never' : ago(c.dl)}</td>`;
+const visitCell = ({ c }) => `<td class="vcell">${visitDot(c)}${c.dl === null ? 'None on record' : ago(c.dl)}</td>`;
 const invCell = ({ r }) => { const k = r.next_due ? -daysAgo(r.next_due) : null; return `<td class="${k !== null && k >= 0 && k <= 7 ? 'due-soon' : ''}">${r.next_due ? fmt(r.next_due) : '-'}${r.amount != null ? ` <span class="muted">• $${Number(r.amount).toFixed(0)}</span>` : ''}</td>`; };
 const slimName = ({ r, c }) => `<td><b>${esc(r.name)}</b>${r.frozen ? '<span class="pill ice">Frozen</span>' : ''}${c.attn ? '<span class="flag" title="' + esc(c.why) + '">Needs attention</span>' : ''}</td>`;
 const nameCell = ({ r, c }) => `<td><b>${esc(r.name)}</b>${r.frozen ? '<span class="pill ice">Frozen</span>' : ''}${c.attn ? '<span class="pill warn">Needs attention</span><div class="why">' + esc(c.why) + '</div>' : ''}</td>`;
@@ -80,7 +80,10 @@ function sumRisk() {
   const due7 = fl.filter(x => x.r.next_due && daysAgo(x.r.next_due) <= 0 && daysAgo(x.r.next_due) >= -7).length;
   const money = fl.reduce((n, x) => n + (+x.r.amount || 0), 0);
   const cold = m.filter(x => { const d = daysAgo(x.r.last_session); return d === null || d > 30; }).length;
-  $('memSum').innerHTML = tile(fl.length, 'Need attention', '$' + Math.round(money).toLocaleString() + ' in upcoming invoices', 'attn|') + tile(due7, 'Flagged and billing in 7 days', 'reach out first', 'attn|due7') + tile(cold, 'No visit in 30+ days', 'of ' + m.length + ' members', 'member|cold') + tile(m.length, 'Members being charged', 'see everyone', 'member|');
+  const inv = hasInv(), cred = m.filter(x => (x.r.credits || 0) >= 4).length;
+  $('memSum').innerHTML = tile(fl.length, 'Need attention', inv ? '$' + Math.round(money).toLocaleString() + ' in upcoming invoices' : 'reach out this week', 'attn|') +
+    (inv ? tile(due7, 'Flagged and billing in 7 days', 'reach out first', 'attn|due7') : tile(cred, 'Holding 4+ unused credits', 'sitting on sessions', 'member|cred')) +
+    tile(cold, 'No visit in 30+ days', 'of ' + m.length + ' members', 'member|cold') + tile(m.length, inv ? 'Members being charged' : 'Members', 'see everyone', 'member|');
 }
 function sumNew() {
   if (!mem.nrows.length) { $('memSum').innerHTML = ''; return; }
@@ -90,28 +93,30 @@ function sumNew() {
   $('memSum').innerHTML = tile(act.length, 'Active new members', mem.win < 9999 ? 'signed up in the last ' + mem.win + ' days' : 'all signups') + tile(avg + '%', 'Average progress', 'active members') +
     tile(cx, 'Cancelled', rs.length ? Math.round(100 * cx / rs.length) + '% of signups' : '') + tile(old.length ? made + ' of ' + old.length : '-', 'Made it to month 2', 'signed up 30+ days ago');
 }
+// True when the last upload included Invoices Coming Due (due dates, amounts, pace)
+const hasInv = () => mem.rows.some(r => r.grp === 'member' && r.next_due);
 const mineOk = r => !mem.mine || (mem.notes[r.club_id] || {}).assigned_to === ME.id;
 
 function drawMem() {
   document.querySelectorAll('#memTabs button').forEach(b => b.classList.toggle('on', b.dataset.sec === mem.sec));
-  $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[1]}</button>`).join('');
+  $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[0] === 'member' && mem.rows.length && !hasInv() ? 'All members' : x[1]}</button>`).join('');
   mem.sec === 'risk' ? sumRisk() : sumNew();
   $('memWin').hidden = mem.g !== 'list';
   if (mem.g === 'list') { $('memSort').hidden = true; return drawNew(); }
   const g = mem.g === 'attn' ? 'member' : mem.g, q = mem.find.toLowerCase();
   $('memSort').hidden = g !== 'member'; $('memSort').value = mem.sort;
   const all = mem.rows.filter(r => r.grp === g);
-  const quickOk = x => !mem.quick || (mem.quick === 'due7' ? (x.r.next_due && daysAgo(x.r.next_due) <= 0 && daysAgo(x.r.next_due) >= -7) : mem.quick === 'cold' ? (x.c.dl === null || x.c.dl > 30) : true);
+  const quickOk = x => !mem.quick || (mem.quick === 'due7' ? (x.r.next_due && daysAgo(x.r.next_due) <= 0 && daysAgo(x.r.next_due) >= -7) : mem.quick === 'cold' ? (x.c.dl === null || x.c.dl > 30) : mem.quick === 'cred' ? (x.r.credits || 0) >= 4 : true);
   const pool = all.filter(r => (!q || r.name.toLowerCase().includes(q)) && mineOk(r)).map(r => ({ r, c: calc(r) })).filter(quickOk);
   if (mem.g === 'attn') return drawAttn(pool);
   const rows = pool;
   const by = { attn: (a, b) => (b.c.attn - a.c.attn) || (b.r.credits - a.r.credits), credits: (a, b) => b.r.credits - a.r.credits, due: (a, b) => (a.r.next_due || 'z') < (b.r.next_due || 'z') ? -1 : 1, last: (a, b) => (a.r.last_session || '') < (b.r.last_session || '') ? -1 : 1 };
   rows.sort(g === 'member' ? by[mem.sort] : g === 'package' ? (a, b) => a.r.credits - b.r.credits : (a, b) => (b.r.signed_on || '') < (a.r.signed_on || '') ? -1 : 1);
   const attn = rows.filter(x => x.c.attn).length, fz = all.filter(r => r.frozen).length;
-  const blurb = { member: (mem.quick === 'cold' ? `${rows.length} members with no visit in 30+ days. <button class="linkish" data-quick="">Show everyone</button>` : `Everyone with an upcoming invoice. Click a heading to sort, or a member to log a contact.`) + (fz ? ' ' + fz + ' frozen members are listed but never flagged.' : ''),
+  const blurb = { member: (mem.quick === 'cred' ? `${rows.length} members holding 4+ unused credits. <button class="linkish" data-quick="">Show everyone</button>` : mem.quick === 'cold' ? `${rows.length} members with no visit in 30+ days. <button class="linkish" data-quick="">Show everyone</button>` : `${hasInv() ? 'Everyone with an upcoming invoice' : 'Everyone in your latest reports'}. Click a heading to sort, or a member to log a contact.`) + (fz ? ' ' + fz + ' frozen members are listed but never flagged.' : ''),
     check: `${all.length} recent signups with monthly billing but no invoice coming due. Worth a look in ClubReady.`,
     package: `${all.length} people on packages instead of memberships, fewest credits first. They need a nudge to join.` }[g];
-  const cols = COLS[g];
+  const cols = g === 'member' && !hasInv() ? COLS.member.filter(c => c[0] !== 'Next invoice' && c[0] !== 'Pace') : COLS[g];
   $('memBody').innerHTML = mem.meta ? `<p class="lead">${blurb}</p>` + (rows.length ? `<div class="table-wrap"><table class="mt"><thead><tr>${cols.map(c => { const k = g === 'member' && SORTABLE[c[0]]; return k ? `<th data-sort=\"${k}\" class=\"${mem.sort === k ? 'on' : ''}\" title=\"Sort by ${c[0].toLowerCase()}\">${c[0]}${mem.sort === k ? ' \u25BE' : ''}</th>` : `<th>${c[0]}</th>`; }).join('')}</tr></thead><tbody>${rows.map(x => `<tr data-m="${x.r.club_id}">${cols.map(c => c[1](x)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="lead">Nothing here.</p>')
     : '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>';
 }
@@ -133,7 +138,7 @@ function drawAttn(pool) {
       <div class="mcard-top">
         ${visitDot(c)}
         <div class="mcard-who"><b>${esc(r.name)}</b>
-          <small>Last visit ${c.dl === null ? 'never' : ago(c.dl)} • ${isDone && last ? `${esc(last.method || 'Contacted')} ${ago(daysAgo(last.contacted_on))}${last.note ? ': ' + esc(last.note) : ''}` : 'last contact ' + ago(c.dc)}${who ? ' • <span class="mwho">' + who + '</span>' : ''}</small></div>
+          <small>Last visit ${c.dl === null ? 'none on record' : ago(c.dl)} • ${isDone && last ? `${esc(last.method || 'Contacted')} ${ago(daysAgo(last.contacted_on))}${last.note ? ': ' + esc(last.note) : ''}` : 'last contact ' + ago(c.dc)}${who ? ' • <span class="mwho">' + who + '</span>' : ''}</small></div>
         <div class="mcard-acts">${!isDone && !a ? `<button class="quiet sm" data-take="${r.club_id}">I'll take it</button>` : ''}<button class="sm${isDone ? ' quiet' : ''}" data-log="${r.club_id}">${open ? 'Cancel' : isDone ? 'Log another' : 'Log contact'}</button></div>
       </div>
       ${tags.length && !isDone ? `<div class="mtags">${tags.join('')}</div>` : ''}
@@ -142,7 +147,7 @@ function drawAttn(pool) {
     </div>`;
   };
   $('memBody').innerHTML = (mem.quick === 'due7' ? `<p class="lead mem-lead">Flagged members billing in the next 7 days. <button class="linkish" data-quick="">Show all flagged</button></p>` :
-      `<p class="lead mem-lead">${todo.length ? `${todo.length} to reach out to. Most unused credits first.` : 'Everyone flagged has been contacted. Nice work.'} <details class="mem-why"><summary>Why are people flagged?</summary>Behind pace or 4+ unused credits, nothing booked in the next 7 days, and no contact in 14 days. Logging a contact moves them to “Reached out recently”.</details></p>`) +
+      `<p class="lead mem-lead">${todo.length ? `${todo.length} to reach out to. Most unused credits first.` : 'Everyone flagged has been contacted. Nice work.'} <details class="mem-why"><summary>Why are people flagged?</summary>${hasInv() ? 'Behind pace or 4+ unused credits' : '4+ unused credits'}, nothing booked in the next 7 days, and no contact in 14 days. "None on record" means no visit in the Booking Events Log you uploaded, so pull at least 90 days of it. Logging a contact moves them to “Reached out recently”.</details></p>`) +
     `<div class="mlist">${todo.map(x => card(x, false)).join('')}</div>` +
     (done.length ? `<details class="tk-donebox mem-done" id="memDone"${mem.doneOpen ? ' open' : ''}><summary>Reached out recently <span>${done.length}</span></summary><div class="mlist">${done.map(x => card(x, true)).join('')}</div></details>` : '');
   const d = $('memDone'); if (d) d.ontoggle = () => { mem.doneOpen = d.open; };
@@ -225,16 +230,29 @@ function memCard(id) {
 // ----- upload and import -----
 const KINDS = { members: ['User ID', 'Unused Credits'], invoices: ['Invoice ID', 'Due Date', 'Invoice Type'], bookings: ['Booking Event', 'Booking Date', 'Current Status'], contacts: ['Client User ID', 'Contact Date'], agreements: ['Gross Down', 'Description', 'Customer'] };
 const LABEL = { members: 'Members by Session Type', invoices: 'Invoices Coming Due', bookings: 'Booking Events Log', contacts: 'Contact Log', agreements: 'Agreements Log' };
+// What each report adds, shown as a checklist in the upload window
+const ADDS = { members: 'unused credits (required)', bookings: 'last visit, sessions in the last 30 days, next booking', contacts: 'last contact', invoices: 'due dates, amounts and pace (optional)', agreements: 'new members and package follow-up (optional)' };
 
 function upForm() {
   imp = { data: {}, store: null, asOf: null };
   $('dlgBody').innerHTML = `<h2>Upload ClubReady reports</h2>
-    <p class="lead" style="margin:.25rem 0 1rem">For ${esc(studio(mem.studio))}. Select all the reports at once. Members and Invoices are required. The Agreements Log powers the signup and package reports.</p>
-    <label>Files <input id="upFiles" type="file" multiple accept=".xlsx"></label><div id="upList"></div>
+    <p class="lead" style="margin:.25rem 0 1rem">For <b>${esc(studio(mem.studio))}</b>. Pick all your ClubReady reports at once (or drag them onto the box). The portal sorts them out and builds the member success list.</p>
+    <label class="updrop" id="upDrop"><input id="upFiles" type="file" multiple accept=".xlsx"><b>Choose files</b> or drop them here</label><div id="upList">${upChecklist()}</div>
     <div id="mErr" style="color:var(--danger)" role="alert"></div>
     <div class="acts"><button data-act="upGo" id="upGo" disabled>Import</button><button class="quiet" data-act="close">Cancel</button></div>`;
   $('upFiles').onchange = readFiles;
+  const dz = $('upDrop');
+  ['dragenter', 'dragover'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', e => { if (e.dataTransfer.files.length) { $('upFiles').files = e.dataTransfer.files; readFiles(); } });
   $('dlg').showModal();
+}
+
+function upChecklist(bad = []) {
+  return '<ul class="upcheck">' + ['members', 'bookings', 'contacts', 'invoices', 'agreements'].map(k => {
+    const got = imp.data[k];
+    return `<li class="${got ? 'ok' : k === 'members' ? 'need' : ''}"><span class="upmark">${got ? '\u2713' : '\u2013'}</span><span><b>${LABEL[k]}</b>${got ? ` <small>${got.length} rows</small>` : ''}<small class="upadds">${got ? 'Adds ' : ''}${ADDS[k]}</small></span></li>`;
+  }).join('') + bad.map(b => `<li class="bad"><span class="upmark">\u2717</span><span>${b}</span></li>`).join('') + '</ul>';
 }
 
 async function readFiles() {
@@ -254,6 +272,13 @@ async function readFiles() {
       }
       if (!kind) { lines.push(`\u2717 ${esc(f.name)}: not a report I recognize`); continue; }
       imp.data[kind] = rows; lines.push(`\u2713 ${LABEL[kind]} (${rows.length} rows)`);
+      if (kind === 'bookings') {   // the Customer Summary tab says who holds a membership
+        for (const sn of wb.SheetNames) {
+          const a = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: null, raw: true });
+          const i = a.findIndex((r, k) => k < 6 && r.includes('Membership Type') && r.includes('User ID'));
+          if (i >= 0) { imp.data.custsum = a.slice(i + 1).map(r => Object.fromEntries(a[i].map((h, k) => [h, r[k]]))); break; }
+        }
+      }
       const sm = f.name.match(/_(\d{4,6})(?=[_.])/); if (sm) imp.store = sm[1];
       const dm = f.name.match(/_-_\d{4}-\d{2}-\d{2}_-_(\d{4}-\d{2}-\d{2})/);
       if (dm && kind !== 'invoices' && (!imp.asOf || dm[1] > imp.asOf)) imp.asOf = dm[1];
@@ -261,9 +286,9 @@ async function readFiles() {
   }
   const loc = locs.find(x => x.id === mem.studio);
   let err = '';
-  if (!imp.data.members || !imp.data.invoices) err = 'Add the Members by Session Type and Invoices Coming Due reports.';
+  if (!imp.data.members) err = 'Add the Members by Session Type report. It is the one the list is built from.';
   else if (loc && loc.club_store_id && imp.store && loc.club_store_id !== imp.store) err = `These files are for ClubReady store ${imp.store}, but ${loc.name} is store ${loc.club_store_id}. Pick the right studio.`;
-  $('upList').innerHTML = '<p style="margin:.5rem 0">' + lines.join('<br>') + '</p>' + (imp.asOf ? `<p class="lead" style="margin:0 0 .5rem">Data through ${fmt(imp.asOf)}</p>` : '');
+  $('upList').innerHTML = upChecklist(lines.filter(x => x.startsWith('\u2717')).map(x => x.slice(2))) + (imp.asOf ? `<p class="lead" style="margin:.4rem 0 .5rem">Data through ${fmt(imp.asOf)}</p>` : '');
   $('mErr').textContent = err; $('upGo').disabled = !!err;
 }
 
@@ -279,7 +304,7 @@ const toDay = v => { const d = toDT(v); return d ? ymd(d) : null; };
 function buildRows() {
   const { members = [], invoices = [], bookings = [], contacts = [], agreements = [] } = imp.data;
   const asOf = imp.asOf || todayStr(), names = {};
-  const nm = (id, f, l) => { if (!names[id] && (f || l)) names[id] = `${f || ''} ${l || ''}`.trim(); };
+  const nm = (id, f, l) => { if (!names[id] && (f || l)) names[id] = `${f || ''} ${l || ''}`.replace(/\s+/g, ' ').trim(); };
   const charged = {}, freeze = new Set(), credits = {};
   invoices.forEach(r => {
     const id = +r['User ID']; if (!id) return; nm(id, r['First Name'], r['Last Name']);
@@ -308,6 +333,14 @@ function buildRows() {
   });
   const rows = [], mk = (id, grp, extra) => { const b = bk[id] || {}; rows.push({ club_id: id, name: names[id] || 'Unknown', grp, credits: credits[id] || 0, last_session: b.last || null, sessions_30d: b.n30 || 0, next_booking: b.next || null, last_contact: ct[id] || null, plan_sessions: null, next_due: null, amount: null, frozen: false, signed_on: null, detail: null, ...extra }); };
   Object.keys(charged).forEach(k => { const c = charged[k]; mk(+k, 'member', { plan_sessions: c.plan ? +c.plan : null, next_due: c.next_due, amount: c.amount }); });
+  if (!invoices.length) {
+    // No invoice report: members are people ClubReady lists with a membership (Booking Events
+    // customer summary) plus anyone in the Members report still holding credits.
+    const memberType = new Set((imp.data.custsum || []).filter(r => /member/i.test(String(r['Membership Type'] || ''))).map(r => +r['User ID']).filter(Boolean));
+    (imp.data.custsum || []).forEach(r => nm(+r['User ID'], r['First Name'], r['Last Name']));
+    const ids = new Set([...memberType, ...Object.keys(credits).map(Number).filter(id => credits[id] > 0)]);
+    ids.forEach(id => mk(id, 'member', {}));
+  }
   freeze.forEach(id => { if (!charged[id]) mk(id, 'member', { frozen: true }); });
   const have = new Set(rows.map(r => r.club_id));
   Object.keys(ag).forEach(k => {
