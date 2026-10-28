@@ -10,7 +10,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/@e965/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="css/base.css?v=20261028b">
-<link rel="stylesheet" href="css/glass.css?v=20261028l">
+<link rel="stylesheet" href="css/glass.css?v=20261028m">
 </head>
 <body>
 
@@ -82,11 +82,13 @@
   </div>
   <main id="teamView" hidden>
     <h2>Meet the team</h2>
-    <p class="lead">Faces, roles, and a little about each of us. Click a card to read more.</p>
+    <p class="lead">Faces, roles, and a little about each of us. Tap someone to read more.</p>
     <div class="bar">
       <select id="studioFilter" aria-label="Filter by studio"><option value="">All studios</option></select>
+      <input id="teamFind" type="search" placeholder="Search the team" aria-label="Search the team">
       <button class="quiet" id="editMine">Edit my card</button>
     </div>
+    <div id="teamNudge"></div>
     <div class="people" id="people"></div>
   </main>
   <main id="calView" hidden>
@@ -211,7 +213,7 @@
 
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
 
-<script src="js/core.js?v=20261028k"></script>
+<script src="js/core.js?v=20261028m"></script>
 <script src="js/calendar.js?v=20261028j"></script>
 <script src="js/tasks.js?v=20261028e"></script>
 <script src="js/members.js?v=20261028k"></script>

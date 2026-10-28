@@ -144,9 +144,12 @@ addEventListener('hashchange', route);
 const studio = id => (locs.find(x => x.id === id) || {}).name || 'No studio yet';
 const photo = p => urls[p.photo_path] ? `<img src="${esc(urls[p.photo_path])}" alt="">` : esc((p.full_name || '?').trim()[0].toUpperCase());
 
+let teamX = { offs: [], pos: [], posNames: {} };
 async function loadPeople() {
-  const { data } = await db.from('team_directory').select('*').order('full_name');
+  const td = todayStr();
+  const [{ data }, o, pp, ps] = await Promise.all([db.from('team_directory').select('*').order('full_name'), db.from('time_off_calendar').select('*').gte('end_date', td).order('start_date'), db.from('profile_positions').select('*'), db.from('positions').select('id,name')]);
   people = data || []; urls = {};
+  teamX = { offs: o.data || [], pos: pp.data || [], posNames: Object.fromEntries((ps.data || []).map(x => [x.id, x.name])) };
   const paths = people.map(p => p.photo_path).filter(Boolean);
   if (paths.length) {
     const { data: s } = await db.storage.from('team-photos').createSignedUrls(paths, 3600);
@@ -155,14 +158,45 @@ async function loadPeople() {
   renderPeople();
 }
 
-function renderPeople() {
-  const f = $('studioFilter').value;
-  $('people').innerHTML = people.filter(p => !f || p.location_id === f).map(p =>
-    `<button class="person" data-id="${p.id}"><div class="ph">${photo(p)}</div><b>${esc(p.full_name)}</b><span>${esc(p.job_title || '')}</span><span>${esc(studio(p.location_id))}</span></button>`
-  ).join('') || '<p class="lead">No one here yet. Names are added by the owner.</p>';
+// ----- Team page helpers -----
+const fmtPhone = v => { const d = String(v || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, ''); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (v || ''); };
+const telOf = v => String(v || '').replace(/[^\d+]/g, '');
+const AVA = ['#2f5f8f', '#0f8a5f', '#b0683a', '#7a4fb3', '#a5321f', '#3d7a8a', '#8a6d1f'];
+const avaColor = id => AVA[[...String(id)].reduce((n, c) => n + c.charCodeAt(0), 0) % AVA.length];
+const initials = p => (p.full_name || '?').trim().split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
+const avatar = (p, cls) => urls[p.photo_path] ? `<span class="tava ${cls || ''}"><img src="${esc(urls[p.photo_path])}" alt=""></span>` : `<span class="tava ${cls || ''}" style="background:${avaColor(p.id)}">${esc(initials(p))}</span>`;
+const wd = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { weekday: 'short' });
+// Out today / out soon / birthday this week, for the little badges on each card
+function teamBadges(p) {
+  const td = todayStr(), wk = ymd(new Date(Date.now() + 6 * DAY)), out = [];
+  const o = teamX.offs.find(x => x.user_id === p.id && x.start_date <= td && x.end_date >= td);
+  if (o) out.push(`<span class="tbadge out">Out${o.end_date > td ? ' until ' + fmt(o.end_date) : ' today'}${o.status === 'pending' ? ' (pending)' : ''}</span>`);
+  else { const n = teamX.offs.find(x => x.user_id === p.id && x.start_date > td && x.start_date <= wk); if (n) out.push(`<span class="tbadge tsoon">Out ${wd(n.start_date)}${n.end_date !== n.start_date ? '–' + wd(n.end_date) : ''}${n.status === 'pending' ? ' (pending)' : ''}</span>`); }
+  if (p.birthday) { for (let i = 0; i < 7; i++) { const d = ymd(new Date(Date.now() + i * DAY)); if (d.slice(5) === p.birthday.slice(5)) { out.push(`<span class="tbadge bday">🎂 Birthday ${i === 0 ? 'today' : i === 1 ? 'tomorrow' : wd(d)}</span>`); break; } } }
+  return out.join('');
 }
+const missing = p => [!p.photo_path && 'a photo', !p.job_title && 'your title', !p.bio && 'a short bio', !p.birthday && 'your birthday', !p.phone && 'your phone'].filter(Boolean);
+
+function renderPeople() {
+  const f = $('studioFilter').value, q = ($('teamFind').value || '').toLowerCase().trim();
+  const list = people.filter(p => (!f || p.location_id === f) && (!q || [p.full_name, p.job_title, studio(p.location_id)].join(' ').toLowerCase().includes(q)));
+  const card = p => `<div class="tcard" data-id="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.full_name)}">
+      ${avatar(p)}
+      <div class="tinfo"><b>${esc(p.full_name)}</b><span>${esc(p.job_title || '')}${p.job_title && !f ? ' • ' : ''}${f ? '' : esc(p.location_id ? studio(p.location_id) : '')}</span>${teamBadges(p) ? `<div class="tbadges">${teamBadges(p)}</div>` : ''}
+      <div class="tacts">${p.phone ? `<a class="tic" href="tel:${esc(telOf(p.phone))}" title="Call ${esc(fmtPhone(p.phone))}" aria-label="Call">☎</a><a class="tic" href="sms:${esc(telOf(p.phone))}" title="Text" aria-label="Text">💬</a>` : ''}${p.email ? `<a class="tic" href="mailto:${esc(p.email)}" title="${esc(p.email)}" aria-label="Email">✉</a>` : ''}</div></div>
+    </div>`;
+  const groups = locs.map(l => [l.name, list.filter(p => p.location_id === l.id)]).concat([['No studio yet', list.filter(p => !p.location_id || !locs.some(l => l.id === p.location_id))]]).filter(g => g[1].length);
+  const me = people.find(p => p.id === ME.id), need = me ? missing(me) : [];
+  $('teamNudge').innerHTML = need.length ? `<div class="tnudge"><span>${avatar(me, 'sm')}<span><b>Finish your card.</b> Add ${need.length > 1 ? need.slice(0, -1).join(', ') + ' and ' + need.slice(-1) : need[0]} so the team gets to know you.</span></span><button class="sm" data-editme="1">Edit my card</button></div>` : '';
+  $('people').className = 'tgroups';
+  $('people').innerHTML = groups.map(([name, ps]) => `<section class="tgroup${name === 'No studio yet' ? ' nostudio' : ''}"><h3>${esc(name)} <span class="hcount">${ps.length}</span>${name === 'No studio yet' && ME.role === 'owner' ? ' <a class="tfix" href="#people">Assign studios in People →</a>' : ''}</h3><div class="tgrid">${ps.map(card).join('')}</div></section>`).join('')
+    || `<p class="lead">${q ? 'No one matches that search.' : 'No one here yet. Names are added by the owner.'}</p>`;
+}
+$('teamFind').oninput = renderPeople;
+$('teamNudge').onclick = e => { if (e.target.closest('[data-editme]')) $('editMine').click(); };
 $('studioFilter').onchange = renderPeople;
-$('people').onclick = e => { const b = e.target.closest('.person'); if (b) openCard(b.dataset.id); };
+$('people').onclick = e => { if (e.target.closest('.tic')) return; const b = e.target.closest('.person, .tcard'); if (b) openCard(b.dataset.id); };
+$('people').onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('tcard')) { e.preventDefault(); openCard(e.target.dataset.id); } };
 $('editMine').onclick = () => {
   if (!people.find(p => p.id === ME.id)) { alert('Ask the owner to add your name first, then you can edit your card.'); return; }
   openCard(ME.id, true);
@@ -175,8 +209,10 @@ function openCard(id, edit) {
   const sub = `<p class="lead" style="margin:.25rem 0 1rem">${esc([p.job_title, studio(p.location_id)].filter(Boolean).join(' \u2022 '))}</p>`;
   const yrs = d => { const a = new Date(d + 'T00:00'), b = new Date(); let y = b.getFullYear() - a.getFullYear(); if (b.getMonth() < a.getMonth() || (b.getMonth() === a.getMonth() && b.getDate() < a.getDate())) y--; return y; };
   const bday = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-  const contact = [p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : '', p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : '',
-    p.birthday ? 'Birthday ' + bday(p.birthday) : '', p.start_date ? `Here since ${fmt(p.start_date)}${yrs(p.start_date) > 0 ? ' (' + yrs(p.start_date) + ' yr' + (yrs(p.start_date) === 1 ? '' : 's') + ')' : ''}` : ''].filter(Boolean);
+  const since = p.start_date ? new Date(p.start_date + 'T00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) + (yrs(p.start_date) > 0 ? ' (' + yrs(p.start_date) + ' yr' + (yrs(p.start_date) === 1 ? '' : 's') + ')' : '') : '';
+  const facts = [p.birthday ? ['Birthday', bday(p.birthday)] : null, since ? ['Here since', since] : null,
+    (teamX.pos.filter(x => x.user_id === id).map(x => teamX.posNames[x.position_id]).filter(Boolean).join(', ') || null) && ['Task sets', teamX.pos.filter(x => x.user_id === id).map(x => teamX.posNames[x.position_id]).filter(Boolean).join(', ')],
+    (() => { const o = teamX.offs.find(x => x.user_id === id); return o ? ['Next time off', fmt(o.start_date) + (o.end_date !== o.start_date ? ' \u2013 ' + fmt(o.end_date) : '') + (o.status === 'pending' ? ' (pending)' : '')] : null; })()].filter(Boolean);
   $('dlgBody').innerHTML = edit
     ? `<h2>${esc(p.full_name)}</h2>${sub}
        <label>Photo <input type="file" id="fPhoto" accept="image/*"></label>
@@ -187,9 +223,11 @@ function openCard(id, edit) {
        <label>Bio <textarea id="fBio" maxlength="1000" placeholder="Where you're from, what you love about stretching, a fun fact...">${esc(p.bio)}</textarea></label>
        <div id="fErr" role="alert" style="color:var(--danger)"></div>
        <div class="acts"><button id="fSave">Save</button><button class="quiet" id="fCancel">Cancel</button></div>`
-    : `<div class="ph">${photo(p)}</div><h2>${esc(p.full_name)}</h2>${sub}
-       ${contact.length ? `<div class="contact">${contact.join('<span>\u2022</span>')}</div>` : ''}
-       <p style="white-space:pre-wrap;margin-top:.75rem">${esc(p.bio || 'No bio yet.')}</p>
+    : `<div class="tprof">${urls[p.photo_path] ? `<div class="tprof-ph"><img src="${esc(urls[p.photo_path])}" alt=""></div>` : `<div class="tprof-ph" style="background:${avaColor(p.id)}">${esc(initials(p))}</div>`}
+       <div><h2 tabindex="-1" autofocus>${esc(p.full_name)}</h2>${sub.replace('margin:.25rem 0 1rem', 'margin:.2rem 0 .6rem')}${teamBadges(p) ? `<div class="tbadges">${teamBadges(p)}</div>` : ''}
+       <div class="tbtns">${p.phone ? `<a class="tbtn" href="tel:${esc(telOf(p.phone))}">\u260E ${esc(fmtPhone(p.phone))}</a><a class="tbtn" href="sms:${esc(telOf(p.phone))}">\uD83D\uDCAC Text</a>` : ''}${p.email ? `<a class="tbtn" href="mailto:${esc(p.email)}">\u2709 Email</a>` : ''}</div></div></div>
+       ${facts.length ? `<dl class="tfacts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
+       <p class="tbio">${p.bio ? esc(p.bio) : `<span class="muted">${ME.id === id ? 'No bio yet. Tap Edit to add a little about you.' : 'No bio yet.'}</span>`}</p>
        <div class="acts">${canEdit ? '<button id="fEdit">Edit</button>' : ''}${(ME.id === id || ME.role === 'owner' || (ME.role === 'manager' && p.location_id === ME.location_id)) ? `<button class="quiet" data-tasks="${id}">View tasks</button>` : ''}<button class="quiet" id="fClose">Close</button></div>`;
   if (!$('dlg').open) $('dlg').showModal();
 }
