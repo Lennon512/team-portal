@@ -1,6 +1,6 @@
 // ---------- Page access ----------
 const PAGES = [['team', 'Team', 'Team cards and bios'], ['studio', 'Studio', 'Studio pages and rosters'], ['calendar', 'Calendar', 'Events, time off, celebrations'], ['tasks', 'Tasks', 'Daily task checklists'],
-  ['members', 'Members', 'Member lists, at-risk and new members'], ['timeoff', 'Time off', 'Request and approve time off'], ['dpr', 'DPR', 'Daily production report and studio financials'], ['supplies', 'Supplies', 'Supply counts and requests'],
+  ['members', 'Members', 'Member lists, at-risk and new members'], ['timeoff', 'Time off', 'Request and approve time off'], ['dpr', 'Daily & weekly', 'Daily production report and studio financials'], ['supplies', 'Supplies', 'Supply counts and requests'],
   ['performance', 'Performance', 'KPI scorecards (their own studio only)'], ['leadership', 'Leadership', 'Pay, reviews, and discipline for everyone'], ['payroll', 'Payroll', 'Hours, stretch pay, and commission for every pay period'], ['people', 'People', 'Names, roles, and studios (only the owner can change them)']];
 const DEFPAGES = { staff: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies'], manager: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies', 'performance', 'people'] };
 const NAVID = { team: 'navTeam', studio: 'navStudio', calendar: 'navCal', tasks: 'navTasks', members: 'navMem', timeoff: 'navOff', supplies: 'navSup', leadership: 'navHr', payroll: 'navPay', people: 'navPeople' };

@@ -10,7 +10,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/@e965/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="css/base.css?v=20261028b">
-<link rel="stylesheet" href="css/glass.css?v=20261028p">
+<link rel="stylesheet" href="css/glass.css?v=20261028r">
 </head>
 <body>
 
@@ -157,20 +157,14 @@
   <main id="repView" hidden>
     <h2>Performance</h2>
     <div class="tabs" id="repTabs">
-      <button data-t="dpr">DPR</button>
-      <button data-t="score">Austin scorecard</button>
-      <button data-t="master">All Stretch Zone Mastercard</button>
+      <button data-t="dpr">Daily</button>
+      <button data-t="weekly">Weekly</button>
+      <button data-t="score">Monthly</button>
+      <button data-t="master">All Stretch Zone</button>
       <button data-t="compare">Compare</button>
       <button data-t="projection">Projection</button>
     </div>
-  <div id="repDpr">
-    <h2>Daily production report</h2>
-    <div class="bar">
-      <select id="dprStudio" aria-label="Studio" hidden></select>
-      <span style="display:flex;align-items:center;gap:.5rem"><button class="quiet" id="dprPrev" aria-label="Previous month">&lsaquo;</button><b id="dprMonth" style="min-width:9rem;text-align:center"></b><button class="quiet" id="dprNext" aria-label="Next month">&rsaquo;</button></span>
-    </div>
-    <div id="dprBody"></div>
-  </div>
+  <div id="repDpr"><div id="dlBody"></div></div>
   <div id="repPerf">
     <div class="bar">
       <select id="pfStudio" aria-label="Studio"></select>
@@ -213,22 +207,22 @@
 
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
 
-<script src="js/core.js?v=20261028m"></script>
+<script src="js/core.js?v=20261028q"></script>
 <script src="js/calendar.js?v=20261028j"></script>
 <script src="js/tasks.js?v=20261028e"></script>
 <script src="js/members.js?v=20261028k"></script>
 <script src="js/timeoff.js?v=20261028o"></script>
-<script src="js/mypage.js?v=20261028k"></script>
+<script src="js/mypage.js?v=20261028q"></script>
 <script src="js/studio.js?v=20261028n"></script>
-<script src="js/performance.js?v=20261028p"></script>
+<script src="js/performance.js?v=20261028q"></script>
 <script src="js/compare.js?v=20261028"></script>
 <script src="js/projection.js?v=20261028p"></script>
 <script src="js/performance-uploads.js?v=20261028"></script>
 <script src="js/supplies.js?v=20261028l"></script>
-<script src="js/dpr.js?v=20261028"></script>
+<script src="js/daily.js?v=20261028r"></script>
 <script src="js/passwords.js?v=20261028"></script>
 <script src="js/leadership.js?v=20261028"></script>
-<script src="js/access.js?v=20261028"></script>
+<script src="js/access.js?v=20261028q"></script>
 <script src="js/invite.js?v=20261028"></script>
 <script src="js/payroll.js?v=20261028"></script>
 <script src="js/start.js?v=20261028"></script>

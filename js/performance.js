@@ -61,7 +61,7 @@ async function loadPerf() {
 function drawPerf() {
   updateRepTabs();
   $('pfStudio').hidden = (PF.tab !== 'score' && PF.tab !== 'projection') || ME.role !== 'owner'; $('pfMonth').hidden = PF.tab === 'compare'; $('pfRange').hidden = PF.tab !== 'score';
-  if (PF.tab === 'score') drawScore(); else if (PF.tab === 'master') loadMaster(); else if (PF.tab === 'projection') loadProjection(); else drawCompare();
+  if (PF.tab === 'score') drawScore(); else if (PF.tab === 'master') loadMaster(); else if (PF.tab === 'projection') { $('pfStudio').hidden = true; $('pfMonth').hidden = true; $('pfData').hidden = true; $('pfBody').innerHTML = '<div class="pcard"><h3>Projection</h3><p class="muted" style="margin:0">Coming soon. We\u2019ll design this together next.</p></div>'; } else drawCompare();
 }
 
 // One combined tab strip in front of both DPR and Performance. REP.sub decides which of the
@@ -71,6 +71,7 @@ const REP = { sub: 'dpr' };
 function updateRepTabs() {
   document.querySelectorAll('#repTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === REP.sub));
   document.querySelector('#repTabs [data-t="dpr"]').hidden = !canPage('dpr');
+  document.querySelector('#repTabs [data-t="weekly"]').hidden = !canPage('dpr');
   const perfOk = canPage('performance');
   document.querySelector('#repTabs [data-t="score"]').hidden = !perfOk;
   document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || ME.role !== 'owner';
@@ -78,20 +79,22 @@ function updateRepTabs() {
   document.querySelector('#repTabs [data-t="projection"]').hidden = !perfOk;
 }
 function drawRepTabs() {
-  if (REP.sub === 'dpr' && !canPage('dpr') && canPage('performance')) REP.sub = 'score';
-  if (REP.sub !== 'dpr' && !canPage('performance') && canPage('dpr')) REP.sub = 'dpr';
-  $('repDpr').hidden = REP.sub !== 'dpr'; $('repPerf').hidden = REP.sub === 'dpr';
+  const dl = () => REP.sub === 'dpr' || REP.sub === 'weekly';
+  if (dl() && !canPage('dpr') && canPage('performance')) REP.sub = 'score';
+  if (!dl() && !canPage('performance') && canPage('dpr')) REP.sub = 'dpr';
+  $('repDpr').hidden = !dl(); $('repPerf').hidden = dl();
   updateRepTabs();
-  if (REP.sub === 'dpr') loadDpr(); else loadPerf();
+  if (dl()) loadDpr(); else loadPerf();
 }
 $('repTabs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   REP.sub = b.dataset.t;
-  if (REP.sub !== 'dpr') PF.tab = REP.sub;
-  location.hash = REP.sub === 'dpr' ? '#dpr' : '#performance';
-  $('repDpr').hidden = REP.sub !== 'dpr'; $('repPerf').hidden = REP.sub === 'dpr';
+  const dl = REP.sub === 'dpr' || REP.sub === 'weekly';
+  if (!dl) PF.tab = REP.sub;
+  location.hash = dl ? '#dpr' : '#performance';
+  $('repDpr').hidden = !dl; $('repPerf').hidden = dl;
   updateRepTabs();
-  if (REP.sub === 'dpr') loadDpr(); else { PF.netStore = null; drawPerf(); }
+  if (dl) loadDpr(); else { PF.netStore = null; drawPerf(); }
 };
 
 // ----- Austin scorecard -----
