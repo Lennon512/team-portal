@@ -1,11 +1,17 @@
 // ---------- Tasks ----------
-let tk = { tab: 'mine', month: new Date(), mode: 'today', uid: null, who: '', studio: '', rows: [], done: new Set(), doneOpen: false, open: new Set() };
+let tk = { tab: 'mine', month: new Date(), mode: 'day', day: ymd(new Date()), uid: null, who: '', studio: '', rows: [], done: new Set(), doneOpen: false, open: new Set() };
 tk.month.setDate(1);
 let positions = [], templates = [];
 const todayStr = () => ymd(new Date());
 const dim = d => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 const isCur = () => ymd(tk.month).slice(0, 7) === todayStr().slice(0, 7);
 const elapsed = () => isCur() ? new Date().getDate() : (ymd(tk.month) < todayStr() ? dim(tk.month) : 0);
+const addDays = (d, n) => { const x = new Date(d + 'T00:00'); x.setDate(x.getDate() + n); return ymd(x); };
+const fmtDay = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+// "today" / "yesterday" / "on Mon, Oct 26": used in sentences about the selected day
+const dayWord = d => d === todayStr() ? 'today' : d === addDays(todayStr(), -1) ? 'yesterday' : 'on ' + fmtDay(d);
+// Keep the selected day inside the month being shown (today if it's this month, else that month's last day)
+function fitDay() { if (tk.day.slice(0, 7) !== ymd(tk.month).slice(0, 7)) tk.day = isCur() ? todayStr() : ymd(new Date(tk.month.getFullYear(), tk.month.getMonth() + 1, 0)); }
 
 async function loadTasks() {
   const [p, t] = await Promise.all([db.from('positions').select('*').order('name'), db.from('task_templates').select('*').eq('active', true).order('sort_order')]);
@@ -19,9 +25,13 @@ async function loadTasks() {
 function drawTaskBar() {
   const tabs = [['mine', tk.uid === ME.id ? 'My tasks' : 'Their tasks', true], ['team', 'Team overview', ME.role !== 'staff'], ['manage', 'Manage task sets', ME.role === 'owner']];
   $('taskTabs').innerHTML = tabs.filter(x => x[2]).map(x => `<button data-tab="${x[0]}" class="${tk.tab === x[0] ? 'on' : ''}">${x[1]}</button>`).join('');
+  const td = todayStr(), monthNav = `<button class="quiet" data-nav="-1" aria-label="Previous month">&lsaquo;</button><b>${tk.month.toLocaleString('en-US', { month: 'long', year: 'numeric' })}</b><button class="quiet" data-nav="1" aria-label="Next month" ${tk.tab === 'mine' && isCur() ? 'disabled' : ''}>&rsaquo;</button>`;
+  const lbl = tk.day === td ? `Today <small>${fmtDay(tk.day)}</small>` : tk.day === addDays(td, -1) ? `Yesterday <small>${fmtDay(tk.day)}</small>` : fmtDay(tk.day);
+  const dayNav = `<button class="quiet" data-day="-1" aria-label="Previous day">&lsaquo;</button><label class="tk-daylbl" title="Pick a day"><b>${lbl}</b><input type="date" id="tkDayPick" value="${tk.day}" max="${td}" aria-label="Pick a day"></label><button class="quiet" data-day="1" aria-label="Next day" ${tk.day >= td ? 'disabled' : ''}>&rsaquo;</button>` +
+    (tk.day !== td ? `<button class="quiet tk-jump" data-day="0">Back to today</button>` : '');
   $('taskBar').innerHTML = tk.tab === 'manage' ? '' :
-    `<button class="quiet" data-nav="-1" aria-label="Previous month">&lsaquo;</button><b>${tk.month.toLocaleString('en-US', { month: 'long', year: 'numeric' })}</b><button class="quiet" data-nav="1" aria-label="Next month">&rsaquo;</button>` +
-    (tk.tab === 'mine' && isCur() ? `<span class="tabs" style="margin:0 0 0 .5rem"><button data-mode="today" class="${tk.mode === 'today' ? 'on' : ''}">Today</button><button data-mode="month" class="${tk.mode === 'month' ? 'on' : ''}">Full month</button></span>` : '') +
+    (tk.tab === 'mine' && tk.mode === 'day' ? dayNav : monthNav) +
+    (tk.tab === 'mine' ? `<span class="tabs" style="margin:0 0 0 .5rem"><button data-mode="day" class="${tk.mode === 'day' ? 'on' : ''}">Day</button><button data-mode="month" class="${tk.mode === 'month' ? 'on' : ''}">Full month</button></span>` : '') +
     (tk.tab === 'team' && ME.role === 'owner' ? `<select id="tkStudio" aria-label="Studio"><option value="">All studios</option>${locs.map(x => `<option value="${x.id}" ${x.id === tk.studio ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>` : '');
 }
 
@@ -62,11 +72,11 @@ function renderMine() {
   const groups = positions.filter(p => tk.rows.some(r => r.position_id === p.id));
   const box = (r, d) => `<input type="checkbox" data-t="${r.id}" data-d="${d}" aria-label="${esc(splitTitle(r.title)[0])} ${d}" ${tk.done.has(r.id + '|' + d) ? 'checked' : ''} ${ro || d > td ? 'disabled' : ''}>`;
   let h = '<div class="stats" id="tkStats"></div>';
-  if (tk.mode === 'today' && isCur()) {
-    const isDone = r => tk.done.has(r.id + '|' + td);
+  if (tk.mode === 'day') {
+    const day = tk.day, isDone = r => tk.done.has(r.id + '|' + day);
     const item = r => {
       const [head, more] = splitTitle(r.title), open = tk.open.has(r.id);
-      return `<div class="tk${isDone(r) ? ' done' : ''}${ro ? ' ro' : ''}" data-row-t="${r.id}"><label class="tk-main">${box(r, td)}<span class="tk-title">${esc(head)}</span></label>` +
+      return `<div class="tk${isDone(r) ? ' done' : ''}${ro ? ' ro' : ''}" data-row-t="${r.id}"><label class="tk-main">${box(r, day)}<span class="tk-title">${esc(head)}</span></label>` +
         (more ? `<button type="button" class="tk-more" data-more="${r.id}" aria-expanded="${open}">${open ? 'Hide' : 'Details'}</button><div class="tk-detail"${open ? '' : ' hidden'}>${esc(more)}</div>` : '') + '</div>';
     };
     const doneRows = tk.rows.filter(isDone);
@@ -75,7 +85,7 @@ function renderMine() {
       return `<h3 class="sub tk-group">${esc(g.name)} <span>${rows.length - left.length} of ${rows.length} done</span></h3>` +
         (left.length ? left.map(item).join('') : '<p class="tk-clear">All clear here ✓</p>');
     }).join('');
-    if (doneRows.length) h += `<details class="tk-donebox" id="tkDoneBox"${tk.doneOpen ? ' open' : ''}><summary>Done today <span>${doneRows.length}</span></summary>${doneRows.map(item).join('')}</details>`;
+    if (doneRows.length) h += `<details class="tk-donebox" id="tkDoneBox"${tk.doneOpen ? ' open' : ''}><summary>Done ${day === td ? 'today' : dayWord(day)} <span>${doneRows.length}</span></summary>${doneRows.map(item).join('')}</details>`;
   } else {
     const days = Array.from({ length: n }, (_, i) => i + 1), ds = d => ym + String(d).padStart(2, '0');
     h += `<div class="cal-wrap"><table class="tg"><thead><tr><th class="tt">Task</th>${days.map(d => `<th class="${ds(d) === td ? 'td' : ''}">${d}</th>`).join('')}</tr></thead><tbody>` +
@@ -101,7 +111,16 @@ function paintStats() {
   const monthLine = past > 0
     ? `${cur ? 'Earlier this month' : 'This month'} (${range}): <b>${mp}%</b> of tasks done • <b>${full} of ${past}</b> days fully done`
     : 'Your monthly score starts tomorrow.';
+  tk.ro = tk.uid !== ME.id;
   const who = tk.uid !== ME.id ? `<h3 style="margin:0 0 .6rem">${esc(tk.who)}</h3>` : '';
+  if (tk.mode === 'day') {
+    let dn = 0; tk.done.forEach(k => { const [id, d] = k.split('|'); if (ids.has(id) && d === tk.day) dn++; });
+    const all = n && dn >= n, dp = n ? Math.round(100 * dn / n) : 0, w = dayWord(tk.day), isToday = tk.day === td;
+    el.innerHTML = who + (all ? `<div class="tk-party" role="status"><span class="tk-party-emoji" aria-hidden="true">\uD83C\uDF89</span><div><b>All done ${w}!</b><small>${n} of ${n} tasks checked off. Nice work.</small></div></div>` : '') +
+      `<div class="tk-progress"><div class="tk-today"><b>${dn} of ${n}</b> done ${w}</div><div class="meter tk-meter"><i style="width:${Math.min(dp, 100)}%"></i></div></div><p class="tk-month">${monthLine}</p>` +
+      (!isToday && !tk.ro ? '<p class="tk-month">You are looking at a past day. Anything you check here is saved for that day.</p>' : '');
+    return;
+  }
   if (cur) {
     const all = n && t >= n;
     el.innerHTML = who + (all ? `<div class="tk-party" role="status"><span class="tk-party-emoji" aria-hidden="true">🎉</span><div><b>All done for today!</b><small>${n} of ${n} tasks checked off. Nice work.</small></div></div>` : '') +
@@ -138,11 +157,25 @@ async function loadManage() {
 
 $('taskTabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) { tk.tab = b.dataset.tab; loadTasks(); } };
 $('taskBar').onclick = e => {
-  const n = e.target.closest('[data-nav]'), m = e.target.closest('[data-mode]');
-  if (n) { tk.month.setMonth(tk.month.getMonth() + +n.dataset.nav); loadTasks(); }
-  if (m) { tk.mode = m.dataset.mode; loadTasks(); }
+  const n = e.target.closest('[data-nav]'), m = e.target.closest('[data-mode]'), dy = e.target.closest('[data-day]');
+  if (n) { tk.month.setMonth(tk.month.getMonth() + +n.dataset.nav); fitDay(); loadTasks(); }
+  if (m) { tk.mode = m.dataset.mode; fitDay(); drawTaskBar(); renderMine(); }
+  const pick = e.target.closest('.tk-daylbl');
+  if (pick) { const i = $('tkDayPick'); try { i.showPicker(); } catch (_) { i.focus(); } }
+  if (dy) goDay(+dy.dataset.day === 0 ? todayStr() : addDays(tk.day, +dy.dataset.day));
 };
-$('taskBar').onchange = e => { if (e.target.id === 'tkStudio') { tk.studio = e.target.value; loadTasks(); } };
+$('taskBar').onchange = e => {
+  if (e.target.id === 'tkStudio') { tk.studio = e.target.value; loadTasks(); }
+  if (e.target.id === 'tkDayPick' && e.target.value) goDay(e.target.value > todayStr() ? todayStr() : e.target.value);
+};
+// Move the Day view to another date; reloads check-offs only when the month changes
+function goDay(d) {
+  if (d > todayStr()) return;
+  const sameMonth = d.slice(0, 7) === ymd(tk.month).slice(0, 7);
+  tk.day = d;
+  if (sameMonth) { drawTaskBar(); renderMine(); }
+  else { tk.month = new Date(d.slice(0, 7) + '-01T00:00'); loadTasks(); }
+}
 $('taskBody').onclick = async e => {
   const t = e.target, row = t.closest('[data-row]'), more = t.closest('[data-more]');
   if (more) {
