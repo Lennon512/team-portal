@@ -93,13 +93,14 @@ function buildPayrollRows(files, settings, roster) {
   const rows = [...byId.values()].filter(r => r.hours > 0.005 || r.sessions > 0 || r.commission > 0.005).map(r => {
     const person = byClub.get(r.club_user_id) || byName.get(nameKey(r.display_name)) || null;
     const matched = !!byClub.get(r.club_user_id);
-    let hourly_rate = null, pay_type = null;
+    let hourly_rate = null, pay_type = null, per_stretch = null;
     if (person) {
       const inEff = PAY.pay.filter(x => x.user_id === person.id && x.effective_date <= today).sort((a, b) => a.effective_date < b.effective_date ? 1 : -1);
-      if (inEff[0]) { hourly_rate = +inEff[0].rate; pay_type = inEff[0].pay_type; }
+      if (inEff[0]) { hourly_rate = inEff[0].rate === null || inEff[0].rate === undefined ? null : +inEff[0].rate; pay_type = inEff[0].pay_type; }
+      const ps = inEff.find(x => x.per_stretch !== null && x.per_stretch !== undefined); if (ps) per_stretch = +ps.per_stretch;
     }
     const regular_pay = pay_type === 'hourly' && hourly_rate !== null ? r.hours * hourly_rate : 0;
-    const stretch_pay = r.sessions * (settings.stretch_rate || 4);
+    const stretch_pay = r.sessions * (per_stretch ?? (settings.stretch_rate || 4));
     const total_pay = regular_pay + stretch_pay + r.commission;
     return { ...r, user_id: person ? person.id : null, display_name: person ? person.full_name : r.display_name, matched_by_id: matched, pay_type, hourly_rate, regular_pay, stretch_pay, total_pay };
   });
@@ -118,6 +119,10 @@ async function loadPayroll() {
     db.from('payroll_lines').select('period_start,period_end,pay_date').eq('studio_id', PAY.studio),
     db.from('pay_history').select('user_id,effective_date,rate,pay_type'),
     db.from('team_directory').select('id,full_name,location_id,club_user_id')]);
+  // Pay rates now live on the Leadership page (staff + staff_pay); use them for anyone linked to a login
+  const [sf, sp] = await Promise.all([db.from('staff').select('id,user_id'), db.from('staff_pay').select('staff_id,effective_date,base_rate,per_stretch,pay_type')]);
+  if (!sf.error && !sp.error) { const u = Object.fromEntries((sf.data || []).filter(x => x.user_id).map(x => [x.id, x.user_id]));
+    pe.data = (sp.data || []).filter(x => u[x.staff_id]).map(x => ({ user_id: u[x.staff_id], effective_date: x.effective_date, rate: x.base_rate, pay_type: x.pay_type || 'hourly', per_stretch: x.per_stretch })); }
   PAY.settings = st.data || { stretch_rate: 4, new_pct: .10, renewal_pct: .05 };
   PAY.pay = pe.data || []; PAY.people = ppl.data || [];
   const seen = new Map(); (per.data || []).forEach(x => seen.set(x.period_start, x));
