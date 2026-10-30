@@ -758,3 +758,10 @@ dialog.dlwide { max-width:1100px; }
 .ldfilters .mem-mine { margin:0; }
 .ldt tr.lddue td:first-child { box-shadow:inset 3px 0 0 #e8b84a; }
 .ldt .hchip b { margin-right:.3rem; }
+.ldn { display:inline-block; margin-left:.45rem; padding:.05rem .45rem; border-radius:999px; font-size:.72rem; font-weight:600; vertical-align:1px; color:var(--ink); }
+.ldn.h0 { background:rgba(31,157,106,.2); } .ldn.h1 { background:rgba(150,190,80,.24); } .ldn.h2 { background:rgba(232,184,74,.28); } .ldn.h4 { background:rgba(217,87,63,.2); color:#8f2a1a; }
+.ldstats { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.5rem; margin:0 0 .8rem; }
+.ldstats > div { padding:.55rem .8rem; border-radius:14px; background:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.7); }
+.ldstats small { display:block; color:var(--muted); font-size:.74rem; }
+.ldstats b { font-size:1.1rem; } .ldstats b.bad { color:#b23b25; }
+@media (max-width:700px) { .ldstats { grid-template-columns:repeat(3,minmax(0,1fr)); } }

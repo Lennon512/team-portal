@@ -62,12 +62,24 @@ function leadTile(q) {
 }
 LD.fresh = null;
 
-const leadName = l => `<b>${esc(l.name || 'Unknown')}</b><small class="nm-sub">${esc([l.source, l.stage].filter(Boolean).join(' • ') || 'No source')}</small>`;
+const leadName = (l, c) => `<b>${esc(l.name || 'Unknown')}</b>${c ? `<span class="ldn ${c.n >= 5 ? 'h0' : c.n >= 3 ? 'h1' : c.n ? 'h2' : 'h4'}" title="${c.n} contact${c.n === 1 ? '' : 's'}, ${c.made} reached">${c.n} contact${c.n === 1 ? '' : 's'}</span>` : ''}<small class="nm-sub">${esc([l.source, l.stage].filter(Boolean).join(' • ') || 'No source')}</small>`;
 // Color by how long it's been: green (recent) to red (long ago / never)
 const lastCell = c => c.last ? `<span class="hchip ${heat(c.dc, [1, 3, 7, 14])}"><b>${fmt(dayOf(c.last.contacted_at))}</b> ${ago(c.dc)}</span><small class="nm-sub">${esc([c.last.kind && c.last.kind.replace(/^Club |customer$/gi, '').trim(), c.last.outcome, c.last.staff].filter(Boolean).join(' • '))}</small>` : '<span class="hchip h4"><b>Never</b></span>';
 const ageCell = (l, c) => l.added_on ? `<span class="hchip ${heat(c.age, [1, 7, 30, 60])}"><b>${fmt(l.added_on)}</b> ${c.age <= 0 ? 'today' : c.age === 1 ? '1 day' : c.age + ' days'}</span>` : '-';
 const attCell = c => `<span class="hchip ${c.n >= 5 ? 'h0' : c.n >= 3 ? 'h1' : c.n ? 'h2' : 'h4'}"><b>${c.n}</b>${c.n ? c.made + ' reached' : ''}</span>`;
 const speedCell = c => c.firstGap === null ? '<span class="hchip h4"><b>Not yet</b></span>' : `<span class="hchip ${c.firstGap === 0 ? 'h0' : c.firstGap === 1 ? 'h1' : c.firstGap <= 3 ? 'h2' : 'h3'}"><b>${c.firstGap === 0 ? 'Same day' : c.firstGap === 1 ? 'Next day' : c.firstGap + ' days'}</b></span>`;
+
+// Averages for the leads currently shown: speed to first contact and contacts per lead
+function speedStrip(rows) {
+  const got = rows.filter(x => x.c.firstGap !== null), n = rows.length, pct = k => n ? Math.round(k / n * 100) + '%' : '-';
+  const avgDays = got.length ? got.reduce((s, x) => s + x.c.firstGap, 0) / got.length : null;
+  const same = rows.filter(x => x.c.firstGap === 0).length, day1 = rows.filter(x => x.c.firstGap !== null && x.c.firstGap <= 1).length, never = rows.filter(x => !x.c.n).length;
+  const per = n ? rows.reduce((s, x) => s + x.c.n, 0) / n : 0, reached = rows.reduce((s, x) => s + x.c.made, 0), tot = rows.reduce((s, x) => s + x.c.n, 0);
+  return `<div class="ldstats"><div><small>Average speed to lead</small><b>${avgDays === null ? '-' : avgDays < .5 ? 'Same day' : avgDays.toFixed(1) + ' days'}</b></div>
+    <div><small>Same day</small><b>${pct(same)}</b></div><div><small>Within 1 day</small><b>${pct(day1)}</b></div>
+    <div><small>Contacts per lead</small><b>${per.toFixed(1)}</b></div><div><small>Reached</small><b>${tot ? Math.round(reached / tot * 100) + '%' : '-'}</b></div>
+    <div><small>Never contacted</small><b class="${never ? 'bad' : ''}">${never}</b></div></div>`;
+}
 
 function drawLeads() {
   if (LD.missing) { $('memBody').innerHTML = `<div class="pcard"><h3>One-time setup needed</h3><p>${ME.role === 'owner' ? 'Open Supabase → SQL Editor → New query, paste the contents of <a href="https://github.com/Lennon512/team-portal/blob/main/sql/leads.sql" target="_blank" rel="noopener">sql/leads.sql</a>, and click Run. Then refresh this page.' : 'Ask the owner to run the setup.'}</p></div>`; return; }
@@ -89,8 +101,9 @@ function drawLeads() {
       <label class="mem-mine"><input type="checkbox" id="ldDue" ${LD.dueOnly ? 'checked' : ''}> Due for follow-up only</label>
       <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></div>
     <p class="lead mem-lead"><b>${rows.length}</b> lead${rows.length === 1 ? '' : 's'}${LD.fresh === false ? ' over 30 days old' : LD.fresh === true ? ' from the last 30 days' : ''}${LD.dueOnly ? ' due for a call or text' : ''}, ${LD_SORTS[LD.sort].toLowerCase()}. Click a lead for their full history.${LD.fresh !== null ? ' <button class="linkish" data-ldreset="1">Show all leads</button>' : ''}</p>` +
-    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Added</th><th>Speed to lead</th><th>Contacts</th><th>Last contact</th><th>Next step</th><th>Phone</th><th>Assigned</th></tr></thead><tbody>` +
-      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l)}</td><td>${ageCell(l, c)}</td><td>${speedCell(c)}</td><td>${attCell(c)}</td><td>${lastCell(c)}</td>
+    (rows.length ? speedStrip(rows) : '') +
+    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Added</th><th>Last contact</th><th>Next step</th><th>Phone</th><th>Assigned</th></tr></thead><tbody>` +
+      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l, c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>
         <td>${c.booked ? `<span class="pace pace-good">${esc(c.step)}</span>` : esc(c.step)}${c.due ? ' <span class="pill warn">Due</span>' : ''}</td><td>${l.phone ? `<a href="tel:${esc(l.phone.replace(/[^\d+]/g, ''))}">${esc(l.phone)}</a>` : '-'}</td><td>${asg({ club_id: l.club_id }) || '<span class="muted">-</span>'}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No leads match these filters.</p>') +
     `<p class="legend nb-legend"><span><i class="hchip h0"></i>Today / 1 day</span><span><i class="hchip h1"></i>2–3 days</span><span><i class="hchip h2"></i>4–7</span><span><i class="hchip h3"></i>8–14</span><span><i class="hchip h4"></i>15+ or never</span><span class="muted">(last contact). Added: 1 / 7 / 30 / 60 days. Follow-up cadence: same day, daily in week 1, every 3 days to day 30, no-shows next day, weekly to day 60 and after a missed sale, monthly after that.</span></p>`;
 }
