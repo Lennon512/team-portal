@@ -71,7 +71,11 @@ LD.fresh = null;
 
 const leadName = (l, c) => `<b>${esc(l.name || 'Unknown')}</b>${c ? `<span class="ldn ${c.n >= 5 ? 'h0' : c.n >= 3 ? 'h1' : c.n ? 'h2' : 'h4'}" title="${c.n} contact${c.n === 1 ? '' : 's'}, ${c.made} reached">${c.n} contact${c.n === 1 ? '' : 's'}</span>` : ''}<small class="nm-sub">${esc([l.source, l.stage].filter(Boolean).join(' • ') || 'No source')}</small>`;
 // Color by how long it's been: green (recent) to red (long ago / never)
-const lastCell = c => c.last ? `<span class="hchip ${heat(c.dc, [1, 3, 7, 14])}"><b>${fmt(dayOf(c.last.contacted_at))}</b> ${ago(c.dc)}</span><small class="nm-sub">${esc([c.last.kind && c.last.kind.replace(/^Club |customer$/gi, '').trim(), c.last.outcome, c.last.staff].filter(Boolean).join(' • '))}</small>` : '<span class="hchip h4"><b>Never</b></span>';
+const lastCell = c => c.last ? `<span class="hchip ${heat(c.dc, [1, 3, 7, 14])}"><b>${fmt(dayOf(c.last.contacted_at))}</b> ${ago(c.dc)}</span>` : '<span class="hchip h4"><b>Never</b></span>';
+// The last contact's method (Call / Text / Email / In person), result and who made it, in their own columns
+const howOf = k => { k = (k || '').toLowerCase(); return /text|sms/.test(k) ? 'Text' : /call/.test(k) ? 'Call' : /email/.test(k) ? 'Email' : /face|person|visit/.test(k) ? 'In person' : (k ? k.replace(/^club |customer$/g, '').trim() : ''); };
+const resultOf = o => { const t = (o || '').trim().replace(/\.$/, ''); return t ? t[0].toUpperCase() + t.slice(1) : ''; };
+const detailCells = c => c.last ? `<td>${esc(howOf(c.last.kind)) || '<span class="muted">-</span>'}</td><td class="ldres">${esc(resultOf(c.last.outcome)) || '<span class="muted">-</span>'}${c.last.made ? '' : ' <span class="muted">(not reached)</span>'}</td><td>${esc(c.last.staff || '') || '<span class="muted">-</span>'}</td>` : '<td><span class="muted">-</span></td><td><span class="muted">-</span></td><td><span class="muted">-</span></td>';
 const ageCell = (l, c) => l.added_on ? `<span class="hchip ${heat(c.age, [1, 7, 30, 60])}"><b>${fmt(l.added_on)}</b> ${c.age <= 0 ? 'today' : c.age === 1 ? '1 day' : c.age + ' days'}</span>` : '-';
 const attCell = c => `<span class="hchip ${c.n >= 5 ? 'h0' : c.n >= 3 ? 'h1' : c.n ? 'h2' : 'h4'}"><b>${c.n}</b>${c.n ? c.made + ' reached' : ''}</span>`;
 const speedCell = c => c.firstGap === null ? '<span class="hchip h4"><b>Not yet</b></span>' : `<span class="hchip ${c.firstGap === 0 ? 'h0' : c.firstGap === 1 ? 'h1' : c.firstGap <= 3 ? 'h2' : 'h3'}"><b>${c.firstGap === 0 ? 'Same day' : c.firstGap === 1 ? 'Next day' : c.firstGap + ' days'}</b></span>`;
@@ -113,8 +117,8 @@ function drawLeads() {
       <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></div>
     <p class="lead mem-lead">Showing <b>${rows.length}</b> of <b>${base.length}</b> leads${span ? ' added ' + span : ''}${LD.dueOnly ? ', only those due for a call or text' : ''}${LD.never ? ', only never contacted' : ''}, ${LD_SORTS[LD.sort].toLowerCase()}.${filtered ? ' <button class="linkish" data-ldreset="1">Clear filters</button>' : ''} Click a lead for their full history.</p>` +
     (rows.length ? speedStrip(rows) : '') +
-    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Added</th><th>Last contact</th></tr></thead><tbody>` +
-      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l, c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No leads match these filters.</p>') +
+    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Contacts</th><th>Added</th><th>Last contact</th><th>How</th><th>Result</th><th>By</th></tr></thead><tbody>` +
+      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l)}</td><td>${attCell(c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>${detailCells(c)}</tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No leads match these filters.</p>') +
     `<p class="legend nb-legend"><span><i class="hchip h0"></i>Today / 1 day</span><span><i class="hchip h1"></i>2–3 days</span><span><i class="hchip h2"></i>4–7</span><span><i class="hchip h3"></i>8–14</span><span><i class="hchip h4"></i>15+ or never</span><span class="muted">(last contact). Added: 1 / 7 / 30 / 60 days..</span></p>`;
 }
 
