@@ -15,17 +15,24 @@ async function loadLeads() {
 
 const dayOf = t => t ? ymd(new Date(t)) : null;
 // How often a lead should hear from us, based on how new they are and where they stand
+// Stage groups. Cooled is the same as Unscheduled; DNR means do not contact.
+const LD_GRPS = [['all', 'All stages'], ['unsched', 'Unscheduled / cooled'], ['noshow', 'No show'], ['missed', 'Missed sale'], ['sched', 'Scheduled'], ['other', 'Other']];
+const leadGrp = s => { s = (s || '').toLowerCase(); return /dnr|do not/.test(s) ? 'dnr' : /missed/.test(s) ? 'missed' : /no ?show/.test(s) ? 'noshow' : /^sched/.test(s) ? 'sched' : (!s || /cool|unsched/.test(s)) ? 'unsched' : 'other'; };
+const isDnr = l => leadGrp(l.stage) === 'dnr';
+LD.grp = 'all';
+
 function leadCalc(l) {
   const cs = LD.cs[l.club_id] || [], n = cs.length, made = cs.filter(x => x.made).length;
   const last = cs[0] || null, first = cs[n - 1] || null, age = daysAgo(l.added_on), dc = last ? daysAgo(dayOf(last.contacted_at)) : null;
   const firstGap = first && l.added_on ? Math.max(0, Math.round((new Date(dayOf(first.contacted_at) + 'T00:00') - new Date(l.added_on + 'T00:00')) / DAY)) : null;   // days from added to first contact
   const st = (l.stage || '').toLowerCase(), booked = l.next_booking && daysAgo(l.next_booking) <= 0;
   let every, step;
-  if (booked) { every = null; step = 'Demo booked ' + fmt(l.next_booking); }
+  if (isDnr(l)) { every = null; step = 'Do not contact (DNR)'; }
+  else if (booked) { every = null; step = 'Demo booked ' + fmt(l.next_booking); }
   else if (!n) { every = 0; step = 'First contact: they have not heard from us'; }
   else if (/no ?show/.test(st) && age <= 30) { every = 1; step = 'Reschedule the no-show'; }
   else if (age <= 7) { every = 1; step = 'Daily touch in their first week'; }
-  else if (/cool|dnr/.test(st) || age > 60) { every = 30; step = 'Monthly check-in'; }
+  else if (age > 60) { every = 30; step = 'Monthly check-in'; }
   else if (/missed/.test(st) || age > 30) { every = 7; step = /missed/.test(st) ? 'Weekly follow-up after a missed sale' : 'Weekly check-in'; }
   else { every = 3; step = 'Every 3 days through day 30'; }
   const due = every !== null && (dc === null || dc >= every), fresh = age === null || age <= 30 || (!n && age <= 60);
@@ -39,7 +46,7 @@ Object.assign(LD, { age: 'all', sort: 'new', dueOnly: false, never: false });
 
 function sumLeads() {
   if (LD.missing || !LD.rows.length) { $('memSum').innerHTML = ''; return; }
-  const all = LD.rows.map(l => ({ l, c: leadCalc(l) }));
+  const all = LD.rows.filter(l => !isDnr(l)).map(l => ({ l, c: leadCalc(l) }));
   const wk = all.filter(x => x.c.age !== null && x.c.age <= 7), m30 = all.filter(x => x.c.age !== null && x.c.age <= 30 && x.c.age >= 1);
   const fast = m30.filter(x => x.c.firstGap !== null && x.c.firstGap <= 1).length, same = m30.filter(x => x.c.firstGap === 0).length;
   const att = m30.length ? (m30.reduce((s, x) => s + x.c.n, 0) / m30.length) : 0;
@@ -53,7 +60,7 @@ function sumLeads() {
 }
 // Clicking a tile sets the filters below it
 function leadTile(q) {
-  Object.assign(LD, { age: 'all', dueOnly: false, never: false, sort: 'new', stage: '', src: '' });
+  Object.assign(LD, { age: 'all', dueOnly: false, never: false, sort: 'new', grp: 'all', src: '' });
   if (q === 'due') Object.assign(LD, { dueOnly: true, sort: 'quiet', age: 'all', fresh: true });
   if (q === 'week') LD.age = '7w';
   if (q === 'speed' || q === 'month') LD.age = '30w';
@@ -85,18 +92,21 @@ function drawLeads() {
   if (LD.missing) { $('memBody').innerHTML = `<div class="pcard"><h3>One-time setup needed</h3><p>${ME.role === 'owner' ? 'Open Supabase → SQL Editor → New query, paste the contents of <a href="https://github.com/Lennon512/team-portal/blob/main/sql/leads.sql" target="_blank" rel="noopener">sql/leads.sql</a>, and click Run. Then refresh this page.' : 'Ask the owner to run the setup.'}</p></div>`; return; }
   if (!LD.rows.length) { $('memBody').innerHTML = '<p class="lead">No leads yet. Add ClubReady’s <b>Leads Added</b> report (with the Contact Log) in Upload reports.</p>'; return; }
   if (mem.g === 'staff') return drawLeadStaff();
+  if (mem.g === 'dnr') return drawDnr();
   const q = mem.find.toLowerCase(), ageOk = a => LD.age === '7w' ? a <= 7 : LD.age === '30w' ? a <= 30 : (LD_AGES.find(x => x[0] === LD.age) || LD_AGES[0])[2](a);
-  const base = LD.rows.filter(l => (!q || (l.name || '').toLowerCase().includes(q) || (l.phone || '').includes(q)) && mineOk({ club_id: l.club_id }) && (!LD.stage || l.stage === LD.stage) && (!LD.src || l.source === LD.src)).map(l => ({ l, c: leadCalc(l) }));
-  const rows = base.filter(x => ageOk(x.c.age ?? 0) && (!LD.dueOnly || x.c.due) && (LD.fresh === null || x.c.fresh === LD.fresh) && (!LD.never || !x.c.n));
+  const base = LD.rows.filter(l => (!q || (l.name || '').toLowerCase().includes(q) || (l.phone || '').includes(q)) && mineOk({ club_id: l.club_id }) && !isDnr(l) && (!LD.src || l.source === LD.src)).map(l => ({ l, c: leadCalc(l) }));
+  const grpOk = x => LD.grp === 'all' || leadGrp(x.l.stage) === LD.grp;
+  const rows = base.filter(x => grpOk(x) && ageOk(x.c.age ?? 0) && (!LD.dueOnly || x.c.due) && (LD.fresh === null || x.c.fresh === LD.fresh) && (!LD.never || !x.c.n));
   const S = { new: (a, b) => (b.l.added_on || '') < (a.l.added_on || '') ? -1 : 1, old: (a, b) => (a.l.added_on || '') < (b.l.added_on || '') ? -1 : 1,
     quiet: (a, b) => (b.c.dc ?? 1e9) - (a.c.dc ?? 1e9) || ((b.l.added_on || '') < (a.l.added_on || '') ? -1 : 1), most: (a, b) => b.c.n - a.c.n, least: (a, b) => a.c.n - b.c.n };
   rows.sort(S[LD.sort] || S.new);
-  const cnt = k => base.filter(x => (k === '7w' ? x.c.age <= 7 : k === '30w' ? x.c.age <= 30 : (LD_AGES.find(y => y[0] === k) || LD_AGES[0])[2](x.c.age ?? 0)) && (!LD.dueOnly || x.c.due) && (LD.fresh === null || x.c.fresh === LD.fresh)).length;
-  const stages = [...new Set(LD.rows.map(l => l.stage).filter(Boolean))].sort(), srcs = [...new Set(LD.rows.map(l => l.source).filter(Boolean))].sort();
+  const gcnt = g => base.filter(x => (g === 'all' || leadGrp(x.l.stage) === g) && ageOk(x.c.age ?? 0) && (!LD.dueOnly || x.c.due) && (LD.fresh === null || x.c.fresh === LD.fresh) && (!LD.never || !x.c.n)).length;
+  const cnt = k => base.filter(x => grpOk(x) && (k === '7w' ? x.c.age <= 7 : k === '30w' ? x.c.age <= 30 : (LD_AGES.find(y => y[0] === k) || LD_AGES[0])[2](x.c.age ?? 0)) && (!LD.dueOnly || x.c.due) && (LD.fresh === null || x.c.fresh === LD.fresh)).length;
+  const srcs = [...new Set(LD.rows.map(l => l.source).filter(Boolean))].sort();
   const ageLbl = LD.age === '7w' ? 'Last 7 days' : LD.age === '30w' ? 'Last 30 days' : null;
   $('memBody').innerHTML = `<div class="ldbar"><span class="tabs ldages">${LD_AGES.map(([k, t]) => `<button type="button" data-ldage="${k}" class="${LD.age === k ? 'on' : ''}">${t} <small>${cnt(k)}</small></button>`).join('')}${ageLbl ? `<button type="button" class="on">${ageLbl} <small>${cnt(LD.age)}</small></button>` : ''}</span></div>
+    <div class="ldbar"><span class="tabs ldages ldgrps">${LD_GRPS.filter(([g]) => g === 'all' || g === LD.grp || gcnt(g)).map(([g, t]) => `<button type="button" data-ldgrp="${g}" class="${LD.grp === g ? 'on' : ''}">${t} <small>${gcnt(g)}</small></button>`).join('')}</span></div>
     <div class="ldfilters"><select id="ldSort" aria-label="Sort">${Object.entries(LD_SORTS).map(([k, t]) => `<option value="${k}" ${LD.sort === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-      <select id="ldStage" aria-label="Stage"><option value="">All stages</option>${stages.map(s => `<option ${s === LD.stage ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
       <select id="ldSrc" aria-label="Source"><option value="">All sources</option>${srcs.map(s => `<option ${s === LD.src ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
       <label class="mem-mine"><input type="checkbox" id="ldDue" ${LD.dueOnly ? 'checked' : ''}> Due for follow-up only</label>
       <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></div>
@@ -106,6 +116,14 @@ function drawLeads() {
       rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l, c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>
         <td>${c.booked ? `<span class="pace pace-good">${esc(c.step)}</span>` : esc(c.step)}${c.due ? ' <span class="pill warn">Due</span>' : ''}</td><td>${l.phone ? `<a href="tel:${esc(l.phone.replace(/[^\d+]/g, ''))}">${esc(l.phone)}</a>` : '-'}</td><td>${asg({ club_id: l.club_id }) || '<span class="muted">-</span>'}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No leads match these filters.</p>') +
     `<p class="legend nb-legend"><span><i class="hchip h0"></i>Today / 1 day</span><span><i class="hchip h1"></i>2–3 days</span><span><i class="hchip h2"></i>4–7</span><span><i class="hchip h3"></i>8–14</span><span><i class="hchip h4"></i>15+ or never</span><span class="muted">(last contact). Added: 1 / 7 / 30 / 60 days. Follow-up cadence: same day, daily in week 1, every 3 days to day 30, no-shows next day, weekly to day 60 and after a missed sale, monthly after that.</span></p>`;
+}
+
+// Do-not-contact leads, kept separate so nobody calls them by mistake
+function drawDnr() {
+  const q = mem.find.toLowerCase(), rows = LD.rows.filter(l => isDnr(l) && (!q || (l.name || '').toLowerCase().includes(q))).map(l => ({ l, c: leadCalc(l) })).sort((a, b) => (b.l.added_on || '') < (a.l.added_on || '') ? -1 : 1);
+  $('memBody').innerHTML = `<p class="lead mem-lead"><b>${rows.length}</b> lead${rows.length === 1 ? '' : 's'} marked <b>DNR (do not contact)</b> in ClubReady. They are left out of every other list and count. If a contact shows up after they asked not to be contacted, it is worth a word with the team.</p>` +
+    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Added</th><th>Last contact</th><th>Added by</th></tr></thead><tbody>` +
+      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}"><td>${leadName(l, c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td><td>${esc(l.added_by || '')}</td></tr>`).join('') + '</tbody></table></div>' : '');
 }
 
 // Contacts to leads by each staff member, plus how fast new leads hear from us
@@ -163,7 +181,8 @@ async function saveLeads() {
   return (await chunk('lead_snapshot', rows)) || (await chunk('lead_contacts', cs)) || null;
 }
 
-document.addEventListener('change', e => { const t = e.target, m = { ldStage: 'stage', ldSrc: 'src', ldSort: 'sort' }[t.id];
+document.addEventListener('change', e => { const t = e.target, m = { ldSrc: 'src', ldSort: 'sort' }[t.id];
   if (m) { LD[m] = t.value; drawLeads(); } else if (t.id === 'ldDue') { LD.dueOnly = t.checked; drawLeads(); } else if (t.id === 'ldNever') { LD.never = t.checked; drawLeads(); } });
 document.addEventListener('click', e => { const a = e.target.closest('[data-ldage]'); if (a) { LD.age = a.dataset.ldage; drawLeads(); return; }
+  const g = e.target.closest('[data-ldgrp]'); if (g) { LD.grp = g.dataset.ldgrp; drawLeads(); return; }
   if (e.target.closest('[data-ldreset]')) { leadTile(''); drawLeads(); } });
