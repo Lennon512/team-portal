@@ -766,3 +766,7 @@ dialog.dlwide { max-width:1100px; }
 .ldstats b { font-size:1.1rem; } .ldstats b.bad { color:#b23b25; }
 @media (max-width:700px) { .ldstats { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 .ldt td.ldres { max-width:260px; white-space:normal; }
+
+/* Members > Cancellations */
+.pill.due { background:rgba(214,140,20,.18); color:#7a4a00; }
+.nm-sub.cxwhy { font-style:italic; color:var(--ink); opacity:.75; }
