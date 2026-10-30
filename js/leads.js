@@ -92,7 +92,6 @@ function drawLeads() {
   if (LD.missing) { $('memBody').innerHTML = `<div class="pcard"><h3>One-time setup needed</h3><p>${ME.role === 'owner' ? 'Open Supabase → SQL Editor → New query, paste the contents of <a href="https://github.com/Lennon512/team-portal/blob/main/sql/leads.sql" target="_blank" rel="noopener">sql/leads.sql</a>, and click Run. Then refresh this page.' : 'Ask the owner to run the setup.'}</p></div>`; return; }
   if (!LD.rows.length) { $('memBody').innerHTML = '<p class="lead">No leads yet. Add ClubReady’s <b>Leads Added</b> report (with the Contact Log) in Upload reports.</p>'; return; }
   if (mem.g === 'staff') return drawLeadStaff();
-  if (mem.g === 'dnr') return drawDnr();
   const q = mem.find.toLowerCase(), ageOk = a => LD.age === '7w' ? a <= 7 : LD.age === '30w' ? a <= 30 : (LD_AGES.find(x => x[0] === LD.age) || LD_AGES[0])[2](a);
   const base = LD.rows.filter(l => (!q || (l.name || '').toLowerCase().includes(q) || (l.phone || '').includes(q)) && mineOk({ club_id: l.club_id }) && !isDnr(l) && (!LD.src || l.source === LD.src)).map(l => ({ l, c: leadCalc(l) }));
   const grpOk = x => LD.grp === 'all' || leadGrp(x.l.stage) === LD.grp;
@@ -112,29 +111,20 @@ function drawLeads() {
       <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></div>
     <p class="lead mem-lead"><b>${rows.length}</b> lead${rows.length === 1 ? '' : 's'}${LD.fresh === false ? ' over 30 days old' : LD.fresh === true ? ' from the last 30 days' : ''}${LD.dueOnly ? ' due for a call or text' : ''}, ${LD_SORTS[LD.sort].toLowerCase()}. Click a lead for their full history.${LD.fresh !== null ? ' <button class="linkish" data-ldreset="1">Show all leads</button>' : ''}</p>` +
     (rows.length ? speedStrip(rows) : '') +
-    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Added</th><th>Last contact</th><th>Next step</th><th>Phone</th><th>Assigned</th></tr></thead><tbody>` +
-      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l, c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>
-        <td>${c.booked ? `<span class="pace pace-good">${esc(c.step)}</span>` : esc(c.step)}${c.due ? ' <span class="pill warn">Due</span>' : ''}</td><td>${l.phone ? `<a href="tel:${esc(l.phone.replace(/[^\d+]/g, ''))}">${esc(l.phone)}</a>` : '-'}</td><td>${asg({ club_id: l.club_id }) || '<span class="muted">-</span>'}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No leads match these filters.</p>') +
-    `<p class="legend nb-legend"><span><i class="hchip h0"></i>Today / 1 day</span><span><i class="hchip h1"></i>2–3 days</span><span><i class="hchip h2"></i>4–7</span><span><i class="hchip h3"></i>8–14</span><span><i class="hchip h4"></i>15+ or never</span><span class="muted">(last contact). Added: 1 / 7 / 30 / 60 days. Follow-up cadence: same day, daily in week 1, every 3 days to day 30, no-shows next day, weekly to day 60 and after a missed sale, monthly after that.</span></p>`;
-}
-
-// Do-not-contact leads, kept separate so nobody calls them by mistake
-function drawDnr() {
-  const q = mem.find.toLowerCase(), rows = LD.rows.filter(l => isDnr(l) && (!q || (l.name || '').toLowerCase().includes(q))).map(l => ({ l, c: leadCalc(l) })).sort((a, b) => (b.l.added_on || '') < (a.l.added_on || '') ? -1 : 1);
-  $('memBody').innerHTML = `<p class="lead mem-lead"><b>${rows.length}</b> lead${rows.length === 1 ? '' : 's'} marked <b>DNR (do not contact)</b> in ClubReady. They are left out of every other list and count. If a contact shows up after they asked not to be contacted, it is worth a word with the team.</p>` +
-    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Added</th><th>Last contact</th><th>Added by</th></tr></thead><tbody>` +
-      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}"><td>${leadName(l, c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td><td>${esc(l.added_by || '')}</td></tr>`).join('') + '</tbody></table></div>' : '');
+    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Added</th><th>Last contact</th></tr></thead><tbody>` +
+      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l, c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No leads match these filters.</p>') +
+    `<p class="legend nb-legend"><span><i class="hchip h0"></i>Today / 1 day</span><span><i class="hchip h1"></i>2–3 days</span><span><i class="hchip h2"></i>4–7</span><span><i class="hchip h3"></i>8–14</span><span><i class="hchip h4"></i>15+ or never</span><span class="muted">(last contact). Added: 1 / 7 / 30 / 60 days..</span></p>`;
 }
 
 // Contacts to leads by each staff member, plus how fast new leads hear from us
 function drawLeadStaff() {
-  const ids = new Set(LD.rows.map(l => l.club_id)), by = {}, now = Date.now();
+  const ids = new Set(LD.rows.filter(l => !isDnr(l)).map(l => l.club_id)), by = {}, now = Date.now();
   Object.entries(LD.cs).forEach(([id, L]) => { if (!ids.has(+id)) return; L.forEach(x => {
     const d = (now - new Date(x.contacted_at)) / DAY, s = by[x.staff || 'Unknown'] = by[x.staff || 'Unknown'] || { w: 0, m: 0, mm: 0, leads: new Set(), calls: 0, texts: 0 };
     if (d <= 30) { s.m++; if (x.made) s.mm++; s.leads.add(id); if (/call/i.test(x.kind)) s.calls++; else if (/text/i.test(x.kind)) s.texts++; }
     if (d <= 7) s.w++; }); });
   const list = Object.entries(by).filter(([, s]) => s.m).sort((a, b) => b[1].m - a[1].m);
-  const recent = LD.rows.map(l => ({ l, c: leadCalc(l) })).filter(x => x.c.age !== null && x.c.age >= 1 && x.c.age <= 30);
+  const recent = LD.rows.filter(l => !isDnr(l)).map(l => ({ l, c: leadCalc(l) })).filter(x => x.c.age !== null && x.c.age >= 1 && x.c.age <= 30);
   const b = k => recent.filter(x => k(x.c.firstGap)).length, pct = n => recent.length ? Math.round(n / recent.length * 100) + '%' : '-';
   const buckets = [['Same day', g => g === 0, 'h0'], ['Next day', g => g === 1, 'h1'], ['2–3 days', g => g >= 2 && g <= 3, 'h2'], ['4+ days', g => g >= 4, 'h3'], ['Never', g => g === null, 'h4']];
   $('memBody').innerHTML = `<h3 class="sub">How fast new leads hear from us <small class="muted">(leads added in the last 30 days)</small></h3>
