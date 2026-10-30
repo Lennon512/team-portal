@@ -440,13 +440,14 @@ $('dlgBody').addEventListener('click', async e => {
       const le = await saveLeads();
       if (le) { e.target.disabled = false; e.target.textContent = 'Import'; return fail('Leads import failed. ' + le.message + (/relation|does not exist|schema cache/i.test(le.message) ? ' Run sql/leads.sql in Supabase first.' : '')); }
     }
-    if (imp.data.cancels) {
-      const ce = await saveCx();
-      if (ce) { e.target.disabled = false; e.target.textContent = 'Import'; return fail('Cancellations import failed. ' + ce.message + (/relation|does not exist|schema cache/i.test(ce.message) ? ' Run sql/cancels.sql in Supabase first.' : '')); }
-    }
     if (imp.data.agreements && imp.data.members) {
       const r2 = await db.rpc('replace_new_members', { p_studio: mem.studio, p_rows: imp.newRows });
       if (r2.error) { e.target.disabled = false; e.target.textContent = 'Import'; return fail('New member import failed. ' + r2.error.message); }
+    }
+    // Last, so a missing setup here never blocks the member and lead lists
+    if (imp.data.cancels) {
+      const ce = await saveCx();
+      if (ce) { e.target.disabled = false; e.target.textContent = 'Import'; return fail('Cancellations import failed. ' + ce.message + (/relation|does not exist|schema cache/i.test(ce.message) ? ' Run sql/cancels.sql in Supabase first.' : '')); }
     }
     $('dlg').close(); loadMem();
   }
