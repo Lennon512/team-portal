@@ -751,3 +751,10 @@ dialog.dlwide { max-width:1100px; }
 .ldspeed { display:flex; flex-wrap:wrap; gap:.5rem; }
 .ldspeed .hchip { padding:.5rem .8rem; font-size:.9rem; color:var(--ink); }
 .ldspeed .hchip b { font-size:1.15rem; }
+.ldbar { margin:0 0 .6rem; overflow-x:auto; }
+.ldages { flex-wrap:nowrap; }
+.ldages button { white-space:nowrap; }
+.ldages small { opacity:.6; margin-left:.2rem; }
+.ldfilters .mem-mine { margin:0; }
+.ldt tr.lddue td:first-child { box-shadow:inset 3px 0 0 #e8b84a; }
+.ldt .hchip b { margin-right:.3rem; }
