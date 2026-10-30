@@ -52,8 +52,7 @@ function sumLeads() {
   const att = m30.length ? (m30.reduce((s, x) => s + x.c.n, 0) / m30.length) : 0;
   const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '-';
   const dueNew = all.filter(x => x.c.due && x.c.fresh), quiet = all.filter(x => x.c.due && !x.c.fresh).length;
-  $('memSum').innerHTML = tile(dueNew.length, 'Due for follow-up today', `${dueNew.filter(x => !x.c.n).length} never contacted • last 30 days`, 'L|due') +
-    tile(wk.length, 'New leads this week', `${wk.filter(x => !x.c.n).length} not contacted yet`, 'L|week') +
+  $('memSum').innerHTML = tile(wk.length, 'New leads this week', `${wk.filter(x => !x.c.n).length} not contacted yet`, 'L|week') +
     tile(pct(fast, m30.length), 'Speed to lead: within 1 day', `same day ${pct(same, m30.length)} • last 30 days`, 'L|speed') +
     tile(m30.length ? att.toFixed(1) : '-', 'Contacts per lead', `average • leads from the last 30 days`, 'L|month') +
     tile(quiet, 'Older leads gone quiet', 'over 30 days old, due a check-in', 'L|quiet');
