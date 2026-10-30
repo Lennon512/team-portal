@@ -107,7 +107,7 @@ function drawMem() {
   $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[0] === 'member' && mem.rows.length && !hasInv() ? 'All members' : x[1]}</button>`).join('');
   mem.sec === 'risk' ? sumRisk() : mem.sec === 'lead' ? sumLeads() : mem.sec === 'cx' ? sumCx() : mem.sec === 'fz' ? sumFz() : sumNew();
   $('memWin').hidden = mem.g !== 'list' || mem.sec === 'lead' || mem.sec === 'cx' || mem.sec === 'fz'; $('memBill').hidden = true;
-  $('memMine').closest('label').hidden = mem.sec === 'risk'; if (mem.sec === 'risk') mem.mine = false;
+  $('memMine').closest('label').hidden = true; mem.mine = false;   // "Mine only" is turned off on every tab
   $('memFind').placeholder = mem.sec === 'lead' ? 'Find a lead' : 'Find a member';
   if (mem.sec === 'lead') { $('memSort').hidden = true; return drawLeads(); }
   if (mem.sec === 'cx' || mem.sec === 'fz') { $('memSort').hidden = true; return drawCx(); }

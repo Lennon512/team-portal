@@ -110,7 +110,6 @@ function drawLeads() {
     <div class="ldbar"><span class="tabs ldages ldgrps">${LD_GRPS.filter(([g]) => g === 'all' || g === LD.grp || gcnt(g)).map(([g, t]) => `<button type="button" data-ldgrp="${g}" class="${LD.grp === g ? 'on' : ''}">${t} <small>${gcnt(g)}</small></button>`).join('')}</span></div>
     <div class="ldfilters"><select id="ldSort" aria-label="Sort">${Object.entries(LD_SORTS).map(([k, t]) => `<option value="${k}" ${LD.sort === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
       <select id="ldSrc" aria-label="Source"><option value="">All sources</option>${srcs.map(s => `<option ${s === LD.src ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
-      <label class="mem-mine"><input type="checkbox" id="ldDue" ${LD.dueOnly ? 'checked' : ''}> Due for follow-up only</label>
       <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></div>
     <p class="lead mem-lead">Showing <b>${rows.length}</b> of <b>${base.length}</b> leads${span ? ' added ' + span : ''}${LD.dueOnly ? ', only those due for a call or text' : ''}${LD.never ? ', only never contacted' : ''}, ${LD_SORTS[LD.sort].toLowerCase()}.${filtered ? ' <button class="linkish" data-ldreset="1">Clear filters</button>' : ''} Click a lead for their full history.</p>` +
     (rows.length ? speedStrip(rows) : '') +
