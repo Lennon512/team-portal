@@ -74,8 +74,7 @@ const leadName = (l, c) => `<b>${esc(l.name || 'Unknown')}</b>${c ? `<span class
 const lastCell = c => c.last ? `<span class="hchip ${heat(c.dc, [1, 3, 7, 14])}"><b>${fmt(dayOf(c.last.contacted_at))}</b> ${ago(c.dc)}</span>` : '<span class="hchip h4"><b>Never</b></span>';
 // The last contact's method (Call / Text / Email / In person), result and who made it, in their own columns
 const howOf = k => { k = (k || '').toLowerCase(); return /text|sms/.test(k) ? 'Text' : /call/.test(k) ? 'Call' : /email/.test(k) ? 'Email' : /face|person|visit/.test(k) ? 'In person' : (k ? k.replace(/^club |customer$/g, '').trim() : ''); };
-const resultOf = o => { const t = (o || '').trim().replace(/\.$/, ''); return t ? t[0].toUpperCase() + t.slice(1) : ''; };
-const detailCells = c => c.last ? `<td>${esc(howOf(c.last.kind)) || '<span class="muted">-</span>'}</td><td class="ldres">${esc(resultOf(c.last.outcome)) || '<span class="muted">-</span>'}${c.last.made ? '' : ' <span class="muted">(not reached)</span>'}</td><td>${esc(c.last.staff || '') || '<span class="muted">-</span>'}</td>` : '<td><span class="muted">-</span></td><td><span class="muted">-</span></td><td><span class="muted">-</span></td>';
+const detailCells = c => c.last ? `<td>${esc(howOf(c.last.kind)) || '<span class="muted">-</span>'}</td><td>${esc(c.last.staff || '') || '<span class="muted">-</span>'}</td>` : '<td><span class="muted">-</span></td><td><span class="muted">-</span></td>';
 const ageCell = (l, c) => l.added_on ? `<span class="hchip ${heat(c.age, [1, 7, 30, 60])}"><b>${fmt(l.added_on)}</b> ${c.age <= 0 ? 'today' : c.age === 1 ? '1 day' : c.age + ' days'}</span>` : '-';
 const attCell = c => `<span class="hchip ${c.n >= 5 ? 'h0' : c.n >= 3 ? 'h1' : c.n ? 'h2' : 'h4'}"><b>${c.n}</b>${c.n ? c.made + ' reached' : ''}</span>`;
 const speedCell = c => c.firstGap === null ? '<span class="hchip h4"><b>Not yet</b></span>' : `<span class="hchip ${c.firstGap === 0 ? 'h0' : c.firstGap === 1 ? 'h1' : c.firstGap <= 3 ? 'h2' : 'h3'}"><b>${c.firstGap === 0 ? 'Same day' : c.firstGap === 1 ? 'Next day' : c.firstGap + ' days'}</b></span>`;
@@ -95,7 +94,6 @@ function speedStrip(rows) {
 function drawLeads() {
   if (LD.missing) { $('memBody').innerHTML = `<div class="pcard"><h3>One-time setup needed</h3><p>${ME.role === 'owner' ? 'Open Supabase → SQL Editor → New query, paste the contents of <a href="https://github.com/Lennon512/team-portal/blob/main/sql/leads.sql" target="_blank" rel="noopener">sql/leads.sql</a>, and click Run. Then refresh this page.' : 'Ask the owner to run the setup.'}</p></div>`; return; }
   if (!LD.rows.length) { $('memBody').innerHTML = '<p class="lead">No leads yet. Add ClubReady’s <b>Leads Added</b> report (with the Contact Log) in Upload reports.</p>'; return; }
-  if (mem.g === 'staff') return drawLeadStaff();
   const q = mem.find.toLowerCase(), ageOk = a => LD.age === '7w' ? a <= 7 : LD.age === '30w' ? a <= 30 : LD.age === 'gt30' ? a > 30 : (LD_AGES.find(x => x[0] === LD.age) || LD_AGES[0])[2](a);
   const base = LD.rows.filter(l => (!q || (l.name || '').toLowerCase().includes(q) || (l.phone || '').includes(q)) && mineOk({ club_id: l.club_id }) && !isDnr(l) && (!LD.src || l.source === LD.src)).map(l => ({ l, c: leadCalc(l) }));
   const grpOk = x => LD.grp === 'all' || leadGrp(x.l.stage) === LD.grp;
@@ -117,27 +115,9 @@ function drawLeads() {
       <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></div>
     <p class="lead mem-lead">Showing <b>${rows.length}</b> of <b>${base.length}</b> leads${span ? ' added ' + span : ''}${LD.dueOnly ? ', only those due for a call or text' : ''}${LD.never ? ', only never contacted' : ''}, ${LD_SORTS[LD.sort].toLowerCase()}.${filtered ? ' <button class="linkish" data-ldreset="1">Clear filters</button>' : ''} Click a lead for their full history.</p>` +
     (rows.length ? speedStrip(rows) : '') +
-    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Contacts</th><th>Added</th><th>Last contact</th><th>How</th><th>Result</th><th>By</th></tr></thead><tbody>` +
+    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Contacts</th><th>Added</th><th>Last contact</th><th>How</th><th>By</th></tr></thead><tbody>` +
       rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l)}</td><td>${attCell(c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>${detailCells(c)}</tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No leads match these filters.</p>') +
     `<p class="legend nb-legend"><span><i class="hchip h0"></i>Today / 1 day</span><span><i class="hchip h1"></i>2–3 days</span><span><i class="hchip h2"></i>4–7</span><span><i class="hchip h3"></i>8–14</span><span><i class="hchip h4"></i>15+ or never</span><span class="muted">(last contact). Added: 1 / 7 / 30 / 60 days..</span></p>`;
-}
-
-// Contacts to leads by each staff member, plus how fast new leads hear from us
-function drawLeadStaff() {
-  const ids = new Set(LD.rows.filter(l => !isDnr(l)).map(l => l.club_id)), by = {}, now = Date.now();
-  Object.entries(LD.cs).forEach(([id, L]) => { if (!ids.has(+id)) return; L.forEach(x => {
-    const d = (now - new Date(x.contacted_at)) / DAY, s = by[x.staff || 'Unknown'] = by[x.staff || 'Unknown'] || { w: 0, m: 0, mm: 0, leads: new Set(), calls: 0, texts: 0 };
-    if (d <= 30) { s.m++; if (x.made) s.mm++; s.leads.add(id); if (/call/i.test(x.kind)) s.calls++; else if (/text/i.test(x.kind)) s.texts++; }
-    if (d <= 7) s.w++; }); });
-  const list = Object.entries(by).filter(([, s]) => s.m).sort((a, b) => b[1].m - a[1].m);
-  const recent = LD.rows.filter(l => !isDnr(l)).map(l => ({ l, c: leadCalc(l) })).filter(x => x.c.age !== null && x.c.age >= 1 && x.c.age <= 30);
-  const b = k => recent.filter(x => k(x.c.firstGap)).length, pct = n => recent.length ? Math.round(n / recent.length * 100) + '%' : '-';
-  const buckets = [['Same day', g => g === 0, 'h0'], ['Next day', g => g === 1, 'h1'], ['2–3 days', g => g >= 2 && g <= 3, 'h2'], ['4+ days', g => g >= 4, 'h3'], ['Never', g => g === null, 'h4']];
-  $('memBody').innerHTML = `<h3 class="sub">How fast new leads hear from us <small class="muted">(leads added in the last 30 days)</small></h3>
-    <div class="ldspeed">${buckets.map(([t, k, h]) => `<div class="hchip ${h}"><b>${b(k)}</b>${t} <span class="muted">${pct(b(k))}</span></div>`).join('')}</div>
-    <h3 class="sub" style="margin-top:1.2rem">Lead follow-up by staff <small class="muted">(last 30 days)</small></h3>` +
-    (list.length ? `<div class="table-wrap"><table class="mt"><thead><tr><th>Staff</th><th>This week</th><th>Last 30 days</th><th>Reached</th><th>Leads worked</th><th>Calls</th><th>Texts</th></tr></thead><tbody>` +
-      list.map(([n, s]) => `<tr style="cursor:default"><td><b>${esc(n)}</b></td><td>${s.w}</td><td>${s.m}</td><td>${s.mm} <span class="muted">${Math.round(s.mm / s.m * 100)}%</span></td><td>${s.leads.size}</td><td>${s.calls}</td><td>${s.texts}</td></tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No contacts to leads in the last 30 days.</p>');
 }
 
 function leadCard(id) {
