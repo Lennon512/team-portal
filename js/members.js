@@ -1,7 +1,7 @@
 // ---------- Members (ClubReady reports) ----------
 const DAY = 864e5;
 let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'credits', find: '', mine: false, win: 60, bill: (() => { try { return +localStorage.getItem('memBillDays') || 30; } catch (_) { return 30; } })(), quick: null, form: null, doneOpen: false, gradOpen: false, editNote: null };
-const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'First 30 days'], ['check', 'Billing check']], lead: [['list', 'Leads'], ['staff', 'Follow-up by staff']] };
+const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'First 30 days'], ['check', 'Billing check']], lead: [['list', 'Leads']] };
 let imp = { data: {}, store: null, asOf: null };
 const daysAgo = s => s ? Math.floor((new Date(todayStr() + 'T00:00') - new Date(s + 'T00:00')) / DAY) : null;
 const lc = r => { const a = (mem.contacts[r.club_id] || [])[0], x = a ? a.contacted_on : null, y = r.last_contact; return x && y ? (x > y ? x : y) : (x || y); };
@@ -103,6 +103,7 @@ const mineOk = r => !mem.mine || (mem.notes[r.club_id] || {}).assigned_to === ME
 
 function drawMem() {
   document.querySelectorAll('#memTabs button').forEach(b => b.classList.toggle('on', b.dataset.sec === mem.sec));
+  $('memSubs').hidden = SUBS[mem.sec].length < 2;
   $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[0] === 'member' && mem.rows.length && !hasInv() ? 'All members' : x[1]}</button>`).join('');
   mem.sec === 'risk' ? sumRisk() : mem.sec === 'lead' ? sumLeads() : sumNew();
   $('memWin').hidden = mem.g !== 'list' || mem.sec === 'lead'; $('memBill').hidden = true;
