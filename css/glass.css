@@ -743,3 +743,11 @@ dialog.dlwide { max-width:1100px; }
 .agrid tbody tr { cursor:default; }
 .agrid tr.agsens td.agpage b::after { content:" \1F512"; font-size:.75rem; }
 .agrid tr.agsens td { background:rgba(232,184,74,.1); }
+/* ----- Members > Leads ----- */
+.ldt td small.nm-sub { display:block; }
+.ldt td a[href^="tel:"] { white-space:nowrap; }
+.ldfilters { display:flex; gap:.6rem; flex-wrap:wrap; margin:0 0 .6rem; }
+.ldfilters select { width:auto; margin:0; }
+.ldspeed { display:flex; flex-wrap:wrap; gap:.5rem; }
+.ldspeed .hchip { padding:.5rem .8rem; font-size:.9rem; color:var(--ink); }
+.ldspeed .hchip b { font-size:1.15rem; }
