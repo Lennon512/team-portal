@@ -2,6 +2,8 @@
 // Data: cancel_snapshot (ClubReady "Invoice Changes" report + last visit) and cancel_contacts
 // (Contact Log entries for those people). Both are refreshed by the Upload reports window.
 const CX = { rows: [], cs: {}, missing: false, view: 'open', sort: 'new', dueOnly: false };
+const FZ = { view: 'now', sort: 'new', dueOnly: false };   // filters for the Freezes tab
+const cxSt = () => mem.sec === 'fz' ? FZ : CX;
 
 async function loadCx() {
   const [a, b] = await Promise.all([
@@ -25,7 +27,11 @@ function cxCalc(r) {
   const exit = since.find(x => dayOf(x.contacted_at) <= cxAdd(r.event_on, 3));
   const back = r.next_booking && daysAgo(r.next_booking) <= 0;
   let step, due = false, late = false, next = null;
-  if (r.kind === 'frozen') { step = 'Check in while they are frozen'; due = dc === null || dc >= 30; }
+  if (r.kind === 'frozen') { step = dc === null ? 'Check in while they are frozen' : dc >= 30 ? 'Monthly check-in while frozen' : 'Checked in. Next in ' + (30 - dc) + ' days'; due = dc === null || dc >= 30; }
+  else if (r.kind === 'unfrozen') {
+    if (back) return { cs: since, n: since.length, made: since.filter(x => x.made).length, last, dc, d, step: 'Booked ' + fmt(r.next_booking), due: false, late: false, back };
+    step = !since.length ? 'Welcome back: get them booked' : 'Still not booked: follow up'; due = !since.length || dc >= 7; late = !since.length && d > 3;
+  }
   else if (d > 90) step = 'Done: past 90 days';
   else {
     const i = CX_STEPS.reduce((k, s, j) => d >= s[0] ? j : k, 0), [start, name, win] = CX_STEPS[i];
@@ -38,9 +44,11 @@ function cxCalc(r) {
   return { cs: since, n: since.length, made: since.filter(x => x.made).length, last, dc, d, exit: !!exit, step, due, late, back };
 }
 
+const FZ_VIEWS = [['now', 'On freeze now', r => r.kind === 'frozen'], ['back', 'Back from freeze: last 30 days', r => r.kind === 'unfrozen' && daysAgo(r.event_on) <= 30],
+  ['back90', 'Back 31–90 days', r => r.kind === 'unfrozen' && daysAgo(r.event_on) > 30 && daysAgo(r.event_on) <= 90], ['nobook', 'Back but not booked', r => r.kind === 'unfrozen' && daysAgo(r.event_on) <= 30 && !(r.next_booking && daysAgo(r.next_booking) <= 0)]];
 const CX_VIEWS = [['open', 'Following up', r => r.kind === 'cancelled' && daysAgo(r.event_on) <= 90], ['30', 'Cancelled 0–30 days', r => r.kind === 'cancelled' && daysAgo(r.event_on) <= 30], ['60', '31–60 days', r => r.kind === 'cancelled' && daysAgo(r.event_on) > 30 && daysAgo(r.event_on) <= 60],
   ['90', '61–90 days', r => r.kind === 'cancelled' && daysAgo(r.event_on) > 60 && daysAgo(r.event_on) <= 90], ['old', '90+ days', r => r.kind === 'cancelled' && daysAgo(r.event_on) > 90],
-  ['frozen', 'On freeze', r => r.kind === 'frozen'], ['month', 'Cancelled this month', r => r.kind === 'cancelled' && (r.event_on || '').slice(0, 7) === todayStr().slice(0, 7)]];
+  ['month', 'Cancelled this month', r => r.kind === 'cancelled' && (r.event_on || '').slice(0, 7) === todayStr().slice(0, 7)]];
 const CX_SORTS = { new: 'Most recent first', old: 'Oldest first', money: 'Biggest plan first', quiet: 'Longest since last contact' };
 
 function sumCx() {
@@ -50,52 +58,75 @@ function sumCx() {
   const thisM = cx.filter(x => (x.r.event_on || '').slice(0, 7) === mo), lastM = cx.filter(x => (x.r.event_on || '').slice(0, 7) === lm);
   const money = thisM.reduce((s, x) => s + (+x.r.amount || 0), 0);
   const rec = cx.filter(x => x.c.d >= 3 && x.c.d <= 33), exit = rec.filter(x => x.c.exit).length;
-  const fzn = all.filter(x => x.r.kind === 'frozen').length, due = all.filter(x => x.c.due && x.r.kind !== 'frozen').length;
+  const never = cx.filter(x => x.c.d <= 90 && !x.c.n).length, due = cx.filter(x => x.c.due).length;
   $('memSum').innerHTML = tile(thisM.length, 'Cancelled this month', `${lastM.length} last month • $${Math.round(money).toLocaleString()}/mo in plans`, 'C|month') +
     tile(rec.length ? Math.round(exit / rec.length * 100) + '%' : '-', 'Exit call within 3 days', `${exit} of ${rec.length} cancels in the last 30 days`, 'C|30') +
-    tile(fzn, 'On freeze', 'check in before they come back', 'C|frozen') +
+    tile(never, 'Never contacted', 'since cancelling, last 90 days', 'C|never') +
     tile(due, 'Due for follow-up', 'exit call, check-in or win-back', 'C|due');
 }
 function cxTile(q) {
-  Object.assign(CX, { view: 'open', dueOnly: false, sort: 'new' });
-  if (q === 'due') CX.dueOnly = true; else if (q) CX.view = q;
+  Object.assign(CX, { view: 'open', dueOnly: false, sort: 'new', never: false });
+  if (q === 'due') CX.dueOnly = true; else if (q === 'never') CX.never = true; else if (q) CX.view = q;
+}
+function sumFz() {
+  if (CX.missing || !CX.rows.length) { $('memSum').innerHTML = ''; return; }
+  const all = CX.rows.map(r => ({ r, c: cxCalc(r) })), now = all.filter(x => x.r.kind === 'frozen'), back = all.filter(x => x.r.kind === 'unfrozen' && x.c.d <= 30);
+  const nob = back.filter(x => !x.c.back).length, due = all.filter(x => (x.r.kind === 'frozen' || (x.r.kind === 'unfrozen' && x.c.d <= 30)) && x.c.due).length;
+  $('memSum').innerHTML = tile(now.length, 'On freeze now', `$${Math.round(now.reduce((s, x) => s + (+x.r.amount || 0), 0)).toLocaleString()}/mo on hold`, 'F|now') +
+    tile(back.length, 'Back from freeze', 'in the last 30 days', 'F|back') +
+    tile(nob, 'Back but not booked', 'get them on the schedule', 'F|nobook') +
+    tile(due, 'Due for a check-in', 'frozen or just back', 'F|due');
+}
+function fzTile(q) {
+  Object.assign(FZ, { view: 'now', dueOnly: false, sort: 'new' });
+  if (q === 'due') FZ.dueOnly = true; else if (q) FZ.view = q;
 }
 
 const cxDate = (r, c) => r.event_on ? `<span class="hchip ${r.kind === 'frozen' ? 'h1' : heat(c.d, [3, 30, 60, 90])}"><b>${fmt(r.event_on)}</b> ${ago(c.d)}</span>` : '-';
-const cxKind = r => r.kind === 'frozen' ? '<span class="pill ice">Frozen</span>' : '';
+const cxKind = r => '';
+// When their freeze started (for people who are back), from the billing history
+const frozeOn = r => ((r.history || []).filter(h => /pushed out/i.test(h.type) && h.on <= r.event_on).pop() || {}).on || null;
 
 function drawCx() {
+  const F = mem.sec === 'fz', st = cxSt(), VS = F ? FZ_VIEWS : CX_VIEWS, word = F ? 'freezes' : 'cancellations';
   if (CX.missing) { $('memBody').innerHTML = `<div class="pcard"><h3>One-time setup needed</h3><p>${ME.role === 'owner' ? 'Open Supabase → SQL Editor → New query, paste the contents of <a href="https://github.com/Lennon512/team-portal/blob/main/sql/cancels.sql" target="_blank" rel="noopener">sql/cancels.sql</a>, and click Run. Then refresh this page.' : 'Ask the owner to run the setup.'}</p></div>`; return; }
-  if (!CX.rows.length) { $('memBody').innerHTML = '<p class="lead">No cancellations yet. Add ClubReady’s <b>Invoice Changes</b> report (with the Contact Log and Booking Events Log) in Upload reports.</p>'; return; }
-  const q = mem.find.toLowerCase(), V = (CX_VIEWS.find(x => x[0] === CX.view) || CX_VIEWS[0])[2];
-  const base = CX.rows.filter(r => (!q || (r.name || '').toLowerCase().includes(q)) && mineOk(r)).map(r => ({ r, c: cxCalc(r) }));
-  const rows = base.filter(x => V(x.r) && (!CX.dueOnly || x.c.due));
+  if (!CX.rows.length) { $('memBody').innerHTML = `<p class="lead">No ${word} yet. Add ClubReady’s <b>Invoice Changes</b> report (with the Contact Log and Booking Events Log) in Upload reports.</p>`; return; }
+  const q = mem.find.toLowerCase(), V = (VS.find(x => x[0] === st.view) || VS[0])[2];
+  const base = CX.rows.filter(r => (F ? /frozen/.test(r.kind) : r.kind === 'cancelled') && (!q || (r.name || '').toLowerCase().includes(q)) && mineOk(r)).map(r => ({ r, c: cxCalc(r) }));
+  const extra = x => (!st.dueOnly || x.c.due) && (F || !CX.never || !x.c.n);
+  const rows = base.filter(x => V(x.r) && extra(x));
   const S = { new: (a, b) => (b.r.event_on || '') < (a.r.event_on || '') ? -1 : 1, old: (a, b) => (a.r.event_on || '') < (b.r.event_on || '') ? -1 : 1,
     money: (a, b) => (+b.r.amount || 0) - (+a.r.amount || 0), quiet: (a, b) => (b.c.dc ?? 1e9) - (a.c.dc ?? 1e9) };
-  rows.sort(S[CX.sort] || S.new);
-  const cnt = f => base.filter(x => f(x.r) && (!CX.dueOnly || x.c.due)).length;
-  const shown = CX_VIEWS.filter(([k, , f]) => k !== 'month' || CX.view === 'month').filter(([k, , f]) => k === 'open' || k === CX.view || cnt(f));
-  const money = rows.reduce((s, x) => s + (x.r.kind === 'frozen' ? 0 : +x.r.amount || 0), 0);
-  $('memBody').innerHTML = `<div class="ldbar"><span class="tabs ldages">${shown.map(([k, t, f]) => `<button type="button" data-cxv="${k}" class="${CX.view === k ? 'on' : ''}">${t} <small>${cnt(f)}</small></button>`).join('')}</span></div>
-    <div class="ldfilters"><select id="cxSort" aria-label="Sort">${Object.entries(CX_SORTS).map(([k, t]) => `<option value="${k}" ${CX.sort === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-      <label class="mem-mine"><input type="checkbox" id="cxDue" ${CX.dueOnly ? 'checked' : ''}> Due for follow-up only</label></div>
-    <p class="lead mem-lead">Showing <b>${rows.length}</b> ${CX.view === 'frozen' ? 'frozen member' + (rows.length === 1 ? '' : 's') : 'member' + (rows.length === 1 ? '' : 's')}${money && CX.view !== 'frozen' ? ` • $${Math.round(money).toLocaleString()}/mo in plans` : ''}${CX.dueOnly ? ', only those due' : ''}.${CX.view !== 'open' || CX.dueOnly ? ' <button class="linkish" data-cxreset="1">Clear filters</button>' : ''} Follow-up: exit call within 3 days, a check-in at 30 days, a win-back offer at 60. Click a name to add the reason or see their history.</p>` +
-    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Member</th><th>${CX.view === 'frozen' ? 'Froze' : 'Cancelled'}</th><th>Next step</th><th>Last visit</th><th>Contacts since</th><th>Last contact</th><th>How</th><th>By</th></tr></thead><tbody>` +
-      rows.map(({ r, c }) => { const note = (mem.notes[r.club_id] || {}).note;
+  rows.sort(S[st.sort] || S.new);
+  const cnt = f => base.filter(x => f(x.r) && extra(x)).length, first = VS[0][0];
+  const shown = VS.filter(([k, , f]) => k !== 'month' || st.view === 'month').filter(([k, , f]) => k === first || k === st.view || cnt(f));
+  const money = rows.reduce((s, x) => s + (+x.r.amount || 0), 0), filtered = st.view !== first || st.dueOnly || (!F && CX.never);
+  const sorts = F ? { new: 'Most recent first', old: 'Oldest first', money: 'Biggest plan first', quiet: 'Longest since last contact' } : CX_SORTS;
+  const blurb = F ? 'Check in once a month while they are frozen, and get them booked as soon as they are back.' : 'Follow-up: exit call within 3 days, a check-in at 30 days, a win-back offer at 60.';
+  const dateHead = F ? (st.view === 'now' ? 'Froze' : 'Back on') : 'Cancelled';
+  $('memBody').innerHTML = `<div class="ldbar"><span class="tabs ldages">${shown.map(([k, t, f]) => `<button type="button" data-cxv="${k}" class="${st.view === k ? 'on' : ''}">${t} <small>${cnt(f)}</small></button>`).join('')}</span></div>
+    <div class="ldfilters"><select id="cxSort" aria-label="Sort">${Object.entries(sorts).map(([k, t]) => `<option value="${k}" ${st.sort === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <label class="mem-mine"><input type="checkbox" id="cxDue" ${st.dueOnly ? 'checked' : ''}> Due for follow-up only</label>${F ? '' : `<label class="mem-mine"><input type="checkbox" id="cxNever" ${CX.never ? 'checked' : ''}> Never contacted</label>`}</div>
+    <p class="lead mem-lead">Showing <b>${rows.length}</b> member${rows.length === 1 ? '' : 's'}${money ? ` • $${Math.round(money).toLocaleString()}/mo in plans` : ''}${st.dueOnly ? ', only those due' : ''}.${filtered ? ' <button class="linkish" data-cxreset="1">Clear filters</button>' : ''} ${blurb} Click a name to add a note or see their history.</p>` +
+    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Member</th><th>${dateHead}</th>${F && st.view !== 'now' ? '<th>Frozen</th>' : ''}<th>Next step</th><th>Last visit</th>${F ? '<th>Next booking</th>' : ''}<th>Contacts since</th><th>Last contact</th><th>How</th><th>By</th></tr></thead><tbody>` +
+      rows.map(({ r, c }) => { const note = (mem.notes[r.club_id] || {}).note, fo = r.kind === 'unfrozen' ? frozeOn(r) : null;
         return `<tr data-cx="${r.club_id}" class="${c.due ? 'lddue' : ''}"><td><b>${esc(r.name || 'Unknown')}</b>${cxKind(r)}<small class="nm-sub">${esc([r.plan, r.amount ? '$' + Math.round(r.amount) + '/mo' : ''].filter(Boolean).join(' • '))}</small>${note ? `<small class="nm-sub cxwhy">${esc(note)}</small>` : ''}</td>
-        <td>${cxDate(r, c)}</td><td>${esc(c.step)}${c.due ? ` <span class="pill ${c.late ? 'warn' : 'due'}">${c.late ? 'Overdue' : 'Due'}</span>` : ''}</td>
+        <td>${r.event_on ? `<span class="hchip ${F ? heat(c.d, r.kind === 'frozen' ? [7, 30, 60, 90] : [1, 7, 14, 30]) : heat(c.d, [3, 30, 60, 90])}"><b>${fmt(r.event_on)}</b> ${ago(c.d)}</span>` : '-'}</td>
+        ${F && st.view !== 'now' ? `<td>${fo ? `${fmt(fo)} <span class="muted">• ${daysAgo(fo) - c.d} days</span>` : '<span class="muted">-</span>'}</td>` : ''}
+        <td>${esc(c.step)}${c.due ? ` <span class="pill ${c.late ? 'warn' : 'due'}">${c.late ? 'Overdue' : 'Due'}</span>` : ''}</td>
         <td>${r.last_visit ? `${fmt(r.last_visit)} <span class="muted">${ago(daysAgo(r.last_visit))}</span>` : '<span class="muted">None on record</span>'}</td>
+        ${F ? `<td>${c.back ? `<span class="hchip h0"><b>${fmt(r.next_booking)}</b></span>` : '<span class="muted">Nothing booked</span>'}</td>` : ''}
         <td>${attCell(c)}</td><td>${lastCell(c)}</td>${detailCells(c)}</tr>`; }).join('') + '</tbody></table></div>' : '<p class="lead">Nobody matches these filters.</p>') +
-    `<p class="legend nb-legend"><span><i class="hchip h0"></i>0–3 days</span><span><i class="hchip h1"></i>4–30</span><span><i class="hchip h2"></i>31–60</span><span><i class="hchip h3"></i>61–90</span><span><i class="hchip h4"></i>90+</span><span class="muted">(since they cancelled)</span></p>`;
+    (F ? '' : `<p class="legend nb-legend"><span><i class="hchip h0"></i>0–3 days</span><span><i class="hchip h1"></i>4–30</span><span><i class="hchip h2"></i>31–60</span><span><i class="hchip h3"></i>61–90</span><span><i class="hchip h4"></i>90+</span><span class="muted">(since they cancelled)</span></p>`);
 }
 
 function cxCard(id) {
   const r = CX.rows.find(x => x.club_id == id); if (!r) return;
   const c = cxCalc(r), all = CX.cs[r.club_id] || [], h = r.history || [];
-  $('dlgBody').innerHTML = `<h2>${esc(r.name || 'Member')}</h2><p class="lead" style="margin:.25rem 0 .8rem">${esc([r.plan, r.amount ? '$' + Math.round(r.amount) + '/mo' : '', (r.kind === 'frozen' ? 'froze ' : 'cancelled ') + fmt(r.event_on), r.staff ? 'by ' + r.staff : '', 'ClubReady status: ' + (r.status || '-')].filter(Boolean).join(' • '))}</p>
+  $('dlgBody').innerHTML = `<h2>${esc(r.name || 'Member')}</h2><p class="lead" style="margin:.25rem 0 .8rem">${esc([r.plan, r.amount ? '$' + Math.round(r.amount) + '/mo' : '', (r.kind === 'frozen' ? 'froze ' : r.kind === 'unfrozen' ? (frozeOn(r) ? 'froze ' + fmt(frozeOn(r)) + ', back ' : 'back from freeze ') : 'cancelled ') + fmt(r.event_on), r.staff ? 'by ' + r.staff : '', 'ClubReady status: ' + (r.status || '-')].filter(Boolean).join(' • '))}</p>
     <p style="margin:0 0 1rem"><b>Next step:</b> ${esc(c.step)}${c.due ? ` <span class="pill ${c.late ? 'warn' : 'due'}">${c.late ? 'Overdue' : 'Due'}</span>` : ''}</p>
-    <h3 class="sub">Reason and owner</h3>
-    <label>Why they ${r.kind === 'frozen' ? 'froze' : 'cancelled'} <textarea id="mNote" maxlength="600" placeholder="Moving, cost, injury, schedule, not seeing results...">${noteOf(r)}</textarea></label>
+    <h3 class="sub">${r.kind === 'cancelled' ? 'Reason and owner' : 'Note and owner'}</h3>
+    <label>${r.kind === 'cancelled' ? 'Why they cancelled' : 'Why they froze / when they plan to be back'} <textarea id="mNote" maxlength="600" placeholder="${r.kind === 'cancelled' ? 'Moving, cost, injury, schedule, not seeing results...' : 'Travel, injury, surgery, back in December...'}">${noteOf(r)}</textarea></label>
     <label>Assigned to <select id="mAsg"><option value="">Nobody yet</option>${mem.staff.map(x => `<option value="${x.id}" ${x.id === (mem.notes[r.club_id] || {}).assigned_to ? 'selected' : ''}>${esc(x.full_name)}</option>`).join('')}</select></label>
     <div class="acts"><button class="quiet" data-act="mSave" data-id="${r.club_id}">Save</button><button class="quiet" data-act="close">Close</button></div><div id="mErr" style="color:var(--danger)" role="alert"></div>
     <h3 class="sub" style="margin-top:1.2rem">Contact history <small class="muted">${c.n} since, ${all.length} in all</small></h3>` +
@@ -128,6 +159,7 @@ function buildCx() {
     let kind = null, ev = null;
     if (last && !active) { kind = 'cancelled'; ev = last; }   // still has an active membership = changed plans, not a cancel
     else if (lf && /pushed out/i.test(lf.type)) { kind = 'frozen'; ev = lf; }
+    else if (lf && /un-?frozen/i.test(lf.type)) { kind = 'unfrozen'; ev = lf; }   // back from a freeze
     if (!kind) return;
     const who = (cx.slice().reverse().find(e => e.by) || ev).by;
     rows.push({ studio_id: mem.studio, club_id: +id, name: p.name, status: st || null, kind, event_on: ev.on, plan: plan(ev.item) || null,
@@ -152,6 +184,6 @@ async function saveCx() {
 }
 
 document.addEventListener('change', e => { const t = e.target;
-  if (t.id === 'cxSort') { CX.sort = t.value; drawCx(); } else if (t.id === 'cxDue') { CX.dueOnly = t.checked; drawCx(); } });
-document.addEventListener('click', e => { const v = e.target.closest('[data-cxv]'); if (v) { CX.view = v.dataset.cxv; drawCx(); return; }
-  if (e.target.closest('[data-cxreset]')) { cxTile(''); drawCx(); } });
+  if (t.id === 'cxSort') { cxSt().sort = t.value; drawCx(); } else if (t.id === 'cxDue') { cxSt().dueOnly = t.checked; drawCx(); } else if (t.id === 'cxNever') { CX.never = t.checked; drawCx(); } });
+document.addEventListener('click', e => { const v = e.target.closest('[data-cxv]'); if (v) { cxSt().view = v.dataset.cxv; drawCx(); return; }
+  if (e.target.closest('[data-cxreset]')) { mem.sec === 'fz' ? fzTile('') : cxTile(''); drawCx(); } });

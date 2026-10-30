@@ -1,7 +1,7 @@
 // ---------- Members (ClubReady reports) ----------
 const DAY = 864e5;
 let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'credits', find: '', mine: false, win: 60, bill: (() => { try { return +localStorage.getItem('memBillDays') || 30; } catch (_) { return 30; } })(), quick: null, form: null, doneOpen: false, gradOpen: false, editNote: null };
-const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'First 30 days'], ['check', 'Billing check']], lead: [['list', 'Leads']], cx: [['list', 'Cancellations']] };
+const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'First 30 days'], ['check', 'Billing check']], lead: [['list', 'Leads']], cx: [['list', 'Cancellations']], fz: [['list', 'Freezes']] };
 let imp = { data: {}, store: null, asOf: null };
 const daysAgo = s => s ? Math.floor((new Date(todayStr() + 'T00:00') - new Date(s + 'T00:00')) / DAY) : null;
 const lc = r => { const a = (mem.contacts[r.club_id] || [])[0], x = a ? a.contacted_on : null, y = r.last_contact; return x && y ? (x > y ? x : y) : (x || y); };
@@ -105,12 +105,12 @@ function drawMem() {
   document.querySelectorAll('#memTabs button').forEach(b => b.classList.toggle('on', b.dataset.sec === mem.sec));
   $('memSubs').hidden = SUBS[mem.sec].length < 2;
   $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[0] === 'member' && mem.rows.length && !hasInv() ? 'All members' : x[1]}</button>`).join('');
-  mem.sec === 'risk' ? sumRisk() : mem.sec === 'lead' ? sumLeads() : mem.sec === 'cx' ? sumCx() : sumNew();
-  $('memWin').hidden = mem.g !== 'list' || mem.sec === 'lead' || mem.sec === 'cx'; $('memBill').hidden = true;
+  mem.sec === 'risk' ? sumRisk() : mem.sec === 'lead' ? sumLeads() : mem.sec === 'cx' ? sumCx() : mem.sec === 'fz' ? sumFz() : sumNew();
+  $('memWin').hidden = mem.g !== 'list' || mem.sec === 'lead' || mem.sec === 'cx' || mem.sec === 'fz'; $('memBill').hidden = true;
   $('memMine').closest('label').hidden = mem.sec === 'risk'; if (mem.sec === 'risk') mem.mine = false;
   $('memFind').placeholder = mem.sec === 'lead' ? 'Find a lead' : 'Find a member';
   if (mem.sec === 'lead') { $('memSort').hidden = true; return drawLeads(); }
-  if (mem.sec === 'cx') { $('memSort').hidden = true; return drawCx(); }
+  if (mem.sec === 'cx' || mem.sec === 'fz') { $('memSort').hidden = true; return drawCx(); }
   if (mem.g === 'list') { $('memSort').hidden = true; return drawNew(); }
   const g = mem.g === 'attn' ? 'member' : mem.g, q = mem.find.toLowerCase();
   $('memSort').hidden = g !== 'member'; $('memSort').value = mem.sort;
@@ -247,7 +247,7 @@ function memCard(id) {
 const KINDS = { leads: ['Date Added', 'Referral Type', 'Prospect Type'], members: ['User ID', 'Unused Credits'], invoices: ['Invoice ID', 'Due Date', 'Invoice Type'], bookings: ['Booking Event', 'Booking Date', 'Current Status'], contacts: ['Client User ID', 'Contact Date'], agreements: ['Gross Down', 'Description', 'Customer'], cancels: ['Change Type', 'Membership Status', 'Change Date'] };
 const LABEL = { leads: 'Leads Added', members: 'Members by Session Type', invoices: 'Invoices Coming Due', bookings: 'Booking Events Log', contacts: 'Contact Log', agreements: 'Agreements Log', cancels: 'Invoice Changes' };
 // What each report adds, shown as a checklist in the upload window
-const ADDS = { leads: 'the Leads tab: every new lead and how we followed up (optional)', members: 'unused credits (required for members)', bookings: 'last visit, sessions in the last 30 days, next booking', contacts: 'last contact', invoices: 'due dates, amounts and pace (optional)', agreements: 'new members and package follow-up (optional)', cancels: 'the Cancellations tab: who cancelled or froze, and our follow-up (optional)' };
+const ADDS = { leads: 'the Leads tab: every new lead and how we followed up (optional)', members: 'unused credits (required for members)', bookings: 'last visit, sessions in the last 30 days, next booking', contacts: 'last contact', invoices: 'due dates, amounts and pace (optional)', agreements: 'new members and package follow-up (optional)', cancels: 'the Freezes and Cancellations tabs and our follow-up (optional)' };
 
 function upForm() {
   imp = { data: {}, store: null, asOf: null, bad: [] };
@@ -384,7 +384,7 @@ function buildRows() {
 
 $('memTabs').onclick = e => { const b = e.target.closest('[data-sec]'); if (b) { mem.sec = b.dataset.sec; mem.g = SUBS[mem.sec][0][0]; mem.quick = null; drawMem(); } };
 $('memSubs').onclick = e => { const b = e.target.closest('[data-g]'); if (b) { mem.g = b.dataset.g; mem.quick = null; mem.form = null; drawMem(); } };
-$('memSum').onclick = e => { const t = e.target.closest('[data-tile]'); if (!t) return; const [g, q] = t.dataset.tile.split('|'); if (g === 'L') { mem.sec = 'lead'; mem.g = 'list'; leadTile(q); drawMem(); return; } if (g === 'C') { mem.sec = 'cx'; mem.g = 'list'; cxTile(q); drawMem(); return; } if (q === 'past') { mem.sec = 'new'; mem.g = 'list'; mem.quick = null; mem.gradOpen = true; drawMem(); const d = $('nmPast'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } mem.sec = g === 'list' ? 'new' : 'risk'; mem.g = g; mem.quick = q || null; mem.form = null; drawMem(); };
+$('memSum').onclick = e => { const t = e.target.closest('[data-tile]'); if (!t) return; const [g, q] = t.dataset.tile.split('|'); if (g === 'L') { mem.sec = 'lead'; mem.g = 'list'; leadTile(q); drawMem(); return; } if (g === 'C') { mem.sec = 'cx'; mem.g = 'list'; cxTile(q); drawMem(); return; } if (g === 'F') { mem.sec = 'fz'; mem.g = 'list'; fzTile(q); drawMem(); return; } if (q === 'past') { mem.sec = 'new'; mem.g = 'list'; mem.quick = null; mem.gradOpen = true; drawMem(); const d = $('nmPast'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } mem.sec = g === 'list' ? 'new' : 'risk'; mem.g = g; mem.quick = q || null; mem.form = null; drawMem(); };
 $('memWin').onchange = e => { mem.win = +e.target.value; drawMem(); };
 $('memMine').onchange = e => { mem.mine = e.target.checked; drawMem(); };
 $('memBody').onchange = async e => {
