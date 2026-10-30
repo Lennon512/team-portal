@@ -1,7 +1,7 @@
 // ---------- Members (ClubReady reports) ----------
 const DAY = 864e5;
 let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'credits', find: '', mine: false, win: 60, bill: (() => { try { return +localStorage.getItem('memBillDays') || 30; } catch (_) { return 30; } })(), quick: null, form: null, doneOpen: false, gradOpen: false, editNote: null };
-const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'First 30 days'], ['check', 'Billing check']], lead: [['list', 'Leads']] };
+const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices'], ['package', 'Package follow-up']], new: [['list', 'First 30 days'], ['check', 'Billing check']], lead: [['list', 'Leads']], cx: [['list', 'Cancellations']], fz: [['list', 'Freezes']] };
 let imp = { data: {}, store: null, asOf: null };
 const daysAgo = s => s ? Math.floor((new Date(todayStr() + 'T00:00') - new Date(s + 'T00:00')) / DAY) : null;
 const lc = r => { const a = (mem.contacts[r.club_id] || [])[0], x = a ? a.contacted_on : null, y = r.last_contact; return x && y ? (x > y ? x : y) : (x || y); };
@@ -64,7 +64,7 @@ async function loadMem() {
     db.from('new_member_snapshot').select('*').eq('studio_id', mem.studio).limit(1000),
     db.from('new_member_tasks').select('*').eq('studio_id', mem.studio),
     db.from('team_directory').select('id,full_name,location_id').eq('location_id', mem.studio)]);
-  await loadLeads();
+  await Promise.all([loadLeads(), loadCx()]);
   mem.rows = s.data || []; mem.meta = mt.data; mem.notes = {}; mem.contacts = {};
   (n.data || []).forEach(x => mem.notes[x.club_id] = x);
   mem.nrows = nn.data || []; mem.nt = {}; (nt.data || []).forEach(x => mem.nt[x.club_id] = x); mem.staff = st.data || [];
@@ -105,11 +105,12 @@ function drawMem() {
   document.querySelectorAll('#memTabs button').forEach(b => b.classList.toggle('on', b.dataset.sec === mem.sec));
   $('memSubs').hidden = SUBS[mem.sec].length < 2;
   $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[0] === 'member' && mem.rows.length && !hasInv() ? 'All members' : x[1]}</button>`).join('');
-  mem.sec === 'risk' ? sumRisk() : mem.sec === 'lead' ? sumLeads() : sumNew();
-  $('memWin').hidden = mem.g !== 'list' || mem.sec === 'lead'; $('memBill').hidden = true;
+  mem.sec === 'risk' ? sumRisk() : mem.sec === 'lead' ? sumLeads() : mem.sec === 'cx' ? sumCx() : mem.sec === 'fz' ? sumFz() : sumNew();
+  $('memWin').hidden = mem.g !== 'list' || mem.sec === 'lead' || mem.sec === 'cx' || mem.sec === 'fz'; $('memBill').hidden = true;
   $('memMine').closest('label').hidden = mem.sec === 'risk'; if (mem.sec === 'risk') mem.mine = false;
   $('memFind').placeholder = mem.sec === 'lead' ? 'Find a lead' : 'Find a member';
   if (mem.sec === 'lead') { $('memSort').hidden = true; return drawLeads(); }
+  if (mem.sec === 'cx' || mem.sec === 'fz') { $('memSort').hidden = true; return drawCx(); }
   if (mem.g === 'list') { $('memSort').hidden = true; return drawNew(); }
   const g = mem.g === 'attn' ? 'member' : mem.g, q = mem.find.toLowerCase();
   $('memSort').hidden = g !== 'member'; $('memSort').value = mem.sort;
@@ -243,10 +244,10 @@ function memCard(id) {
 }
 
 // ----- upload and import -----
-const KINDS = { leads: ['Date Added', 'Referral Type', 'Prospect Type'], members: ['User ID', 'Unused Credits'], invoices: ['Invoice ID', 'Due Date', 'Invoice Type'], bookings: ['Booking Event', 'Booking Date', 'Current Status'], contacts: ['Client User ID', 'Contact Date'], agreements: ['Gross Down', 'Description', 'Customer'] };
-const LABEL = { leads: 'Leads Added', members: 'Members by Session Type', invoices: 'Invoices Coming Due', bookings: 'Booking Events Log', contacts: 'Contact Log', agreements: 'Agreements Log' };
+const KINDS = { leads: ['Date Added', 'Referral Type', 'Prospect Type'], members: ['User ID', 'Unused Credits'], invoices: ['Invoice ID', 'Due Date', 'Invoice Type'], bookings: ['Booking Event', 'Booking Date', 'Current Status'], contacts: ['Client User ID', 'Contact Date'], agreements: ['Gross Down', 'Description', 'Customer'], cancels: ['Change Type', 'Membership Status', 'Change Date'] };
+const LABEL = { leads: 'Leads Added', members: 'Members by Session Type', invoices: 'Invoices Coming Due', bookings: 'Booking Events Log', contacts: 'Contact Log', agreements: 'Agreements Log', cancels: 'Invoice Changes' };
 // What each report adds, shown as a checklist in the upload window
-const ADDS = { leads: 'the Leads tab: every new lead and how we followed up (optional)', members: 'unused credits (required for members)', bookings: 'last visit, sessions in the last 30 days, next booking', contacts: 'last contact', invoices: 'due dates, amounts and pace (optional)', agreements: 'new members and package follow-up (optional)' };
+const ADDS = { leads: 'the Leads tab: every new lead and how we followed up (optional)', members: 'unused credits (required for members)', bookings: 'last visit, sessions in the last 30 days, next booking', contacts: 'last contact', invoices: 'due dates, amounts and pace (optional)', agreements: 'new members and package follow-up (optional)', cancels: 'the Freezes and Cancellations tabs and our follow-up (optional)' };
 
 function upForm() {
   imp = { data: {}, store: null, asOf: null, bad: [] };
@@ -265,7 +266,7 @@ function upForm() {
 }
 
 function upChecklist(bad = []) {
-  return '<ul class="upcheck">' + ['members', 'bookings', 'contacts', 'invoices', 'agreements', 'leads'].map(k => {
+  return '<ul class="upcheck">' + ['members', 'bookings', 'contacts', 'invoices', 'agreements', 'leads', 'cancels'].map(k => {
     const got = imp.data[k];
     return `<li class="${got ? 'ok' : k === 'members' ? 'need' : ''}"><span class="upmark">${got ? '\u2713' : '\u2013'}</span><span><b>${LABEL[k]}</b>${got ? ` <small>${got.length} rows</small>` : ''}<small class="upadds">${got ? 'Adds ' : ''}${ADDS[k]}</small></span></li>`;
   }).join('') + bad.map(b => `<li class="bad"><span class="upmark">\u2717</span><span>${b}</span></li>`).join('') + '</ul>';
@@ -303,7 +304,7 @@ async function readFiles(files) {
   }
   const loc = locs.find(x => x.id === mem.studio);
   let err = '';
-  if (!imp.data.members && !imp.data.leads) err = 'Add the Members by Session Type report. It is the one the list is built from.';
+  if (!imp.data.members && !imp.data.leads && !imp.data.cancels) err = 'Add the Members by Session Type report. It is the one the list is built from.';
   else if (loc && loc.club_store_id && imp.store && loc.club_store_id !== imp.store) err = `These files are for ClubReady store ${imp.store}, but ${loc.name} is store ${loc.club_store_id}. Pick the right studio.`;
   imp.bad = lines.filter(x => x.startsWith('\u2717')).map(x => x.slice(2));
   $('upList').innerHTML = upChecklist(imp.bad) + (imp.asOf ? `<p class="lead" style="margin:.4rem 0 .5rem">Data through ${fmt(imp.asOf)}</p>` : '') +
@@ -383,7 +384,7 @@ function buildRows() {
 
 $('memTabs').onclick = e => { const b = e.target.closest('[data-sec]'); if (b) { mem.sec = b.dataset.sec; mem.g = SUBS[mem.sec][0][0]; mem.quick = null; drawMem(); } };
 $('memSubs').onclick = e => { const b = e.target.closest('[data-g]'); if (b) { mem.g = b.dataset.g; mem.quick = null; mem.form = null; drawMem(); } };
-$('memSum').onclick = e => { const t = e.target.closest('[data-tile]'); if (!t) return; const [g, q] = t.dataset.tile.split('|'); if (g === 'L') { mem.sec = 'lead'; mem.g = 'list'; leadTile(q); drawMem(); return; } if (q === 'past') { mem.sec = 'new'; mem.g = 'list'; mem.quick = null; mem.gradOpen = true; drawMem(); const d = $('nmPast'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } mem.sec = g === 'list' ? 'new' : 'risk'; mem.g = g; mem.quick = q || null; mem.form = null; drawMem(); };
+$('memSum').onclick = e => { const t = e.target.closest('[data-tile]'); if (!t) return; const [g, q] = t.dataset.tile.split('|'); if (g === 'L') { mem.sec = 'lead'; mem.g = 'list'; leadTile(q); drawMem(); return; } if (g === 'C') { mem.sec = 'cx'; mem.g = 'list'; cxTile(q); drawMem(); return; } if (g === 'F') { mem.sec = 'fz'; mem.g = 'list'; fzTile(q); drawMem(); return; } if (q === 'past') { mem.sec = 'new'; mem.g = 'list'; mem.quick = null; mem.gradOpen = true; drawMem(); const d = $('nmPast'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } mem.sec = g === 'list' ? 'new' : 'risk'; mem.g = g; mem.quick = q || null; mem.form = null; drawMem(); };
 $('memWin').onchange = e => { mem.win = +e.target.value; drawMem(); };
 $('memMine').onchange = e => { mem.mine = e.target.checked; drawMem(); };
 $('memBody').onchange = async e => {
@@ -413,6 +414,7 @@ $('memBody').onclick = e => {
   if (at('.nm')) return;
   if (at('summary') || at('input')) return;
   const ld = at('[data-lead]'); if (ld) return leadCard(ld.dataset.lead);
+  const cx = at('[data-cx]'); if (cx) return cxCard(cx.dataset.cx);
   const tr = at('[data-m]'); if (tr) memCard(tr.dataset.m);
 };
 
@@ -441,6 +443,11 @@ $('dlgBody').addEventListener('click', async e => {
     if (imp.data.agreements && imp.data.members) {
       const r2 = await db.rpc('replace_new_members', { p_studio: mem.studio, p_rows: imp.newRows });
       if (r2.error) { e.target.disabled = false; e.target.textContent = 'Import'; return fail('New member import failed. ' + r2.error.message); }
+    }
+    // Last, so a missing setup here never blocks the member and lead lists
+    if (imp.data.cancels) {
+      const ce = await saveCx();
+      if (ce) { e.target.disabled = false; e.target.textContent = 'Import'; return fail('Cancellations import failed. ' + ce.message + (/relation|does not exist|schema cache/i.test(ce.message) ? ' Run sql/cancels.sql in Supabase first.' : '')); }
     }
     $('dlg').close(); loadMem();
   }
