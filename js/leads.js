@@ -152,6 +152,8 @@ function buildLeads() {
 async function saveLeads() {
   const { rows, cs } = buildLeads(), chunk = async (t, L) => { for (let i = 0; i < L.length; i += 500) { const { error } = await db.from(t).insert(L.slice(i, i + 500)); if (error) return error; } };
   let r = await db.from('lead_snapshot').delete().eq('studio_id', mem.studio); if (r.error) return r.error;
+  // Only replace contact history when a Contact Log came with this upload; otherwise keep what's there
+  if (!imp.data.contacts) return (await chunk('lead_snapshot', rows)) || null;
   r = await db.from('lead_contacts').delete().eq('studio_id', mem.studio); if (r.error) return r.error;
   return (await chunk('lead_snapshot', rows)) || (await chunk('lead_contacts', cs)) || null;
 }
