@@ -13,6 +13,7 @@ js/core.js            Supabase client, sign-in, navigation, shared helpers
 js/<page>.js          One file per page: calendar, tasks, members, timeoff, mypage,
                       studio, performance, compare, projection, performance-uploads,
                       supplies, dpr, passwords, leadership, access, invite, payroll
+js/daily-auto.js      Fills the Daily log from ClubReady reports when they are imported
 js/start.js           Loaded last; starts the app
 ```
 
