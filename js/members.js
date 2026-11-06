@@ -449,6 +449,8 @@ $('dlgBody').addEventListener('click', async e => {
       const ce = await saveCx();
       if (ce) { e.target.disabled = false; e.target.textContent = 'Import'; return fail('Cancellations import failed. ' + ce.message + (/relation|does not exist|schema cache/i.test(ce.message) ? ' Run sql/cancels.sql in Supabase first.' : '')); }
     }
+    // Fill in the Daily log from these reports. Never blocks the import: the member lists matter more.
+    if (canWrite(mem.studio)) { const de = await saveDailyAuto().catch(err => err); if (de) console.warn('Daily numbers were not updated:', de.message || de); }
     $('dlg').close(); loadMem();
   }
 });
