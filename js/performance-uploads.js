@@ -3,6 +3,7 @@ const CLAB = { 'Revenue': 'revenue', 'EFT Collected': 'eft', 'EFT/Rev': 'eft_rev
   'Attrition (%)': 'attrition', 'At Risk (%)': 'at_risk', '% of Basic Mem': 'basic', 'Price per Session': 'pps', 'Adj. Price per Session': 'adj_pps', 'Active Practitioners': 'practitioners', 'Practitioner Turnover': 'turnover' };
 const NETLAB = { 'Revenue': 'revenue', 'EFT Collected': 'eft', 'EFT/Rev': 'eft_rev', 'Leads': 'leads', 'Demos': 'demos', 'Lead to Demo': 'l2d', 'Show %': 'show', 'First Visit Closing %': 'fv_close', 'Total Active Members': 'members',
   'NMG (Net Member Gain/Loss)': 'nmg', 'Attrition (%)': 'attrition', 'At Risk (%)': 'at_risk', 'Price per Session': 'pps', 'Adj. Price per Session': 'adj_pps', 'Contacts per Day': 'contacts' };
+const NETLAB_KEYS = new Set(Object.values(NETLAB));
 const LOWER = new Set(['attrition', 'at_risk']), NORANK = new Set(['basic', 'practitioners', 'turnover']);
 const MON = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
 const pad2 = n => String(n).padStart(2, '0');
@@ -12,10 +13,22 @@ const serialMonth = v => { if (typeof v !== 'number' || v < 40000) return null; 
 function parseCorp(wb) {
   const out = { corp: [], net: [], months: [], studios: new Set(), allRows: [] };
   for (const sn of wb.SheetNames) {
-    const mm = sn.trim().match(/^([A-Za-z]{3})[a-z]*[- ](\d{2})$/); if (!mm || !MON[mm[1]]) continue;
+    // Older scorecards: one tab per month named like "Oct-26". Newer ones (from Oct 2026): a single "ScoreCard" tab
+    // whose month is in the "Systemwide Averages (October 2026)" line, or failing that the month before "Reported as of".
+    const mm = sn.trim().match(/^([A-Za-z]{3})[a-z]*[- ](\d{2})$/), single = /score\s*card/i.test(sn);
+    if (!(mm && MON[mm[1]]) && !single) continue;
     const g = grid(wb.Sheets[sn]), hi = g.findIndex((r, i) => i < 15 && r.includes('Franchise') && r.includes('Location') && r.includes('Revenue')); if (hi < 0) continue;
-    const month = `20${mm[2]}-${pad2(MON[mm[1]])}-01`, cols = {}, li = g[hi].indexOf('Location'), fi = g[hi].indexOf('Franchise'), ti = g[hi].indexOf('Tier');
-    g[hi].forEach((h, i) => { const k = CLAB[h] || (String(h).startsWith('Contacts per') ? 'contacts' : null); if (k) cols[k] = i; });
+    let month = mm && MON[mm[1]] ? `20${mm[2]}-${pad2(MON[mm[1]])}-01` : null, avgRow = null;
+    for (const r of g.slice(0, hi + 3)) for (const c of r) {
+      const t = String(c ?? ''), a = t.match(/averages?\s*\(\s*([A-Za-z]{3})[a-z]*\s+(\d{4})\s*\)/i), rp = t.match(/reported as of\s+(\d{1,2})\/\d{1,2}\/(\d{4})/i);
+      if (a && MON[a[1][0].toUpperCase() + a[1].slice(1, 3).toLowerCase()]) { month = month || `${a[2]}-${pad2(MON[a[1][0].toUpperCase() + a[1].slice(1, 3).toLowerCase()])}-01`; avgRow = r; }
+      else if (rp && !month) { const d = new Date(+rp[2], +rp[1] - 2, 1); month = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-01`; }
+    }
+    if (!month) continue;
+    const cols = {}, li = g[hi].indexOf('Location'), fi = g[hi].indexOf('Franchise'), ti = g[hi].indexOf('Tier');
+    g[hi].forEach((h, i) => { const t = String(h ?? '').replace(/\s+/g, ' ').trim(), k = CLAB[t] || (t.startsWith('Contacts per') ? 'contacts' : null); if (k) cols[k] = i; });
+    // The systemwide averages line gives the network averages when there is no Charting tab
+    if (avgRow && !wb.SheetNames.some(n => n.trim() === 'Charting')) Object.entries(cols).forEach(([k, ci]) => { const v = avgRow[ci]; if (typeof v === 'number' && NETLAB_KEYS.has(k)) (out.netRow = out.netRow || []).push({ month, kpi: k, value: v, source: 'corporate' }); });
     const data = g.slice(hi + 1).filter(r => r[li] && /\(\d+\)\s*$/.test(String(r[li])));
     if (!data.length) continue;
     out.months.push(month);
@@ -48,6 +61,8 @@ function parseCorp(wb) {
     }
     out.net = [...seen.values()];
   }
+  if (!out.net.length && out.netRow) out.net = out.netRow;
+  delete out.netRow;
   return out;
 }
 
@@ -120,7 +135,7 @@ function pfCorpForm() {
   $('cFile').onchange = async () => {
     try {
       const f = $('cFile').files[0]; upMsg('Reading the file, this can take a few seconds...');
-      const wb = await readBook(f, n => /^[A-Za-z]{3}[a-z]*[- ]\d{2}$/.test(n.trim()) || n.trim() === 'Charting');
+      const wb = await readBook(f, n => /^[A-Za-z]{3}[a-z]*[- ]\d{2}$/.test(n.trim()) || n.trim() === 'Charting' || /score\s*card/i.test(n));
       const r = PF.pend = parseCorp(wb);
       if (!r.corp.length) return upMsg('', 'I could not find your studios. Check that this is the Stretch Zone monthly scorecard, and that all six studios have their store numbers set.');
       const n = new Set(r.allRows.map(x => x.store)).size;
