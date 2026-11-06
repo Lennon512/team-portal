@@ -6,10 +6,10 @@ const DL = { day: '', studio: '', rows: [], pay: [], tgt: {}, from: '', to: '', 
 // Inputs in the order of the spreadsheet's Daily Log
 const DLF = [
   ['Money', [['revenue', 'Revenue / collections', '$'], ['new_eft', 'New EFT added', '$'], ['refunds', 'Refunds / chargebacks', '$'], ['payroll', 'Payroll', '$']]],
-  ['Sales funnel', [['leads', 'Leads'], ['contacts', 'Contacts'], ['demos_booked', 'Demos booked'], ['demos_held', 'Demos held'], ['agreements', 'New agreements']]],
+  ['Sales funnel', [['leads', 'Leads'], ['contacts', 'Contacts'], ['demos_booked', 'Demos booked'], ['demos_held', 'Demos held'], ['agreements', 'New sales', '', 'no previous agreements'], ['renewals', 'Renewals', '', 'had an agreement before']]],
   ['Members', [['cancellations', 'Cancellations'], ['freezes', 'Freezes'], ['reactivations', 'Reactivations'], ['active_members', 'Active members', '', 'invoices in the next 30 days']]],
-  ['Schedule', [['slots_available', 'Available stretch slots'], ['stretches_completed', 'Completed stretches']]]];
-const DL_NUM = DLF.flatMap(g => g[1].map(f => f[0])).filter(k => k !== 'payroll');
+  ['Schedule', [['slots_available', 'Available stretch slots'], ['stretches_completed', 'Completed stretches'], ['staff_util', 'Staff utilization', '', '1 = 100%']]]];
+const DL_NUM = DLF.flatMap(g => g[1].map(f => f[0])).filter(k => k !== 'payroll' && k !== 'staff_util');
 const DEF_T = { revenue_goal: null, labor_max: .4, l2d_target: .5, show_target: .8, close_target: .4, attrition_max: .1, contacts_target: 50, util_target: .65, nmg_target: 6 };
 const FOCUSES = ["Complete yesterday's data", 'Lead follow-up & booking', 'Confirmations & show rate', 'Consult execution & closing', 'Member retention', 'Outbound activity', 'Schedule fill & rebooking', 'Protect momentum'];
 
@@ -48,7 +48,9 @@ function agg(sid, from, to) {
   o.l2d = o.leads ? o.demos_booked / o.leads : null; o.show = o.demos_booked ? o.demos_held / o.demos_booked : null; o.close = o.demos_held ? o.agreements / o.demos_held : null;
   o.nmg = o.agreements + o.reactivations - o.cancellations;
   o.avgActive = act.length ? act.reduce((n, r) => n + +r.active_members, 0) / act.length : null;
-  o.attrition = o.avgActive ? o.cancellations / o.avgActive : null; o.util = o.slots_available ? o.stretches_completed / o.slots_available : null;
+  o.attrition = o.avgActive ? o.cancellations / o.avgActive : null; const su = rs.map(r => r.staff_util).filter(v => v !== null && v !== undefined && v !== '').map(Number);
+  o.staff_util = su.length ? su.reduce((n, v) => n + v, 0) / su.length : null;   // ClubReady's Staff Utilization, averaged over the days
+  o.util = o.staff_util !== null ? o.staff_util : o.slots_available ? o.stretches_completed / o.slots_available : null;
   o.labor = payroll !== null && o.revenue ? payroll / o.revenue : null; o.cpd = o.open ? o.contacts / o.open : null; o.rpm = o.avgActive ? o.revenue / o.avgActive : null;
   const goals = sid ? [tgtOf(sid)] : dlStudios().map(l => tgtOf(l.id));
   const g = goals.reduce((n, t) => n + (+t.revenue_goal || 0), 0); o.goal = g ? g * 12 / 365 * days : null; o.gap = o.goal !== null ? o.revenue - o.goal : null; o.days = days;

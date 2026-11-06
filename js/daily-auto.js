@@ -5,7 +5,7 @@
 // Only the numbers ClubReady can answer are written. Revenue, refunds, payroll, reactivations and
 // available slots stay as managers typed them. A column is only touched when its report came with the upload.
 const AUTO_DAYS = 45;   // how far back each import refreshes (covers this week, this month and the last 30 days)
-const AUTO_DL = new Set(['leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'new_eft', 'cancellations', 'freezes', 'active_members', 'stretches_completed']);
+const AUTO_DL = new Set(['revenue', 'refunds', 'leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'renewals', 'new_eft', 'cancellations', 'freezes', 'active_members', 'stretches_completed', 'staff_util']);
 
 function buildDailyAuto() {
   const { leads, contacts, bookings, agreements, cancels, invoices } = imp.data;
@@ -37,11 +37,14 @@ function buildDailyAuto() {
     }
   }
 
-  // New agreements and the monthly billing they add (add-ons don't count as a sale)
+  // Agreements (add-ons don't count as a sale). Someone with previous agreements is a renewal; nobody before is a new sale.
   if (agreements) {
     want('agreements', 'new_eft');
+    const pk = agreements.length ? Object.keys(agreements[0]).find(k => /prev/i.test(k) && /agree/i.test(k)) : null;
+    if (pk) want('renewals');
     agreements.forEach(r => { if (!+r['User ID']) return; const item = String(r['Description'] || '').split('\n')[0]; if (/add-on/i.test(item)) return;
-      const t = toDT(r['Date']); if (!t) return; add(ymd(t), 'agreements'); add(ymd(t), 'new_eft', +r['New EFT'] || 0); });
+      const t = toDT(r['Date']); if (!t) return;
+      add(ymd(t), pk && (parseFloat(r[pk]) || 0) > 0 ? 'renewals' : 'agreements'); add(ymd(t), 'new_eft', +r['New EFT'] || 0); });
   }
 
   // Cancellations: people whose membership is now cancelled, on the day they cancelled (plan changes don't count).
@@ -77,7 +80,9 @@ async function saveDailyAuto() {
   const rows = buildDailyAuto(); if (!rows.length) return null;
   const groups = [rows.filter(r => 'active_members' in r), rows.filter(r => !('active_members' in r))].filter(g => g.length);
   for (const g of groups) for (let i = 0; i < g.length; i += 200) {
-    const { error } = await db.from('daily_log').upsert(g.slice(i, i + 200), { onConflict: 'studio_id,day' });
+    let { error } = await db.from('daily_log').upsert(g.slice(i, i + 200), { onConflict: 'studio_id,day' });
+    // Before sql/daily_auto.sql has been run there is no renewals column: save everything else and count renewals as sales
+    if (error && /renewals/.test(error.message)) ({ error } = await db.from('daily_log').upsert(g.slice(i, i + 200).map(({ renewals, ...r }) => ({ ...r, agreements: r.agreements + (renewals || 0) })), { onConflict: 'studio_id,day' }));
     if (error) return error;
   }
   DL.from = ''; DL.to = '';   // the Daily page reloads fresh next time it opens
