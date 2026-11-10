@@ -6,16 +6,17 @@ async function loadHome() {
   const now = new Date(), td = todayStr(), mo = ymd(new Date(now.getFullYear(), now.getMonth(), 1)), in14 = ymd(new Date(now.getTime() + 14 * DAY)), in30 = ymd(new Date(now.getTime() + 30 * DAY));
   const lead = ME.role !== 'staff', loc = ME.role === 'owner' ? null : ME.location_id;
   const byLoc = q => loc ? q.eq('studio_id', loc) : q;
+  const mgr = isMgrHome(), supOk = ME.role === 'owner' || (mgr && canPage('supplies'));
   const [ov, mine, ev, offs2, pend, sup, sitems, scounts, sthr, dprr, dir, pp, tpl, chk, msnap, nsnap, meta] = await Promise.all([
     db.rpc('task_overview', { p_month: mo, p_today: td }),
     db.from('time_off_requests').select('id,start_date,end_date,status').eq('user_id', ME.id).gte('end_date', td).in('status', ['pending', 'approved']).order('start_date').limit(3),
     db.from('events').select('*').or(`ends_on.gte.${td},event_date.gte.${td}`).lte('event_date', in30).order('event_date').limit(60),
     db.from('time_off_calendar').select('*').gte('end_date', td).lte('start_date', in30).order('start_date'),
     lead ? db.from('time_off_requests').select('id,user_id,status').eq('status', 'pending') : null,
-    ME.role === 'owner' ? db.from('supply_requests').select('*, supply_items(name)') : null,
-    ME.role === 'owner' ? db.from('supply_items').select('*').eq('active', true) : null,
-    ME.role === 'owner' ? db.from('supply_counts').select('*') : null,
-    ME.role === 'owner' ? db.from('supply_thresholds').select('*') : null,
+    supOk ? byLoc(db.from('supply_requests').select('*, supply_items(name)')) : null,
+    supOk ? db.from('supply_items').select('*').eq('active', true) : null,
+    supOk ? byLoc(db.from('supply_counts').select('*')) : null,
+    supOk ? byLoc(db.from('supply_thresholds').select('*')) : null,
     lead && canPage('dpr') ? db.from('daily_log').select('studio_id,day').gte('day', ymd(new Date(Date.now() - 30 * DAY))) : null,
     db.from('team_directory').select('id,full_name,location_id,birthday,start_date'),
     db.from('profile_positions').select('position_id').eq('user_id', ME.id),
@@ -27,11 +28,16 @@ async function loadHome() {
   // Reuse the calendar's data so the "coming up" list matches the Calendar page
   events = ev.data || []; offs = offs2.data || []; roster = dir.data || []; calTab = 'all'; calStudio = loc || '';
   const myPos = new Set((pp.data || []).map(x => x.position_id)), done = new Set((chk.data || []).map(x => x.template_id));
-  home = { t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').map(r => r.id) : [],
+  // Managers see their team's task progress: everyone at their studio except themselves
+  const team = mgr ? (dir.data || []).filter(p => p.location_id === ME.location_id && p.id !== ME.id).map(p => ({ p, s: (ov.data || []).find(x => x.user_id === p.id) })).filter(x => x.s && x.s.assigned) : [];
+  home = { team, t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').map(r => r.id) : [],
     sup: sup ? (sup.data || []) : [], sitems: sitems ? (sitems.data || []) : [], counts: scounts ? (scounts.data || []) : [], thr: sthr ? (sthr.data || []) : [], dpr: dprr ? (dprr.error ? { error: true } : (dprr.data || [])) : null,
     tasks: (tpl.data || []).filter(x => myPos.has(x.position_id)), done, ms: msnap ? (msnap.data || []) : null, ns: nsnap ? (nsnap.data || []) : null, meta: meta ? (meta.data || []) : [] };
   drawHome();
 }
+
+// Managers with a studio get a team view on the home page instead of their own tasks and time off
+const isMgrHome = () => ME.role === 'manager' && !!ME.location_id;
 
 // Counts for the attention row, using the same rules as the Members page
 function memberCounts() {
@@ -66,14 +72,16 @@ function drawHome() {
   }
   // supplies: compact list
   let supCard = '';
-  if (ME.role === 'owner') {
+  if (ME.role === 'owner' || (isMgrHome() && canPage('supplies'))) {
+    const own = ME.role === 'owner', sLocs = own ? locs : locs.filter(l => l.id === ME.location_id);
     const needs = H.sup.filter(r => r.status === 'needed'), ord = H.sup.filter(r => r.status === 'ordered');
-    const lowN = locs.reduce((n, l) => n + H.sitems.filter(it => spState(l.id, it, { thr: H.thr, counts: H.counts }).low && !H.sup.some(r => r.studio_id === l.id && r.item_id === it.id)).length, 0);
+    const lowN = sLocs.reduce((n, l) => n + H.sitems.filter(it => spState(l.id, it, { thr: H.thr, counts: H.counts }).low && !H.sup.some(r => r.studio_id === l.id && r.item_id === it.id)).length, 0);
     const qty = q => q ? String(q).replace(/^\s*low:?\s*have\s*(\d+)\s*$/i, '$1 left') : '';
     if (needs.length || lowN) supCard = `<div class="hcard hsup"><h3>Supplies to order <span class="hcount">${needs.length}</span></h3><ul class="hlist">` +
-      needs.slice(0, 5).map(r => `<li><b>${esc((r.supply_items && r.supply_items.name) || 'Item')}</b> <span class="muted">• ${esc(studio(r.studio_id))}${r.qty ? ' • ' + esc(qty(r.qty)) : ''}</span></li>`).join('') + '</ul>' +
+      needs.slice(0, 5).map(r => `<li><b>${esc((r.supply_items && r.supply_items.name) || 'Item')}</b> <span class="muted">${own ? '• ' + esc(studio(r.studio_id)) : ''}${r.qty ? ' • ' + esc(qty(r.qty)) : ''}</span></li>`).join('') + '</ul>' +
       (needs.length > 5 ? `<p class="muted hsmall">and ${needs.length - 5} more</p>` : '') + (lowN ? `<p class="hsmall warn-t">${lowN} more below minimum, not requested yet</p>` : '') + (ord.length ? `<p class="muted hsmall">${ord.length} on order</p>` : '') +
-      '<a class="hlink" href="#supplies">Review and order →</a></div>';
+      `<a class="hlink" href="#supplies">${own ? 'Review and order' : 'Open supplies'} →</a></div>`;
+    else if (!own) supCard = `<div class="hcard hsup"><h3>Supplies</h3><p class="hclear" style="margin:0">✓ Nothing needed right now.${ord.length ? ` ${ord.length} on order.` : ''}</p><a class="hlink" href="#supplies">Open supplies →</a></div>`;
   }
   $('alertCards').innerHTML = (tiles.length ? `<div class="hattn">${tiles.join('')}</div>` : (ME.role !== 'staff' ? '<p class="hclear">✓ All caught up. Nothing needs your attention right now.</p>' : ''));
   $('alertCards').hidden = false;
@@ -94,6 +102,20 @@ function drawHome() {
     '<p class="hsub">Mine</p>' + (H.mine.map(r => `<p class="hline">${rng(r)} <span class="pill ${pillCls(r.status)}" style="margin:0 0 0 .4rem">${r.status}</span></p>`).join('') || '<p class="lead" style="margin:0">Nothing scheduled.</p>') +
     '<a class="hlink" href="#timeoff">Request time off →</a></div>';
 
+  // ---- managers: team tasks and every request waiting on them ----
+  let teamCard = '', mgrOffCard = '';
+  if (isMgrHome()) {
+    const tn = H.team.reduce((a, x) => a + x.s.assigned, 0), tdn = H.team.reduce((a, x) => a + Math.min(x.s.done_today || 0, x.s.assigned), 0), tp = tn ? Math.round(100 * tdn / tn) : 0;
+    const rows = H.team.map(x => ({ name: x.p.full_name, n: x.s.assigned, d: Math.min(x.s.done_today || 0, x.s.assigned) })).sort((a, b) => a.d / a.n - b.d / b.n);
+    teamCard = `<div class="hcard"><h3>Team tasks</h3>` + (tn ? `<div class="tk-progress"><div class="tk-today"><b>${tp}%</b> done today <span class="muted">• ${tdn} of ${tn} tasks</span></div></div><div class="meter tk-meter" style="max-width:none;margin:.5rem 0 .8rem"><i style="width:${Math.min(tp, 100)}%"></i></div>` +
+        rows.slice(0, 6).map(r => `<p class="hline"><b>${esc(r.name.split(' ')[0])}</b> <span class="muted">${r.d >= r.n ? '✓ all done' : `${r.d} of ${r.n} • ${Math.round(100 * r.d / r.n)}%`}</span></p>`).join('') + (rows.length > 6 ? `<p class="muted hsmall">and ${rows.length - 6} more</p>` : '')
+      : '<p class="lead" style="margin:0">No tasks assigned to your team yet.</p>') + '<a class="hlink" href="#tasks">Open team tasks →</a></div>';
+    const waiting = offs.filter(o => H.pendIds.includes(o.id) && canDecide(o)).slice(0, 5), more = H.pendIds.length - waiting.length;
+    mgrOffCard = `<div class="hcard"><h3>Time off to approve${H.pendIds.length ? ` <span class="hcount">${H.pendIds.length}</span>` : ''}</h3>` +
+      (waiting.length ? waiting.map(o => `<div class="happ"><div><b>${esc(o.full_name)}</b> <span class="muted">${rng(o)}</span>${clashes(o).length ? `<small class="up-warn">Also out: ${esc(clashes(o).map(c => c.full_name.split(' ')[0]).join(', '))}</small>` : ''}</div><span><button class="sm" data-hdecide="approved" data-id="${o.id}">Approve</button> <button class="quiet sm" data-hdecide="denied" data-id="${o.id}">Decline</button></span></div>`).join('') + (more > 0 ? `<p class="muted hsmall">and ${more} more on the calendar</p>` : '')
+        : H.pendIds.length ? `<p class="lead" style="margin:0">${H.pendIds.length} waiting, further out than 30 days.</p>` : '<p class="hclear" style="margin:0">✓ No requests waiting.</p>') + '<a class="hlink" href="#calendar">Open the calendar →</a></div>';
+  }
+
   // ---- coming up: same list as the calendar, next 7 days ----
   const to = addD(td, 6), items = calItems(td, to), byDay = {};
   items.forEach(x => { const k = x.s < td ? td : x.s; (byDay[k] = byDay[k] || []).push(x); });
@@ -103,7 +125,9 @@ function drawHome() {
       return `<div class="up-day"><div class="up-date">${label(k)}${c ? `<span class="cov">${c.n} out at ${esc(studio(c.loc))}</span>` : ''}</div>` + byDay[k].map(x => `<div class="up-item ${x.k}"><span class="up-main"><i class="up-dot"></i><span>${esc(x.t)}${x.k === 'pend' ? ' <em>pending</em>' : ''}${x.e !== x.s ? ` <small>${x.k === 'off' || x.k === 'pend' ? 'until' : 'through'} ${fmt(x.e)}</small>` : ''}</span></span></div>`).join('') + '</div>'; }).join('')
     : '<p class="lead" style="margin:0">Nothing in the next 7 days.</p>') + '<a class="hlink" href="#calendar">Open the calendar →</a></div>';
 
-  $('myCards').innerHTML = (canHref('#tasks') ? taskCard : '') + (canHref('#timeoff') ? offCard : '') + (canHref('#calendar') ? calCard : '') + supCard;
+  $('myCards').innerHTML = isMgrHome()
+    ? (canHref('#tasks') ? teamCard : '') + mgrOffCard + (canHref('#calendar') ? calCard : '') + supCard
+    : (canHref('#tasks') ? taskCard : '') + (canHref('#timeoff') ? offCard : '') + (canHref('#calendar') ? calCard : '') + supCard;
 }
 
 $('myCards').addEventListener('change', async e => {
