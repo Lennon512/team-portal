@@ -25,7 +25,7 @@ const CORP = [['revenue', 'Revenue', 'usd'], ['eft', 'EFT collected', 'usd'], ['
 const RAW = [['gross_revenue', 'Gross revenue ($)'], ['draft', 'Draft ($)'], ['refunds', 'Refunds ($)'], ['leads', 'Leads'], ['scheduled', 'Demos scheduled'], ['demos', 'Demos completed'], ['agreements', 'Agreements'],
   ['cash_sales', 'Cash sales ($)'], ['eft_sales', 'EFT sales ($)'], ['avg_eft', 'Average EFT ($)'], ['staff_util', 'Staff utilization'], ['calls_per_day', 'Calls per day'], ['cancellations', 'Cancellations'], ['active_members', 'Active members']];
 const COLORS = ['#d9573f', '#2f5f8f', '#1f9d6a', '#b0683a', '#7a4fb3', '#c49a1a'];
-// Owners and general managers can see the All Stretch Zone and Compare tabs
+// Owners and general managers can see every studio, the All Stretch Zone tab and the Compare tab
 const netOk = () => ME.role === 'owner' || ME.role === 'manager';
 const PF = { rows: [], net: {}, corp: {}, netAll: {}, netStore: null, netChart: null, cmpIndex: null, cmp: { a: null, b: null, kpi: 'revenue', find: { a: '', b: '' } }, cmpChart: null, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '', projData: null, projScenario: null, projDom: null };
 
@@ -50,8 +50,9 @@ async function loadPerf() {
   (c.data || []).forEach(x => { const s = PF.corp[x.studio_id] = PF.corp[x.studio_id] || {}; (s[x.month] = s[x.month] || {})[x.kpi] = x; });
   const own = ME.role === 'owner', sids = [...new Set(PF.rows.map(r => r.studio_id))], mine = pfMonths().reverse(), ms = [...new Set([...mine, ...Object.keys(PF.net), ...Object.values(PF.corp).flatMap(o => Object.keys(o))])].sort().reverse();
   $('pfData').hidden = !own;
-  if (!own) { PF.studio = sids[0] || ''; if (!(netOk() && (PF.tab === 'master' || PF.tab === 'compare')) && PF.tab !== 'projection') PF.tab = 'score'; }
-  $('pfStudio').innerHTML = (own ? '<option value="">All six studios</option>' : '') + locs.filter(l => sids.includes(l.id)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+  if (!netOk()) { PF.studio = sids[0] || ''; if (PF.tab !== 'projection') PF.tab = 'score'; }
+  else if (!own && !PF.mgrInit) { PF.mgrInit = true; PF.studio = sids.includes(ME.location_id) ? ME.location_id : ''; }   // managers start on their own studio, then can pick any
+  $('pfStudio').innerHTML = (netOk() ? '<option value="">All six studios</option>' : '') + locs.filter(l => sids.includes(l.id)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
   $('pfStudio').value = PF.studio;
   $('pfMonth').innerHTML = ms.map(m => `<option value="${m}">${mLbl(m, 1)}</option>`).join('');
   if (!ms.includes(PF.month)) PF.month = mine[0] || ms[0] || '';
@@ -62,7 +63,7 @@ async function loadPerf() {
 
 function drawPerf() {
   updateRepTabs();
-  $('pfStudio').hidden = (PF.tab !== 'score' && PF.tab !== 'projection') || ME.role !== 'owner'; $('pfMonth').hidden = PF.tab === 'compare'; $('pfRange').hidden = PF.tab !== 'score';
+  $('pfStudio').hidden = (PF.tab !== 'score' && PF.tab !== 'projection') || !netOk(); $('pfMonth').hidden = PF.tab === 'compare'; $('pfRange').hidden = PF.tab !== 'score';
   if (PF.tab === 'score') drawScore(); else if (PF.tab === 'master') loadMaster(); else if (PF.tab === 'projection') { $('pfStudio').hidden = true; $('pfMonth').hidden = true; $('pfData').hidden = true; $('pfBody').innerHTML = '<div class="pcard"><h3>Projection</h3><p class="muted" style="margin:0">Coming soon. We\u2019ll design this together next.</p></div>'; } else drawCompare();
 }
 
@@ -162,7 +163,7 @@ function austinOverview(m) {
 }
 
 function drawChart() {
-  const K = KPI.find(x => x.k === PF.kpi), own = ME.role === 'owner';
+  const K = KPI.find(x => x.k === PF.kpi), own = netOk();
   if (typeof Chart === 'undefined') {
     if (document.readyState !== 'complete') { $('pfNote').textContent = 'Loading the chart...'; addEventListener('load', () => { if ($('pfChart')) drawChart(); }, { once: true }); }
     else $('pfNote').textContent = 'The chart library did not load. Check your connection or an ad blocker, then refresh.';
