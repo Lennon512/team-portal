@@ -25,6 +25,8 @@ const CORP = [['revenue', 'Revenue', 'usd'], ['eft', 'EFT collected', 'usd'], ['
 const RAW = [['gross_revenue', 'Gross revenue ($)'], ['draft', 'Draft ($)'], ['refunds', 'Refunds ($)'], ['leads', 'Leads'], ['scheduled', 'Demos scheduled'], ['demos', 'Demos completed'], ['agreements', 'Agreements'],
   ['cash_sales', 'Cash sales ($)'], ['eft_sales', 'EFT sales ($)'], ['avg_eft', 'Average EFT ($)'], ['staff_util', 'Staff utilization'], ['calls_per_day', 'Calls per day'], ['cancellations', 'Cancellations'], ['active_members', 'Active members']];
 const COLORS = ['#d9573f', '#2f5f8f', '#1f9d6a', '#b0683a', '#7a4fb3', '#c49a1a'];
+// Owners and general managers can see the All Stretch Zone and Compare tabs
+const netOk = () => ME.role === 'owner' || ME.role === 'manager';
 const PF = { rows: [], net: {}, corp: {}, netAll: {}, netStore: null, netChart: null, cmpIndex: null, cmp: { a: null, b: null, kpi: 'revenue', find: { a: '', b: '' } }, cmpChart: null, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '', projData: null, projScenario: null, projDom: null };
 
 const fv = (x, f) => x === null || x === undefined || isNaN(x) ? '-' : f === 'usd' ? '$' + Math.round(x).toLocaleString() : f === 'usd2' ? '$' + x.toFixed(2) : f === 'pct' ? (x * 100).toFixed(0) + '%' : f === 'dec' ? x.toFixed(1) : Math.round(x).toLocaleString();
@@ -47,8 +49,8 @@ async function loadPerf() {
   (b.data || []).forEach(x => (PF.net[x.month] = PF.net[x.month] || {})[x.kpi] = +x.value);
   (c.data || []).forEach(x => { const s = PF.corp[x.studio_id] = PF.corp[x.studio_id] || {}; (s[x.month] = s[x.month] || {})[x.kpi] = x; });
   const own = ME.role === 'owner', sids = [...new Set(PF.rows.map(r => r.studio_id))], mine = pfMonths().reverse(), ms = [...new Set([...mine, ...Object.keys(PF.net), ...Object.values(PF.corp).flatMap(o => Object.keys(o))])].sort().reverse();
-  $('pfData').hidden = !own; document.querySelector('#repTabs [data-t="master"]').hidden = !own;
-  if (!own) { PF.studio = sids[0] || ''; PF.tab = 'score'; }
+  $('pfData').hidden = !own;
+  if (!own) { PF.studio = sids[0] || ''; if (!(netOk() && (PF.tab === 'master' || PF.tab === 'compare')) && PF.tab !== 'projection') PF.tab = 'score'; }
   $('pfStudio').innerHTML = (own ? '<option value="">All six studios</option>' : '') + locs.filter(l => sids.includes(l.id)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
   $('pfStudio').value = PF.studio;
   $('pfMonth').innerHTML = ms.map(m => `<option value="${m}">${mLbl(m, 1)}</option>`).join('');
@@ -75,8 +77,8 @@ function updateRepTabs() {
   document.querySelector('#repTabs [data-t="enter"]').hidden = !canPage('dpr') || !(ME.role === 'owner' || (ME.role === 'manager' && ME.location_id));
   const perfOk = canPage('performance');
   document.querySelector('#repTabs [data-t="score"]').hidden = !perfOk;
-  document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || ME.role !== 'owner';
-  document.querySelector('#repTabs [data-t="compare"]').hidden = !perfOk || ME.role !== 'owner';
+  document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || !netOk();
+  document.querySelector('#repTabs [data-t="compare"]').hidden = !perfOk || !netOk();
   document.querySelector('#repTabs [data-t="projection"]').hidden = !perfOk;
 }
 function drawRepTabs() {
