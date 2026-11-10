@@ -50,8 +50,6 @@ async function loadStudio(idFromHash) {
 async function loadStudioGrid() {
   const [i, , req] = await Promise.all([db.from('studio_info').select('*'), loadPeople(), db.from('supply_requests').select('studio_id,status')]);
   sd.all = {}; (i.data || []).forEach(x => sd.all[x.location_id] = x); sd.allReq = req.data || [];
-  const paths = Object.values(sd.all).map(x => x.photo_path).filter(Boolean);
-  if (paths.length) { const { data } = await db.storage.from('studio-photos').createSignedUrls(paths, 3600); (data || []).forEach(x => { if (x.signedUrl) urls[x.path] = x.signedUrl; }); }
   drawStudioGrid();
 }
 
@@ -62,8 +60,7 @@ function drawStudioGrid() {
     (empty.length && locs.some(can) ? `<div class="tnudge"><span><b>${empty.length} studio${empty.length === 1 ? ' has' : 's have'} no info yet.</b> Add the address, phone and hours so the team can find them.</span></div>` : '') +
     `<div class="sgrid">${locs.map(l => { const i = sd.all[l.id] || {}, n = people.filter(p => p.location_id === l.id).length, st = openStatus(parseHours(i.hours));
       const out = teamX.offs.filter(o => o.location_id === l.id && o.start_date <= td && o.end_date >= td).length, need = sd.allReq.filter(r => r.studio_id === l.id).length;
-      return `<a class="scard" href="#studio/${l.id}"><div class="scard-ph">${urls[i.photo_path] ? `<img src="${esc(urls[i.photo_path])}" alt="">` : `<span>${esc(l.name[0])}</span>`}</div>
-        <div class="scard-b"><b>${esc(l.name)}</b>${st ? `<span class="sopen ${st.open ? 'yes' : ''}">${esc(st.t)}</span>` : ''}<small>${esc(i.address || 'No info yet')}</small>
+      return `<a class="scard" href="#studio/${l.id}"><div class="scard-b"><b>${esc(l.name)}</b>${st ? `<span class="sopen ${st.open ? 'yes' : ''}">${esc(st.t)}</span>` : ''}<small>${esc(i.address || 'No info yet')}</small>
         <div class="sstats"><span>${n} on the team</span>${out ? `<span class="tbadge out">${out} out today</span>` : ''}${need ? `<span class="tbadge tsoon">${need} supply request${need === 1 ? '' : 's'}</span>` : ''}</div></div></a>`; }).join('')}</div>`;
 }
 
