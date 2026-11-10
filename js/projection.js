@@ -32,7 +32,7 @@ function pjBase() {
 }
 
 async function loadProjection() {
-  const own = netOk();
+  const own = ME.role === 'owner';
   if (!own && ME.location_id) PF.studio = ME.location_id;
   const av = locs.filter(l => PF.rows.some(r => r.studio_id === l.id));
   if (!PF.studio || !av.some(l => l.id === PF.studio)) PF.studio = (av[0] || {}).id || '';
