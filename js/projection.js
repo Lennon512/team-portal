@@ -151,7 +151,7 @@ function fmtNet(v, f) {
 }
 
 async function loadMaster() {
-  if (ME.role !== 'owner') { $('pfBody').innerHTML = '<p class="lead">Only the owner can see the full Stretch Zone network.</p>'; return; }
+  if (!netOk()) { $('pfBody').innerHTML = '<p class="lead">Only owners and general managers can see the full Stretch Zone network.</p>'; return; }
   if (!PF.netAll[PF.month]) {
     $('pfBody').innerHTML = '<p class="lead">Loading the network...</p>';
     const { data, error } = await db.from('kpi_network_all').select('*').eq('month', PF.month).limit(1000);
