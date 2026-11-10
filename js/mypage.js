@@ -55,8 +55,6 @@ function drawHome() {
   // ---- needs your attention ----
   const tiles = [], mc = memberCounts();
   if (mc) {
-    if (mc.toCall) tiles.push(tile(mc.toCall, mc.anyInv ? 'Members to call' : 'Members not booked', mc.anyInv ? 'billing within 7 days, nothing booked' : 'nothing on the books', '#members', 'warm'));
-    if (mc.risk) tiles.push(tile(mc.risk, 'New members at risk', 'two or more warning signs', '#members', 'warm'));
     if (mc.stale.length) tiles.push(tile(mc.stale[0].n + ' days', 'Since ClubReady upload', esc(mc.stale.map(x => studio(x.sid)).slice(0, 3).join(', ')) + (ME.role === 'staff' ? '' : ' • upload new reports'), '#members', 'hot'));
   }
   if (H.pendIds.length) tiles.push(tile(H.pendIds.length, `Time-off request${H.pendIds.length === 1 ? '' : 's'} waiting`, 'approve below or on the calendar', '#calendar', 'warm'));
