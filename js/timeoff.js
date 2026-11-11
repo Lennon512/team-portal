@@ -5,24 +5,42 @@ const dayDiff = (a, b) => Math.round((new Date(b + 'T00:00') - new Date(a + 'T00
 
 const reqLoc = r => (r.profiles && r.profiles.location_id) || (to.dir[r.user_id] || {}).location_id;
 const nameList = a => { const n = a.map(x => String(x.full_name).split(' ')[0]); return n.length < 2 ? n.join('') : n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1]; };
-const apvFor = (loc, uid) => to.apv.filter(x => x.id !== uid && (x.role === 'owner' || (x.role === 'manager' && x.location_id === loc)));
-async function loadApv() { if (!to.apvLoaded) { const { data } = await db.from('time_off_approvers').select('*'); to.apv = data || []; to.apvLoaded = true; } }
+const isBot = x => /\bbot\b/i.test(x.full_name || '');
+const apvFor = (loc, uid) => to.apv.filter(x => x.id !== uid && !isBot(x) && (x.role === 'owner' || (x.role === 'manager' && x.location_id === loc)));
+async function loadApv() {
+  if (to.apvLoaded) return;
+  const [{ data }, ad] = await Promise.all([db.from('time_off_approvers').select('*'), db.from('time_off_admins').select('user_id')]);
+  to.apv = data || []; to.admins = ad.error ? null : (ad.data || []).map(x => x.user_id); to.apvLoaded = true;
+}
+// Double approval: Lennon or Kevin always, plus the studio lead when a staff member asks
+const toName = id => ((to.apv.find(x => x.id === id) || to.dir[id] || {}).full_name || 'a manager');
+const first = id => toName(id).split(' ')[0];
+const leadsFor = (loc, uid) => to.apv.filter(x => x.role === 'manager' && x.location_id === loc && x.id !== uid && !isBot(x));
+const isLeadUp = uid => { const p = to.apv.find(x => x.id === uid); return !!p && (p.role === 'manager' || p.role === 'owner'); };
+function waitLine(r, loc) {
+  if (!to.admins) return 'Waiting on ' + (nameList(apvFor(loc, r.user_id)) || 'a decision');
+  const adm = to.admins.filter(id => id !== r.user_id).map(first), leads = isLeadUp(r.user_id) ? [] : leadsFor(loc, r.user_id), done = [], wait = [];
+  if (leads.length) r.lead_ok_by ? done.push(first(r.lead_ok_by) + ' approved') : wait.push(nameList(leads));
+  r.admin_ok_by ? done.push(first(r.admin_ok_by) + ' approved') : wait.push(adm.join(' or ') || 'Lennon');
+  return [...done, wait.length ? 'Waiting on ' + wait.join(' and ') : ''].filter(Boolean).join(' \u2022 ');
+}
+const approvedBy = r => r.admin_ok_by && r.lead_ok_by && r.status === 'approved' ? ' by ' + first(r.lead_ok_by) + ' and ' + first(r.admin_ok_by)
+  : r.decided_by ? ' by ' + toName(r.decided_by) : '';
 const toInfo = r => [SHIFT[r.shift_type], r.can_cover && 'Can cover another shift: ' + r.can_cover, r.coverage && 'Coverage arranged: ' + r.coverage + (r.coverage_note ? ' (' + r.coverage_note + ')' : ''), r.note].filter(Boolean).map(esc).join(' \u2022 ');
 
 async function timeOffBadge() {
   if (!ME || ME.role === 'staff') return;
-  const { data } = await db.from('time_off_requests').select('id,user_id').eq('status', 'pending');
-  const n = (data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').length;
+  const [{ data }] = await Promise.all([db.from('time_off_requests').select('id,user_id').eq('status', 'pending'), loadToAct()]);
+  const n = (data || []).filter(r => toAct ? toAct.has(r.id) : (r.user_id !== ME.id || ME.role === 'owner')).length;
   $('navOff').textContent = 'Time off' + (n ? ` (${n})` : '');
 }
 
 async function showOff(id) {
   const o = offs.find(x => x.id === id); if (!o) return;
-  await loadApv();
+  await Promise.all([loadApv(), loadToAct()]);
   const { data: r } = await db.from('time_off_requests').select('*').eq('id', id).maybeSingle();
-  const decide = r && r.status === 'pending' && (ME.role === 'owner' || (ME.role === 'manager' && r.user_id !== ME.id));
-  const line = o.status === 'pending' ? 'Waiting on ' + (nameList(apvFor(o.location_id, o.user_id)) || 'a decision')
-    : 'Approved' + (r && r.decided_by ? ' by ' + ((to.apv.find(x => x.id === r.decided_by) || {}).full_name || 'a manager') : '');
+  const decide = r && canDecide(o);
+  const line = o.status === 'pending' ? waitLine(r || o, o.location_id) : 'Approved' + (r ? approvedBy(r) : '');
   $('dlgBody').innerHTML = `<h2>${esc(o.full_name)}</h2>
     <p class="lead" style="margin:.25rem 0 1rem">${esc(fmt(o.start_date) + (o.end_date !== o.start_date ? ' \u2013 ' + fmt(o.end_date) : ''))} \u2022 ${esc(studio(o.location_id))} \u2022 <span class="pill ${o.status === 'approved' ? '' : 'ice'}" style="margin:0">${o.status}</span></p>
     <p style="margin:0 0 .75rem">${esc(line)}</p>
@@ -46,7 +64,7 @@ async function loadTimeOff() {
   const r = r0.error ? await q('*') : r0;
   to.reqs = r.data || []; to.offs = o.data || []; to.err = r.error ? r.error.message : '';
   to.dir = {}; (d.data || []).forEach(x => to.dir[x.id] = x);
-  await loadApv(); drawTimeOff(); timeOffBadge();
+  await Promise.all([loadApv(), loadToAct()]); drawTimeOff(); timeOffBadge();
 }
 
 // Form state survives re-renders so a half-filled request isn't lost
@@ -59,10 +77,10 @@ const seg = (k, opts) => `<span class="tabs toseg" data-seg="${k}">${opts.map(([
 
 function drawTimeOff() {
   const F = to.f, td = todayStr();
-  const sline = r => r.status === 'pending' ? 'Waiting on ' + (nameList(apvFor(reqLoc(r), r.user_id)) || 'a decision')
-    : (r.status === 'approved' ? 'Approved' : 'Denied') + (r.decided_by ? ' by ' + ((to.apv.find(x => x.id === r.decided_by) || {}).full_name || 'a manager') : '') + (r.decided_at ? ' on ' + fmt(r.decided_at.slice(0, 10)) : '');
+  const sline = r => r.status === 'pending' ? waitLine(r, reqLoc(r))
+    : (r.status === 'approved' ? 'Approved' : 'Denied') + approvedBy(r) + (r.decided_at ? ' on ' + fmt(r.decided_at.slice(0, 10)) : '');
   const urgent = r => r.status === 'pending' && r.created_at && dayDiff(r.created_at.slice(0, 10), r.start_date) <= 14;
-  const pend = ME.role === 'staff' ? [] : to.reqs.filter(r => r.status === 'pending' && (r.user_id !== ME.id || ME.role === 'owner'));
+  const pend = ME.role === 'staff' ? [] : to.reqs.filter(r => canDecide(r));
   const mine = to.reqs.filter(r => r.user_id === ME.id), up = mine.filter(r => r.end_date >= td).sort((a, b) => a.start_date < b.start_date ? -1 : 1), past = mine.filter(r => r.end_date < td);
   const myRow = r => `<div class="toreq ${r.status}"><div><b>${toSpan(r)}</b> <span class="muted">${dayDiff(r.start_date, r.end_date) + 1} day${r.end_date !== r.start_date ? 's' : ''}</span><small>${toInfo(r)}</small><small class="toline">${esc(sline(r))}</small></div><div class="toacts">${toPill(r.status)}${r.status === 'pending' ? `<button class="quiet sm" data-a="cancel" data-id="${r.id}">Cancel</button>` : ''}</div></div>`;
   const apRow = r => { const cl = toClash(reqLoc(r), r.user_id, r.start_date, r.end_date, r.id);

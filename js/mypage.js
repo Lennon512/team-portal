@@ -26,11 +26,12 @@ async function loadHome() {
     lead && canPage('members') ? byLoc(db.from('new_member_snapshot').select('*')).limit(2000) : null,
     lead && canPage('members') ? byLoc(db.from('snapshot_meta').select('*')) : null]);
   // Reuse the calendar's data so the "coming up" list matches the Calendar page
+  await loadToAct();
   events = ev.data || []; offs = offs2.data || []; roster = dir.data || []; calTab = 'all'; calStudio = loc || '';
   const myPos = new Set((pp.data || []).map(x => x.position_id)), done = new Set((chk.data || []).map(x => x.template_id));
   // Managers see their team's task progress: everyone at their studio except themselves
   const team = mgr ? (dir.data || []).filter(p => p.location_id === ME.location_id && p.id !== ME.id).map(p => ({ p, s: (ov.data || []).find(x => x.user_id === p.id) })).filter(x => x.s && x.s.assigned) : [];
-  home = { team, t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => r.user_id !== ME.id || ME.role === 'owner').map(r => r.id) : [],
+  home = { team, t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => toAct ? toAct.has(r.id) : (r.user_id !== ME.id || ME.role === 'owner')).map(r => r.id) : [],
     sup: sup ? (sup.data || []) : [], sitems: sitems ? (sitems.data || []) : [], counts: scounts ? (scounts.data || []) : [], thr: sthr ? (sthr.data || []) : [], dpr: dprr ? (dprr.error ? { error: true } : (dprr.data || [])) : null,
     tasks: (tpl.data || []).filter(x => myPos.has(x.position_id)), done, ms: msnap ? (msnap.data || []) : null, ns: nsnap ? (nsnap.data || []) : null, meta: meta ? (meta.data || []) : [] };
   drawHome();
