@@ -92,8 +92,8 @@ function drawTimeOff() {
 // Live summary beside the form
 function toHint() {
   const F = to.f, el = $('toSum'); if (!el) return;
-  const s = F.s, e = F.e && F.e >= s ? F.e : s, ap = nameList(apvFor(ME.location_id, ME.id));
-  if (!s) { el.innerHTML = `<h4>Your request</h4><p class="muted">Pick your first day to see a summary here.</p>${ap ? `<p class="tosmall">Requests go to <b>${esc(ap)}</b>.</p>` : ''}`; return; }
+  const s = F.s, e = F.e && F.e >= s ? F.e : s, ap = APV_TXT;
+  if (!s) { el.innerHTML = `<h4>Your request</h4><p class="muted">Pick your first day to see a summary here.</p>${ap ? `<p class="tosmall">Requests go to <b>${esc(ap)}</b> for approval.</p>` : ''}`; return; }
   const n = dayDiff(s, e) + 1, fd = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const cl = toClash(ME.location_id, ME.id, s, e), soon = dayDiff(todayStr(), s) <= 14;
   el.innerHTML = `<h4>Your request</h4><p class="todays"><b>${fd(s)}${e !== s ? ' – ' + fd(e) : ''}</b><span>${n} day${n === 1 ? '' : 's'}${F.shift === 'partial' && F.from && F.till ? ' • out ' + t12h(F.from) + ' – ' + t12h(F.till) : F.shift === 'partial' ? ' • part of shift' : F.shift === 'flexible' ? ' • can adjust time' : ''}</span></p>` +
@@ -101,6 +101,8 @@ function toHint() {
     (cl.length ? `<p class="towarn">Also out at your studio then: ${cl.map(o => `<b>${esc(o.full_name.split(' ')[0])}</b> (${toSpan(o)}${o.status === 'pending' ? ', pending' : ''})`).join(', ')}.</p>` : '<p class="took">✓ No one else at your studio is out those days.</p>') +
     `<p class="tosmall">Coverage: ${F.co === 'yes' ? 'arranged' : F.co === 'other' ? 'other' : 'not yet'}${F.cn ? ' (' + esc(F.cn) + ')' : ''}</p>` + (ap ? `<p class="tosmall">Goes to <b>${esc(ap)}</b> for approval.</p>` : '');
 }
+// Who time off requests go to, shown on the request form
+const APV_TXT = 'Lennon and your studio lead';
 const t12h = t => { let [h, m] = t.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return m ? `${h}:${String(m).padStart(2, '0')} ${ap}` : `${h} ${ap}`; };
 
 async function sendTo() {
@@ -113,7 +115,7 @@ async function sendTo() {
   $('tSend').disabled = true;
   const { error } = await db.from('time_off_requests').insert(r);
   if (error) { $('tSend').disabled = false; $('tErr').textContent = 'Could not send. ' + error.message; return; }
-  const nl = nameList(apvFor(ME.location_id, ME.id)); to.msg = 'Request sent' + (nl ? ' to ' + esc(nl) : '') + '. Their decision will show under My requests.';
+  const nl = APV_TXT; to.msg = 'Request sent' + (nl ? ' to ' + esc(nl) : '') + '. Their decision will show under My requests.';
   to.f = { s: '', e: '', shift: 'full', from: '', till: '', cv: 'no', co: 'no', cn: '', n: '' }; loadTimeOff();
 }
 
