@@ -10,7 +10,7 @@ async function loadCal() {
   if (calStudio === null) calStudio = calTab === 'all' ? '' : (ME.location_id || '');
   const [e, o, r] = await Promise.all([db.from('events').select('*').order('event_date'), db.from('time_off_calendar').select('*'), db.from('team_directory').select('id,full_name,location_id,birthday,start_date')]);
   events = e.data || []; offs = o.data || []; roster = r.data || [];
-  drawCal();
+  await loadToAct(); drawCal();
 }
 
 function celItems(d, sf) {
@@ -33,7 +33,16 @@ function holidays(y) {
   const last = (m, wd) => { const d = new Date(y, m + 1, 0); d.setDate(d.getDate() - ((d.getDay() - wd + 7) % 7)); return ymd(d); };
   return [[`${y}-01-01`, 'New Year’s Day'], [last(4, 1), 'Memorial Day'], [`${y}-07-04`, 'Independence Day'], [nth(8, 1, 1), 'Labor Day'], [nth(10, 4, 4), 'Thanksgiving'], [`${y}-12-24`, 'Christmas Eve'], [`${y}-12-25`, 'Christmas Day'], [`${y}-12-31`, 'New Year’s Eve']];
 }
-const canDecide = o => o.status === 'pending' && (ME.role === 'owner' || (ME.role === 'manager' && o.location_id === ME.location_id && o.user_id !== ME.id));
+// Double approval: toAct holds the pending requests this person still needs to sign off on
+// (from the database). If that lookup isn't set up yet, fall back to the old owner/manager rule.
+let toAct = null;
+async function loadToAct() {
+  if (!ME || ME.role === 'staff') { toAct = new Set(); return; }
+  const { data, error } = await db.rpc('time_off_to_act');
+  toAct = error ? null : new Set((data || []).map(x => x && typeof x === 'object' ? Object.values(x)[0] : x));
+}
+const canDecide = o => o.status === 'pending' && (toAct ? toAct.has(o.id)
+  : (ME.role === 'owner' || (ME.role === 'manager' && (o.location_id || (typeof reqLoc === 'function' ? reqLoc(o) : null)) === ME.location_id && o.user_id !== ME.id)));
 // Other people at the same studio who are out (or asking to be) during the same days
 const clashes = o => offs.filter(x => x.id !== o.id && x.user_id !== o.user_id && x.location_id === o.location_id && x.start_date <= o.end_date && x.end_date >= o.start_date);
 
