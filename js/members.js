@@ -110,6 +110,7 @@ function drawMem() {
   $('memWin').hidden = mem.g !== 'list' || mem.sec === 'lead' || mem.sec === 'cx' || mem.sec === 'fz'; $('memBill').hidden = true;
   $('memMine').closest('label').hidden = true; mem.mine = false;   // "Mine only" is turned off on every tab
   $('memFind').placeholder = mem.sec === 'lead' ? 'Find a lead' : 'Find a member';
+  $('memExtra').innerHTML = '';   // tab-specific filters that sit on the same line as Find (Leads uses this)
   if (mem.sec === 'lead') { $('memSort').hidden = true; return drawLeads(); }
   if (mem.sec === 'cx' || mem.sec === 'fz') { $('memSort').hidden = true; return drawCx(); }
   if (mem.g === 'list') { $('memSort').hidden = true; return drawNew(); }

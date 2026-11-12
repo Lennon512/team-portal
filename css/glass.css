@@ -799,3 +799,7 @@ a.htask { text-decoration:none; color:inherit; }
 .tk-off b { font-size:1.1rem; }
 .tk-off p { margin:.35rem 0 .6rem; color:var(--muted); }
 .tg th.off, .tg td.off { background:rgba(38,30,20,.05); }
+/* Tab-specific filters on the same line as Find */
+.mem-extra { display:contents; }
+.mem-extra:empty { display:none; }
+.mem-extra .ldfilters { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:0; }
