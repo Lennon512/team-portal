@@ -1,7 +1,7 @@
 // ---------- Members (ClubReady reports) ----------
 const DAY = 864e5;
 let mem = { sec: 'risk', g: 'attn', studio: '', rows: [], nrows: [], nt: {}, staff: [], notes: {}, contacts: {}, meta: null, sort: 'credits', dir: 1, find: '', mine: false, win: 60, bill: (() => { try { return +localStorage.getItem('memBillDays') || 30; } catch (_) { return 30; } })(), quick: null, form: null, doneOpen: false, gradOpen: false, editNote: null };
-const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices']], new: [['list', 'First 30 days'], ['check', 'Billing check']], lead: [['list', 'Leads']], cx: [['list', 'Cancellations']], fz: [['list', 'Freezes']] };
+const SUBS = { risk: [['attn', 'Not booked'], ['member', 'All upcoming invoices']], renew: [['list', 'Running low or out']], new: [['list', 'First 30 days'], ['check', 'Billing check']], lead: [['list', 'Leads']], cx: [['list', 'Cancellations']], fz: [['list', 'Freezes']] };
 let imp = { data: {}, store: null, asOf: null };
 const daysAgo = s => s ? Math.floor((new Date(todayStr() + 'T00:00') - new Date(s + 'T00:00')) / DAY) : null;
 const lc = r => { const a = (mem.contacts[r.club_id] || [])[0], x = a ? a.contacted_on : null, y = r.last_contact; return x && y ? (x > y ? x : y) : (x || y); };
@@ -74,7 +74,7 @@ async function loadMem() {
   drawMem();
 }
 
-const tile = (n, l, sub, key) => key ? `<button class="mtile${mem.g + '|' + (mem.quick || '') === key ? ' on' : ''}" data-tile="${key}"><b>${n}</b>${l}${sub ? `<span>${sub}</span>` : ''}</button>` : `<div><b>${n}</b>${l}${sub ? `<br><span>${sub}</span>` : ''}</div>`;
+const tile = (n, l, sub, key) => key ? `<button class="mtile${(mem.sec === 'renew' ? 'R' : mem.g) + '|' + (mem.quick || '') === key ? ' on' : ''}" data-tile="${key}"><b>${n}</b>${l}${sub ? `<span>${sub}</span>` : ''}</button>` : `<div><b>${n}</b>${l}${sub ? `<br><span>${sub}</span>` : ''}</div>`;
 // The member success list: billing in the window, frozen excluded, nothing booked
 const notBooked = () => mem.rows.filter(r => r.grp === 'member' && !r.frozen && billOk(r) && !r.next_booking).map(r => ({ r, c: calc(r) }));
 function sumRisk() {
@@ -106,12 +106,13 @@ function drawMem() {
   document.querySelectorAll('#memTabs button').forEach(b => b.classList.toggle('on', b.dataset.sec === mem.sec));
   $('memSubs').hidden = SUBS[mem.sec].length < 2;
   $('memSubs').innerHTML = SUBS[mem.sec].map(x => `<button data-g="${x[0]}" class="${mem.g === x[0] ? 'on' : ''}">${x[0] === 'member' && mem.rows.length && !hasInv() ? 'All members' : x[1]}</button>`).join('');
-  mem.sec === 'risk' ? sumRisk() : mem.sec === 'lead' ? sumLeads() : mem.sec === 'cx' ? sumCx() : mem.sec === 'fz' ? sumFz() : sumNew();
+  mem.sec === 'risk' ? sumRisk() : mem.sec === 'renew' ? sumRenew() : mem.sec === 'lead' ? sumLeads() : mem.sec === 'cx' ? sumCx() : mem.sec === 'fz' ? sumFz() : sumNew();
   $('memWin').hidden = mem.g !== 'list' || mem.sec === 'lead' || mem.sec === 'cx' || mem.sec === 'fz'; $('memBill').hidden = true;
   $('memMine').closest('label').hidden = true; mem.mine = false;   // "Mine only" is turned off on every tab
   $('memFind').placeholder = mem.sec === 'lead' ? 'Find a lead' : 'Find a member';
   $('memExtra').innerHTML = '';   // tab-specific filters that sit on the same line as Find (Leads uses this)
   if (mem.sec === 'lead') { $('memSort').hidden = true; return drawLeads(); }
+  if (mem.sec === 'renew') { $('memSort').hidden = true; $('memWin').hidden = true; return drawRenew(); }
   if (mem.sec === 'cx' || mem.sec === 'fz') { $('memSort').hidden = true; return drawCx(); }
   if (mem.g === 'list') { $('memSort').hidden = true; return drawNew(); }
   const g = mem.g === 'attn' ? 'member' : mem.g, q = mem.find.toLowerCase();
@@ -131,6 +132,45 @@ function drawMem() {
   const cols = g === 'member' && !hasInv() ? COLS.member.filter(c => c[0] !== 'Next invoice' && c[0] !== 'Pace') : COLS[g];
   $('memBody').innerHTML = mem.meta ? `<p class="lead">${blurb}</p>` + (rows.length ? `<div class="table-wrap"><table class="mt"><thead><tr>${cols.map(c => { const k = g === 'member' && SORTABLE[c[0]]; return k ? `<th data-sort=\"${k}\" class=\"${mem.sort === k ? 'on' : ''}\" title=\"Sort by ${c[0].toLowerCase()}\">${c[0]}${mem.sort === k ? (mem.dir > 0 ? ' \u25BE' : ' \u25B4') : ''}</th>` : `<th>${c[0]}</th>`; }).join('')}</tr></thead><tbody>${rows.map(x => `<tr data-m="${x.r.club_id}">${cols.map(c => c[1](x)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="lead">Nothing here.</p>')
     : '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>';
+}
+
+// ----- Renewals: no recurring billing and running low on credits, or recently ran out -----
+const RN_LOW = 2, RN_DAYS = 14, RN_OUT = 60;
+function renewCalc(r) {
+  const cr = r.credits || 0, rate = (r.sessions_30d || 0) / 30, left = cr > 0 && rate > 0 ? Math.round(cr / rate) : null, dl = daysAgo(r.last_session);
+  const st = cr === 0 ? (dl !== null && dl <= RN_OUT ? 'out' : null) : (cr <= RN_LOW || (left !== null && left <= RN_DAYS)) ? 'low' : null;
+  return { cr, left, dl, dc: daysAgo(lc(r)), st };
+}
+const renewList = () => mem.rows.filter(r => r.grp === 'package' && !r.frozen).map(r => ({ r, c: renewCalc(r) })).filter(x => x.c.st);
+function sumRenew() {
+  if (!mem.meta) { $('memSum').innerHTML = ''; return; }
+  const L = renewList(), low = L.filter(x => x.c.st === 'low'), out = L.filter(x => x.c.st === 'out');
+  $('memSum').innerHTML = tile(L.length, 'Renewal opportunities', 'no recurring billing', 'R|') + tile(low.length, 'Running low', `${RN_LOW} or fewer credits, or about ${RN_DAYS / 7} weeks left`, 'R|low') +
+    tile(out.length, 'Recently ran out', `0 credits, visited in the last ${RN_OUT} days`, 'R|out') + tile(L.filter(x => !x.r.next_booking).length, 'Nothing booked', 'of the list', 'R|nobook');
+}
+const leftTxt = c => c.st === 'out' ? '<span class="pill warn">Out of credits</span>' : c.left === null ? '<span class="muted">No recent visits</span>' : c.left <= 7 ? `About ${Math.max(c.left, 1)} day${c.left > 1 ? 's' : ''}` : `About ${Math.round(c.left / 7)} week${Math.round(c.left / 7) > 1 ? 's' : ''}`;
+function drawRenew() {
+  if (!mem.meta) { $('memBody').innerHTML = '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>'; return; }
+  if (!hasInv()) { $('memBody').innerHTML = '<p class="lead"><b>Add the Invoices Coming Due report</b> in Upload reports so we can tell who has recurring billing. Renewal opportunities are the people who don\u2019t.</p>'; return; }
+  const q = mem.find.toLowerCase(), quick = mem.quick;
+  const list = renewList().filter(x => (!q || x.r.name.toLowerCase().includes(q)) && (!quick || (quick === 'nobook' ? !x.r.next_booking : x.c.st === quick)));
+  const by = { name: (a, b) => String(a.r.name).localeCompare(String(b.r.name)), credits: (a, b) => a.c.cr - b.c.cr || (a.c.left ?? 1e9) - (b.c.left ?? 1e9),
+    left: (a, b) => (a.c.st === 'out' ? -1 : a.c.left ?? 1e9) - (b.c.st === 'out' ? -1 : b.c.left ?? 1e9), last: (a, b) => (b.r.last_session || '') < (a.r.last_session || '') ? -1 : 1,
+    visits: (a, b) => (b.r.sessions_30d || 0) - (a.r.sessions_30d || 0), next: (a, b) => (a.r.next_booking || 'z') < (b.r.next_booking || 'z') ? -1 : 1,
+    contact: (a, b) => (lc(a.r) || '') < (lc(b.r) || '') ? -1 : 1 };
+  const key = by[mem.rsort] ? mem.rsort : 'credits', dir = mem.rdir || 1;
+  list.sort((a, b) => dir * by[key](a, b) || by.credits(a, b));
+  const th = (label, k) => `<th data-rsort="${k}" class="${key === k ? 'on' : ''}" title="Sort by ${label.toLowerCase()} (click again to flip)">${label}${key === k ? (dir > 0 ? ' \u25BE' : ' \u25B4') : ''}</th>`;
+  const qt = { low: 'running low', out: 'recently ran out', nobook: 'with nothing booked' }[quick];
+  $('memBody').innerHTML = `<p class="lead mem-lead"><b>${list.length}</b> ${list.length === 1 ? 'person' : 'people'} with no recurring billing who ${quick === 'out' ? 'ran out of credits recently' : quick === 'low' ? 'are running low on credits' : 'are running low on credits or ran out recently'}${quick === 'nobook' ? ', with nothing booked' : ''}. ` +
+      (qt ? '<button class="linkish" data-quick="">Show all</button> ' : '') + 'Good people to offer a membership or a new package. Click someone to add a note or assign them.</p>' +
+    (list.length ? `<div class="table-wrap"><table class="mt nb"><thead><tr>${th('Member', 'name')}${th('Credits', 'credits')}${th('Left at their pace', 'left')}${th('Last visit', 'last')}${th('Visits (30 days)', 'visits')}${th('Next booked', 'next')}${th('Last contact', 'contact')}<th>Assigned</th></tr></thead><tbody>` +
+      list.map(({ r, c }) => `<tr data-m="${r.club_id}"><td><b>${esc(r.name)}</b>${r.detail && r.detail !== 'No recurring billing' ? `<div class="why">${esc(r.detail)}</div>` : ''}</td>
+        <td class="num${c.cr <= 1 ? ' lowc' : ''}">${c.cr}</td><td>${leftTxt(c)}</td>
+        <td>${dateChip(r.last_session, c.dl, [7, 30, 60, 90], 'None on record')}</td><td class="num">${r.sessions_30d || 0}</td>
+        <td>${r.next_booking ? fmt(r.next_booking) : '<span class="muted">Nothing booked</span>'}</td>
+        <td>${dateChip(lc(r), c.dc, [7, 14, 30, 60], 'Never')}</td><td>${asg(r) || '<span class="muted">-</span>'}</td></tr>`).join('') + '</tbody></table></div>'
+      : '<p class="lead">Nobody right now. This fills in from your latest ClubReady upload.</p>');
 }
 
 // ----- Not booked: everyone billing soon with nothing on the books -----
@@ -373,6 +413,16 @@ function buildRows() {
     const q = L.find(x => x.quick), p = L.find(x => x.pkg);
     if (q || p) mk(id, 'package', { signed_on: ymd((q || p).when), detail: q ? 'Cancelled membership ' + (q.hrs <= 1 ? 'within an hour' : 'about ' + q.hrs + ' hrs') + ' after signing up' : p.item.replace(/^1 x /, '').replace(/\s+T2$/, '') });
   });
+  // Renewal opportunities: nothing recurring (no upcoming invoice, not frozen), credits running low or recently out.
+  // Saved in the 'package' group (people without recurring billing) so they show on the Renewals tab.
+  if (invoices.length) {
+    const have2 = new Set(rows.map(r => r.club_id)), recent = d => d && (new Date(asOf + 'T00:00') - new Date(d + 'T00:00')) / DAY <= 60;
+    new Set([...Object.keys(credits), ...Object.keys(bk)].map(Number)).forEach(id => {
+      if (!id || have2.has(id) || charged[id]) return;
+      const cr = credits[id] || 0, b = bk[id] || {};
+      if (cr > 0 || recent(b.last)) mk(id, 'package', { detail: 'No recurring billing' });
+    });
+  }
   imp.newRows = [];
   Object.keys(ag).forEach(k => {
     const id = +k, L = ag[k].filter(x => x.when && !x.addon && !/single session/i.test(x.item)); if (!L.length) return;
@@ -387,7 +437,7 @@ function buildRows() {
 
 $('memTabs').onclick = e => { const b = e.target.closest('[data-sec]'); if (b) { mem.sec = b.dataset.sec; mem.g = SUBS[mem.sec][0][0]; mem.quick = null; drawMem(); } };
 $('memSubs').onclick = e => { const b = e.target.closest('[data-g]'); if (b) { mem.g = b.dataset.g; mem.quick = null; mem.form = null; drawMem(); } };
-$('memSum').onclick = e => { const t = e.target.closest('[data-tile]'); if (!t) return; const [g, q] = t.dataset.tile.split('|'); if (g === 'L') { mem.sec = 'lead'; mem.g = 'list'; leadTile(q); drawMem(); return; } if (g === 'C') { mem.sec = 'cx'; mem.g = 'list'; cxTile(q); drawMem(); return; } if (g === 'F') { mem.sec = 'fz'; mem.g = 'list'; fzTile(q); drawMem(); return; } if (q === 'past') { mem.sec = 'new'; mem.g = 'list'; mem.quick = null; mem.gradOpen = true; drawMem(); const d = $('nmPast'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } mem.sec = g === 'list' ? 'new' : 'risk'; mem.g = g; mem.quick = q || null; mem.form = null; drawMem(); };
+$('memSum').onclick = e => { const t = e.target.closest('[data-tile]'); if (!t) return; const [g, q] = t.dataset.tile.split('|'); if (g === 'L') { mem.sec = 'lead'; mem.g = 'list'; leadTile(q); drawMem(); return; } if (g === 'C') { mem.sec = 'cx'; mem.g = 'list'; cxTile(q); drawMem(); return; } if (g === 'R') { mem.sec = 'renew'; mem.g = 'list'; mem.quick = q || null; drawMem(); return; } if (g === 'F') { mem.sec = 'fz'; mem.g = 'list'; fzTile(q); drawMem(); return; } if (q === 'past') { mem.sec = 'new'; mem.g = 'list'; mem.quick = null; mem.gradOpen = true; drawMem(); const d = $('nmPast'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; } mem.sec = g === 'list' ? 'new' : 'risk'; mem.g = g; mem.quick = q || null; mem.form = null; drawMem(); };
 $('memWin').onchange = e => { mem.win = +e.target.value; drawMem(); };
 $('memMine').onchange = e => { mem.mine = e.target.checked; drawMem(); };
 $('memBody').onchange = async e => {
@@ -411,6 +461,7 @@ $('memStudio').onchange = e => { mem.studio = e.target.value; loadMem(); };
 $('memUp').onclick = upForm;
 $('memBody').onclick = e => {
   const at = s => e.target.closest(s);
+  const rs = at('th[data-rsort]'); if (rs) { if (mem.rsort === rs.dataset.rsort) mem.rdir = -(mem.rdir || 1); else { mem.rsort = rs.dataset.rsort; mem.rdir = 1; } drawMem(); return; }
   const th = at('th[data-sort]'); if (th) { if (mem.sort === th.dataset.sort) mem.dir = -mem.dir; else { mem.sort = th.dataset.sort; mem.dir = 1; } drawMem(); return; }
   const qk = at('[data-quick]'); if (qk) { mem.quick = qk.dataset.quick || null; drawMem(); return; }
   const en = at('[data-editnote]'); if (en) { mem.editNote = en.dataset.editnote; drawNew(); return; }
