@@ -2,6 +2,11 @@
 let tk = { tab: 'mine', month: new Date(), mode: 'day', day: ymd(new Date()), uid: null, who: '', studio: '', rows: [], done: new Set(), doneOpen: false, open: new Set(), ovFilter: 'all', ov: null, mg: null, openPos: new Set(), edit: null };
 tk.month.setDate(1);
 let positions = [], templates = [];
+// Usual work days per person (1 = Mon ... 7 = Sun). null = schedules not set up yet; no entry = works every day.
+let sched = null;
+const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const isoDow = d => (new Date(d + 'T00:00').getDay() + 6) % 7 + 1;
+const worksOn = (uid, d) => !sched || !sched[uid] || sched[uid].includes(isoDow(d));
 const todayStr = () => ymd(new Date());
 const dim = d => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 const isCur = () => ymd(tk.month).slice(0, 7) === todayStr().slice(0, 7);
@@ -36,8 +41,9 @@ const dayWord = d => d === todayStr() ? 'today' : d === addDays(todayStr(), -1) 
 function fitDay() { if (tk.day.slice(0, 7) !== ymd(tk.month).slice(0, 7)) tk.day = isCur() ? todayStr() : ymd(new Date(tk.month.getFullYear(), tk.month.getMonth() + 1, 0)); }
 
 async function loadTasks() {
-  const [p, t] = await Promise.all([db.from('positions').select('*').order('name'), db.from('task_templates').select('*').eq('active', true).order('sort_order')]);
+  const [p, t, ws] = await Promise.all([db.from('positions').select('*').order('name'), db.from('task_templates').select('*').eq('active', true).order('sort_order'), db.from('work_schedules').select('user_id,days')]);
   positions = p.data || []; templates = t.data || [];
+  sched = ws.error ? null : Object.fromEntries((ws.data || []).map(x => [x.user_id, x.days || []]));
   if (tk.tab === 'manage' && ME.role !== 'owner') tk.tab = 'mine';
   if (tk.tab === 'team' && ME.role === 'staff') tk.tab = 'mine';
   drawTaskBar();
@@ -156,7 +162,8 @@ function paintStats() {
     const all = n && dn >= n, dp = n ? Math.round(100 * dn / n) : 0, w = dayWord(tk.day), isToday = tk.day === td;
     el.innerHTML = who + (all ? `<div class="tk-party" role="status"><span class="tk-party-emoji" aria-hidden="true">\uD83C\uDF89</span><div><b>All done ${w}!</b><small>${n} of ${n} tasks checked off. Nice work.</small></div></div>` : '') +
       `<div class="tk-progress"><div class="tk-today"><b>${dn} of ${n}</b> done ${w}</div><div class="meter tk-meter"><i style="width:${Math.min(dp, 100)}%"></i></div></div><p class="tk-month">${monthLine}</p>` +
-      (!isToday && !tk.ro ? '<p class="tk-month">You are looking at a past day. Anything you check here is saved for that day.</p>' : '');
+      (!isToday && !tk.ro ? '<p class="tk-month">You are looking at a past day. Anything you check here is saved for that day.</p>' : '') +
+      (!worksOn(tk.uid, tk.day) ? `<p class="tk-month">Not a scheduled work day${tk.ro ? ' for ' + esc(tk.who.split(' ')[0]) : ''}, so ${isToday ? 'today' : 'this day'} doesn\u2019t count toward the monthly score.</p>` : '');
     return;
   }
   if (cur) {
@@ -186,14 +193,14 @@ async function loadOverview() {
   (pp.data || []).forEach(x => (pos[x.user_id] = pos[x.user_id] || []).push((positions.find(p => p.id === x.position_id) || {}).name));
   const people = (pe.data || []).filter(u => !tk.studio || u.location_id === tk.studio).map(u => {
     const s = stat[u.id], n = s && s.assigned ? s.assigned : 0, dn = n ? Math.min((dstat[u.id] || {}).done_today || 0, n) : 0;
-    return { u, sets: pos[u.id] || [], n, dn, pct: !n ? null : sc.error ? mtd(s.done_month, s.done_today, n) : s.pct, st: !n ? 'none' : dn >= n ? 'done' : dn > 0 ? 'prog' : 'zero' };
+    return { u, sets: pos[u.id] || [], n, dn, pct: !n ? null : sc.error ? mtd(s.done_month, s.done_today, n) : s.pct, st: !n ? 'none' : dn >= n ? 'done' : !worksOn(u.id, day) ? 'off' : dn > 0 ? 'prog' : 'zero' };
   }).filter(r => sc.error || stat[r.u.id]);   // the database only returns people this person may see
   tk.ov = people; renderOverview();
 }
 
 function renderOverview() {
   const day = tk.day, past = day !== todayStr(), w = dayWord(day), people = tk.ov || [];
-  const ORDER = { zero: 0, prog: 1, done: 2 }, LBL = { zero: past ? 'Not done' : 'Not started', prog: past ? 'Partly done' : 'In progress', done: 'All done' };
+  const ORDER = { zero: 0, prog: 1, done: 2, off: 3 }, LBL = { zero: past ? 'Not done' : 'Not started', prog: past ? 'Partly done' : 'In progress', done: 'All done', off: past ? 'Not scheduled' : 'Off today' };
   const active = people.filter(r => r.st !== 'none').sort((a, b) => ORDER[a.st] - ORDER[b.st] || a.dn / a.n - b.dn / b.n || (a.pct ?? 999) - (b.pct ?? 999) || String(a.u.full_name).localeCompare(b.u.full_name));
   const none = people.filter(r => r.st === 'none');
   const cnt = k => active.filter(r => r.st === k).length;
@@ -203,7 +210,7 @@ function renderOverview() {
   const chip = (k, label, n) => `<button class="ov-chip ${k}${tk.ovFilter === k ? ' on' : ''}" data-ovf="${k}"><b>${n}</b> ${label}</button>`;
   const ini = u => esc((u.full_name || u.email || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase());
   let h = !active.length ? '<p class="lead">No one has tasks assigned yet.' + (ME.role === 'owner' ? ' Set them up in <button class="linkish" data-gotab="manage">Manage task sets</button>.' : '') + '</p>' :
-    `<div class="ov-chips">${chip('all', 'everyone', active.length)}${chip('zero', LBL.zero.toLowerCase(), cnt('zero'))}${chip('prog', LBL.prog.toLowerCase(), cnt('prog'))}${chip('done', 'all done', cnt('done'))}` +
+    `<div class="ov-chips">${chip('all', 'everyone', active.length)}${chip('zero', LBL.zero.toLowerCase(), cnt('zero'))}${chip('prog', LBL.prog.toLowerCase(), cnt('prog'))}${chip('done', 'all done', cnt('done'))}${cnt('off') ? chip('off', past ? 'not scheduled' : 'off today', cnt('off')) : ''}` +
     (avg !== null ? `<span class="ov-avg">Team average this month: <b>${avg}%</b></span>` : '') + `</div>
     <p class="lead ov-lead">Who still has tasks left ${w}. Tap a person to open their checklist${past ? ' for that day' : ''}.</p>
     <div class="ov-list">` + shown.map(r => `<button class="ov-row" data-row="${r.u.id}">
@@ -253,7 +260,10 @@ function renderManage() {
     positions.map(card).join('') +
     '<div class="mg-newpos"><input id="newPos" placeholder="New position, e.g. Sales" aria-label="New position name"><button class="sm" id="addPos">Add position</button></div>' +
     `<h3 class="sub" style="margin-top:2rem">Who gets which set</h3><p class="lead" style="margin-bottom:.8rem">Tick a box to give someone that position’s checklist.</p><div class="cal-wrap"><table class="tg mg-who"><thead><tr><th class="tt">Person</th>${positions.map(p => `<th>${esc(p.name)}</th>`).join('')}</tr></thead><tbody>` +
-    pe.map(u => `<tr><td class="tt">${esc(u.full_name || u.email)}</td>${positions.map(p => `<td><input type="checkbox" data-u="${u.id}" data-p="${p.id}" aria-label="${esc(p.name)} for ${esc(u.full_name || u.email)}" ${has.has(u.id + '|' + p.id) ? 'checked' : ''}></td>`).join('')}</tr>`).join('') + '</tbody></table></div>';
+    pe.map(u => `<tr><td class="tt">${esc(u.full_name || u.email)}</td>${positions.map(p => `<td><input type="checkbox" data-u="${u.id}" data-p="${p.id}" aria-label="${esc(p.name)} for ${esc(u.full_name || u.email)}" ${has.has(u.id + '|' + p.id) ? 'checked' : ''}></td>`).join('')}</tr>`).join('') + '</tbody></table></div>' +
+    `<h3 class="sub" style="margin-top:2rem">Usual work days</h3><p class="lead" style="margin-bottom:.8rem">${sched ? 'Untick the days someone doesn\u2019t usually work. Tasks only count on their work days, and approved time off is skipped too.' : 'Run task_schedules.sql in Supabase to turn on work days.'}</p>` +
+    (sched ? `<div class="cal-wrap"><table class="tg mg-who"><thead><tr><th class="tt">Person</th>${WD.map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>` +
+      pe.map(u => `<tr><td class="tt">${esc(u.full_name || u.email)}</td>${WD.map((d, i) => `<td><input type="checkbox" data-wdu="${u.id}" data-wdd="${i + 1}" aria-label="${esc(u.full_name || u.email)} works ${d}" ${!sched[u.id] || sched[u.id].includes(i + 1) ? 'checked' : ''}></td>`).join('')}</tr>`).join('') + '</tbody></table></div>' : '');
   const ed = $('mgEdit'); if (ed) { ed.focus(); ed.setSelectionRange(ed.value.length, ed.value.length); }
 }
 
@@ -363,6 +373,13 @@ $('taskBody').addEventListener('keydown', e => {
 });
 $('taskBody').onchange = async e => {
   const c = e.target;
+  if (c.dataset.wdu) {   // usual work days
+    const uid = c.dataset.wdu, d = +c.dataset.wdd, cur = sched[uid] || [1, 2, 3, 4, 5, 6, 7];
+    const days = (c.checked ? [...new Set([...cur, d])] : cur.filter(x => x !== d)).sort();
+    const { error } = await db.from('work_schedules').upsert({ user_id: uid, days, updated_at: new Date().toISOString() });
+    if (error) { c.checked = !c.checked; alert('Could not save that. ' + error.message); return; }
+    sched[uid] = days; toast('Work days saved'); return;
+  }
   if (c.dataset.kind) {
     const id = c.dataset.kind, { error } = await db.from('task_templates').update({ kind: c.value }).eq('id', id);
     if (error) { alert(/kind/.test(error.message) ? 'Number tasks need the database update first (task_numbers.sql).' : error.message); renderManage(); return; }

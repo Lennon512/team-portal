@@ -784,3 +784,6 @@ dialog.dlwide { max-width:1100px; }
 .tg-val { font-size:.75rem; font-variant-numeric:tabular-nums; }
 .htask .tk-num-ic { flex:none; width:1.2rem; height:1.2rem; display:grid; place-items:center; border-radius:6px; border:2px solid rgba(38,30,20,.3); font-size:.7rem; font-weight:700; }
 a.htask { text-decoration:none; color:inherit; }
+/* Team tasks: people not scheduled that day */
+.ov-pill.off { background:rgba(38,30,20,.08); color:var(--muted); }
+.ov-chip.off:not(.on) b { color:var(--muted); }
