@@ -85,6 +85,14 @@ function fzTile(q) {
 const cxDate = (r, c) => r.event_on ? `<span class="hchip ${r.kind === 'frozen' ? 'h1' : heat(c.d, [3, 30, 60, 90])}"><b>${fmt(r.event_on)}</b> ${ago(c.d)}</span>` : '-';
 const cxKind = r => '';
 // When their freeze started (for people who are back), from the billing history
+// When a freeze ends: a later date in the freeze entry's text, else the next regular invoice (billing restarts)
+function freezeEnd(r) {
+  const h = (r.history || []).filter(x => /pushed out|freeze/i.test(x.type) && x.on <= r.event_on).pop();
+  const ds = h ? [...String(h.item || '').matchAll(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g)].map(m => `${m[3].length === 2 ? '20' + m[3] : m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`).filter(d => d > (h.on || '')) : [];
+  if (ds.length) return ds.sort().pop();
+  const m = (mem.rows || []).find(x => x.club_id === r.club_id && x.next_due && x.grp === 'member' && !x.frozen);
+  return m && m.next_due >= todayStr() ? m.next_due : null;
+}
 const frozeOn = r => ((r.history || []).filter(h => /pushed out/i.test(h.type) && h.on <= r.event_on).pop() || {}).on || null;
 
 function drawCx() {
@@ -108,14 +116,15 @@ function drawCx() {
     <div class="ldfilters"><select id="cxSort" aria-label="Sort">${Object.entries(sorts).map(([k, t]) => `<option value="${k}" ${st.sort === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
       <label class="mem-mine"><input type="checkbox" id="cxDue" ${st.dueOnly ? 'checked' : ''}> Due for follow-up only</label>${F ? '' : `<label class="mem-mine"><input type="checkbox" id="cxNever" ${CX.never ? 'checked' : ''}> Never contacted</label>`}</div>
     <p class="lead mem-lead">Showing <b>${rows.length}</b> member${rows.length === 1 ? '' : 's'}${money ? ` • $${Math.round(money).toLocaleString()}/mo in plans` : ''}${st.dueOnly ? ', only those due' : ''}.${filtered ? ' <button class="linkish" data-cxreset="1">Clear filters</button>' : ''} ${blurb} Click a name to add a note or see their history.</p>` +
-    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Member</th><th>${dateHead}</th>${F && st.view !== 'now' ? '<th>Frozen</th>' : ''}<th>Last visit</th>${F ? '<th>Next booking</th>' : ''}<th>Contacts since</th><th>Last contact</th><th>How</th><th>By</th></tr></thead><tbody>` +
+    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Member</th><th>${dateHead}</th>${F && st.view !== 'now' ? '<th>Frozen</th>' : ''}${F && st.view === 'now' ? '<th>Ends</th>' : ''}<th>Last visit</th>${F ? '<th>Next booking</th>' : ''}<th>Contacts since</th><th>Last contact</th>${F ? '' : '<th>How</th><th>By</th>'}</tr></thead><tbody>` +
       rows.map(({ r, c }) => { const note = (mem.notes[r.club_id] || {}).note, fo = r.kind === 'unfrozen' ? frozeOn(r) : null;
         return `<tr data-cx="${r.club_id}" class="${c.due ? 'lddue' : ''}"><td><b>${esc(r.name || 'Unknown')}</b>${cxKind(r)}<small class="nm-sub">${esc([r.plan, r.amount ? '$' + Math.round(r.amount) + '/mo' : ''].filter(Boolean).join(' • '))}</small>${note ? `<small class="nm-sub cxwhy">${esc(note)}</small>` : ''}</td>
         <td>${r.event_on ? `<span class="hchip ${F ? heat(c.d, r.kind === 'frozen' ? [7, 30, 60, 90] : [1, 7, 14, 30]) : heat(c.d, [3, 30, 60, 90])}"><b>${fmt(r.event_on)}</b> ${ago(c.d)}</span>` : '-'}</td>
+        ${F && st.view === 'now' ? (fe => `<td>${fe ? `<b>${fmt(fe)}</b> <span class="muted">${-daysAgo(fe) <= 0 ? 'today' : 'in ' + (-daysAgo(fe)) + ' day' + (-daysAgo(fe) === 1 ? '' : 's')}</span>` : '<span class="muted">Not listed</span>'}</td>`)(freezeEnd(r)) : ''}
         ${F && st.view !== 'now' ? `<td>${fo ? `${fmt(fo)} <span class="muted">• ${daysAgo(fo) - c.d} days</span>` : '<span class="muted">-</span>'}</td>` : ''}
         <td>${r.last_visit ? `${fmt(r.last_visit)} <span class="muted">${ago(daysAgo(r.last_visit))}</span>` : '<span class="muted">None on record</span>'}</td>
         ${F ? `<td>${c.back ? `<span class="hchip h0"><b>${fmt(r.next_booking)}</b></span>` : '<span class="muted">Nothing booked</span>'}</td>` : ''}
-        <td>${attCell(c)}</td><td>${lastCell(c)}</td>${detailCells(c)}</tr>`; }).join('') + '</tbody></table></div>' : '<p class="lead">Nobody matches these filters.</p>') +
+        <td>${attCell(c)}</td><td>${lastCell(c)}</td>${F ? '' : detailCells(c)}</tr>`; }).join('') + '</tbody></table></div>' : '<p class="lead">Nobody matches these filters.</p>') +
     (F ? '' : `<p class="legend nb-legend"><span><i class="hchip h0"></i>0–3 days</span><span><i class="hchip h1"></i>4–30</span><span><i class="hchip h2"></i>31–60</span><span><i class="hchip h3"></i>61–90</span><span><i class="hchip h4"></i>90+</span><span class="muted">(since they cancelled)</span></p>`);
 }
 
