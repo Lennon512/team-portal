@@ -8,7 +8,7 @@ async function loadHome() {
   const byLoc = q => loc ? q.eq('studio_id', loc) : q;
   const mgr = isMgrHome(), supOk = ME.role === 'owner' || (mgr && canPage('supplies'));
   const [ov, mine, ev, offs2, pend, sup, sitems, scounts, sthr, dprr, dir, pp, tpl, chk, msnap, nsnap, meta] = await Promise.all([
-    db.rpc('task_overview', { p_month: mo, p_today: td }),
+    db.rpc('task_scores', { p_month: mo, p_day: td, p_today: td }).then(r => r.error ? db.rpc('task_overview', { p_month: mo, p_today: td }) : r),
     db.from('time_off_requests').select('id,start_date,end_date,status').eq('user_id', ME.id).gte('end_date', td).in('status', ['pending', 'approved']).order('start_date').limit(3),
     db.from('events').select('*').or(`ends_on.gte.${td},event_date.gte.${td}`).lte('event_date', in30).order('event_date').limit(60),
     db.from('time_off_calendar').select('*').gte('end_date', td).lte('start_date', in30).order('start_date'),
@@ -21,14 +21,17 @@ async function loadHome() {
     db.from('team_directory').select('id,full_name,location_id,birthday,start_date'),
     db.from('profile_positions').select('position_id').eq('user_id', ME.id),
     db.from('task_templates').select('*').eq('active', true).order('sort_order'),
-    db.from('task_checks').select('template_id').eq('user_id', ME.id).eq('check_date', td),
+    db.from('task_checks').select('template_id,check_date').eq('user_id', ME.id).gte('check_date', weekStart(td) < td.slice(0, 8) + '01' ? weekStart(td) : td.slice(0, 8) + '01').lte('check_date', addDays(weekStart(td), 6) > monthEnd(td) ? addDays(weekStart(td), 6) : monthEnd(td)),
     lead && canPage('members') ? byLoc(db.from('member_snapshot').select('studio_id,club_id,grp,frozen,next_due,next_booking,last_session').eq('grp', 'member')).limit(5000) : null,
     lead && canPage('members') ? byLoc(db.from('new_member_snapshot').select('*')).limit(2000) : null,
     lead && canPage('members') ? byLoc(db.from('snapshot_meta').select('*')) : null]);
   // Reuse the calendar's data so the "coming up" list matches the Calendar page
   await loadToAct();
   events = ev.data || []; offs = offs2.data || []; roster = dir.data || []; calTab = 'all'; calStudio = loc || '';
-  const myPos = new Set((pp.data || []).map(x => x.position_id)), done = new Set((chk.data || []).map(x => x.template_id));
+  // A task is done if it was checked off in its current period (today, this week or this month)
+  const tpl0 = tpl.data || [], fOf = id => fq(tpl0.find(x => x.id === id) || {});
+  (ov.data || []).forEach(x => { if (x.total !== undefined) { x.assigned = x.total; x.done_today = x.done_day; } });
+  const myPos = new Set((pp.data || []).map(x => x.position_id)), done = new Set((chk.data || []).filter(c => { const [a, b] = periodOf({ frequency: fOf(c.template_id) }, td); return c.check_date >= a && c.check_date <= b; }).map(x => x.template_id));
   // Managers see their team's task progress: everyone at their studio except themselves
   const team = mgr ? (dir.data || []).filter(p => p.location_id === ME.location_id && p.id !== ME.id).map(p => ({ p, s: (ov.data || []).find(x => x.user_id === p.id) })).filter(x => x.s && x.s.assigned) : [];
   home = { team, t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => toAct ? toAct.has(r.id) : (r.user_id !== ME.id || ME.role === 'owner')).map(r => r.id) : [],
@@ -89,9 +92,9 @@ function drawHome() {
 
   // ---- my tasks: progress + next three open ----
   const n = T && T.assigned ? T.assigned : H.tasks.length, d = T && T.assigned ? Math.min(T.done_today || 0, n) : H.tasks.filter(x => H.done.has(x.id)).length, pct = n ? Math.round(100 * d / n) : 0;
-  const open = H.tasks.filter(x => !H.done.has(x.id)).slice(0, 3);
+  const open = H.tasks.filter(x => !H.done.has(x.id)).sort(byFreq).slice(0, 3);
   const taskCard = `<div class="hcard"><h3>My tasks</h3>` + (n ? `<div class="tk-progress"><div class="tk-today"><b>${d} of ${n}</b> done today</div></div><div class="meter tk-meter" style="max-width:none;margin:.5rem 0 .8rem"><i style="width:${Math.min(pct, 100)}%"></i></div>` +
-      (open.length ? '<div class="hopen">' + open.map(x => `<label class="htask"><input type="checkbox" data-htask="${x.id}"><span>${esc(splitTitle(x.title)[0])}</span></label>`).join('') + '</div>' : '<p class="hclear" style="margin:0">✓ All done for today!</p>')
+      (open.length ? '<div class="hopen">' + open.map(x => `<label class="htask"><input type="checkbox" data-htask="${x.id}"><span>${esc(splitTitle(x.title)[0])}${fq(x) !== 'daily' ? ` <span class="tk-freq">${fq(x) === 'weekly' ? 'This week' : 'This month'}</span>` : ''}</span></label>`).join('') + '</div>' : '<p class="hclear" style="margin:0">✓ All done for today!</p>')
     : '<p class="lead" style="margin:0">No tasks assigned yet.</p>') + `<a class="hlink" href="#tasks">${open.length && n - d > open.length ? `See all ${n - d} left →` : 'Open my tasks →'}</a></div>`;
 
   // ---- time off: mine + approvals ----
