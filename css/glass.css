@@ -803,3 +803,7 @@ a.htask { text-decoration:none; color:inherit; }
 .mem-extra { display:contents; }
 .mem-extra:empty { display:none; }
 .mem-extra .ldfilters { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:0; }
+/* Leads: filters on the left, Find on the right, same line */
+.mem-filters:has(.ldfilters) { flex:1 1 100%; margin-left:0; }
+.mem-filters:has(.ldfilters) .ldfilters { order:1; }
+.mem-filters:has(.ldfilters) #memFind { order:2; margin-left:auto; }
