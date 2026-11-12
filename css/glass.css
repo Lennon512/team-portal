@@ -787,3 +787,10 @@ a.htask { text-decoration:none; color:inherit; }
 /* Team tasks: people not scheduled that day */
 .ov-pill.off { background:rgba(38,30,20,.08); color:var(--muted); }
 .ov-chip.off:not(.on) b { color:var(--muted); }
+/* Team card: work day toggles */
+.twork { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .75rem; margin:0 0 1rem; }
+.twork > b { font-size:.85rem; color:var(--muted); font-weight:600; min-width:5.5rem; }
+.twork small { flex-basis:100%; font-size:.78rem; }
+.twdays { display:flex; flex-wrap:wrap; gap:.3rem; }
+.twday { padding:.3rem .6rem; font-size:.8rem; border-radius:999px; background:rgba(255,255,255,.7); color:var(--muted); border:1px solid rgba(38,30,20,.18); box-shadow:none; }
+.twday.on { background:var(--em); color:#fff; border-color:var(--em); }

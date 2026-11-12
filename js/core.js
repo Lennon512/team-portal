@@ -158,12 +158,17 @@ addEventListener('hashchange', route);
 const studio = id => (locs.find(x => x.id === id) || {}).name || 'No studio yet';
 const photo = p => urls[p.photo_path] ? `<img src="${esc(urls[p.photo_path])}" alt="">` : esc((p.full_name || '?').trim()[0].toUpperCase());
 
-let teamX = { offs: [], pos: [], posNames: {} };
+let teamX = { offs: [], pos: [], posNames: {}, ws: null };
+// Usual work days (1 = Mon ... 7 = Sun); used by Tasks so scores only count days someone works
+const WDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const workDaysOf = id => (teamX.ws && teamX.ws[id]) || [1, 2, 3, 4, 5, 6, 7];
+const workDaysText = id => { const d = workDaysOf(id); return d.length === 7 ? 'Every day' : d.length ? d.map(x => WDAYS[x - 1]).join(', ') : 'No set days'; };
 async function loadPeople() {
   const td = todayStr();
-  const [{ data }, o, pp, ps] = await Promise.all([db.from('team_directory').select('*').order('full_name'), db.from('time_off_calendar').select('*').gte('end_date', td).order('start_date'), db.from('profile_positions').select('*'), db.from('positions').select('id,name')]);
+  const [{ data }, o, pp, ps, ws] = await Promise.all([db.from('team_directory').select('*').order('full_name'), db.from('time_off_calendar').select('*').gte('end_date', td).order('start_date'), db.from('profile_positions').select('*'), db.from('positions').select('id,name'), db.from('work_schedules').select('user_id,days')]);
   people = data || []; urls = {};
-  teamX = { offs: o.data || [], pos: pp.data || [], posNames: Object.fromEntries((ps.data || []).map(x => [x.id, x.name])) };
+  teamX = { offs: o.data || [], pos: pp.data || [], posNames: Object.fromEntries((ps.data || []).map(x => [x.id, x.name])),
+    ws: ws.error ? null : Object.fromEntries((ws.data || []).map(x => [x.user_id, x.days || []])) };
   const paths = people.map(p => p.photo_path).filter(Boolean);
   if (paths.length) {
     const { data: s } = await db.storage.from('team-photos').createSignedUrls(paths, 3600);
@@ -241,6 +246,9 @@ function openCard(id, edit) {
        <div><h2 tabindex="-1" autofocus>${esc(p.full_name)}</h2>${sub.replace('margin:.25rem 0 1rem', 'margin:.2rem 0 .6rem')}${teamBadges(p) ? `<div class="tbadges">${teamBadges(p)}</div>` : ''}
        <div class="tbtns">${p.phone ? `<a class="tbtn" href="tel:${esc(telOf(p.phone))}">\u260E ${esc(fmtPhone(p.phone))}</a><a class="tbtn" href="sms:${esc(telOf(p.phone))}">\uD83D\uDCAC Text</a>` : ''}${p.email ? `<a class="tbtn" href="mailto:${esc(p.email)}">\u2709 Email</a>` : ''}</div></div></div>
        ${facts.length ? `<dl class="tfacts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
+       ${teamX.ws ? (ME.role === 'owner'
+         ? `<div class="twork"><b>Works</b><span class="twdays" role="group" aria-label="Work days">${WDAYS.map((d, i) => `<button type="button" class="twday${workDaysOf(id).includes(i + 1) ? ' on' : ''}" data-wday="${i + 1}" aria-pressed="${workDaysOf(id).includes(i + 1)}">${d}</button>`).join('')}</span><small class="muted">Tasks only count on these days.</small></div>`
+         : `<dl class="tfacts"><dt>Works</dt><dd>${esc(workDaysText(id))}</dd></dl>`) : ''}
        <p class="tbio">${p.bio ? esc(p.bio) : `<span class="muted">${ME.id === id ? 'No bio yet. Tap Edit to add a little about you.' : 'No bio yet.'}</span>`}</p>
        <div class="acts">${canEdit ? '<button id="fEdit">Edit</button>' : ''}${(ME.id === id || ME.role === 'owner' || (ME.role === 'manager' && p.location_id === ME.location_id)) ? `<button class="quiet" data-tasks="${id}">View tasks</button>` : ''}<button class="quiet" id="fClose">Close</button></div>`;
   if (!$('dlg').open) $('dlg').showModal();
@@ -262,7 +270,18 @@ function square(file) {
 }
 
 $('dlgBody').onclick = async e => {
-  const id = e.target.id;
+  const id = e.target.id, wb = e.target.closest('[data-wday]');
+  if (wb && ME.role === 'owner') {   // toggle a work day for this person
+    const d = +wb.dataset.wday, cur0 = workDaysOf(cur), on = !cur0.includes(d);
+    const days = (on ? [...cur0, d] : cur0.filter(x => x !== d)).sort();
+    wb.disabled = true;
+    const { error } = await db.from('work_schedules').upsert({ user_id: cur, days, updated_at: new Date().toISOString() });
+    wb.disabled = false;
+    if (error) { alert('Could not save that. ' + error.message); return; }
+    teamX.ws[cur] = days; if (typeof sched !== 'undefined' && sched) sched[cur] = days;
+    wb.classList.toggle('on', on); wb.setAttribute('aria-pressed', String(on)); toast('Work days saved');
+    return;
+  }
   if (id === 'fClose') $('dlg').close();
   else if (id === 'fEdit') openCard(cur, true);
   else if (id === 'fCancel') openCard(cur);
