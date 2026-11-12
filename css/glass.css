@@ -822,3 +822,32 @@ a.htask { text-decoration:none; color:inherit; }
 .who .slackbtn:hover { background:rgba(255,255,255,.7); }
 .who .slackbtn:focus-visible { outline:2px solid var(--dark); outline-offset:2px; }
 @media (max-width: 640px) { .who .slackbtn { padding:.45rem .6rem; font-size:0; gap:0; } .who .slackbtn svg { width:18px; height:18px; } }
+/* Library */
+.lbbar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:0 0 1.2rem; }
+.lbbar select { width:auto; margin:0; }
+.lbbar .mem-mine { margin:0; }
+.lbbar #lbFind { margin-left:auto; width:240px; }
+.lbsec { margin:0 0 1.6rem; }
+.lbsec h3 { margin:0 0 .7rem; font-size:1.05rem; }
+.lbgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:.75rem; }
+.lbcard { position:relative; display:flex; gap:.8rem; align-items:flex-start; padding:.9rem 1rem; border-radius:16px; background:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.75); cursor:pointer; transition:background .15s, transform .15s; }
+.lbcard:hover { background:rgba(255,255,255,.8); transform:translateY(-1px); }
+.lbcard:focus-visible { outline:2px solid var(--dark); outline-offset:2px; }
+.lbcard.pin { border-color:rgba(160,120,60,.45); }
+.lbic { flex:none; width:2.3rem; height:2.3rem; display:grid; place-items:center; border-radius:10px; background:rgba(38,30,20,.07); font-size:1.15rem; }
+.lbtxt { min-width:0; flex:1; display:flex; flex-direction:column; gap:.2rem; padding-right:1.6rem; }
+.lbtxt b { font-size:.95rem; line-height:1.3; }
+.lbtxt > span { font-size:.84rem; color:var(--muted); line-height:1.35; }
+.lbchips { display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.25rem; }
+.lbchip { font-size:.7rem; font-weight:600; padding:.1rem .5rem; border-radius:999px; background:rgba(38,30,20,.07); color:var(--muted); }
+.lbchip.me { background:rgba(46,125,80,.14); color:#22603d; }
+.lbchip.t { background:transparent; padding-left:0; }
+.lbedit { position:absolute; top:.6rem; right:.6rem; }
+.lbpage { max-height:60vh; overflow:auto; line-height:1.55; }
+.lbpage h3 { margin:1rem 0 .4rem; } .lbpage p { margin:0 0 .8rem; } .lbpage ul, .lbpage ol { margin:0 0 .8rem; padding-left:1.3rem; }
+.lbvid { position:relative; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; }
+.lbvid iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+.lbpos { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:.2rem .8rem; }
+.lbpos .chkline { margin:0; }
+.acts a.btnlink { display:inline-flex; align-items:center; padding:.6rem 1.1rem; border-radius:999px; background:rgba(255,255,255,.42); border:1px solid rgba(255,255,255,.7); color:var(--ink); text-decoration:none; font-weight:500; }
+@media (max-width: 640px) { .lbbar #lbFind { width:100%; margin-left:0; } }
