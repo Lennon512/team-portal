@@ -33,8 +33,11 @@ async function loadHome() {
   (ov.data || []).forEach(x => { if (x.total !== undefined) { x.assigned = x.total; x.done_today = x.done_day; } });
   const myPos = new Set((pp.data || []).map(x => x.position_id)), done = new Set((chk.data || []).filter(c => { const [a, b] = periodOf({ frequency: fOf(c.template_id) }, td); return c.check_date >= a && c.check_date <= b; }).map(x => x.template_id));
   // Managers see their team's task progress: everyone at their studio except themselves
-  const team = mgr ? (dir.data || []).filter(p => p.location_id === ME.location_id && p.id !== ME.id).map(p => ({ p, s: (ov.data || []).find(x => x.user_id === p.id) })).filter(x => x.s && x.s.assigned) : [];
-  home = { team, t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => toAct ? toAct.has(r.id) : (r.user_id !== ME.id || ME.role === 'owner')).map(r => r.id) : [],
+  // Work days (if set up) so people who are off today don't drag the team number down
+  if (mgr) { const ws = await db.from('work_schedules').select('user_id,days'); sched = ws.error ? null : Object.fromEntries((ws.data || []).map(x => [x.user_id, x.days || []])); }
+  const team0 = mgr ? (dir.data || []).filter(p => p.location_id === ME.location_id && p.id !== ME.id).map(p => ({ p, s: (ov.data || []).find(x => x.user_id === p.id) })).filter(x => x.s && x.s.assigned) : [];
+  const team = team0.filter(x => worksOn(x.p.id, td)), teamOff = team0.filter(x => !worksOn(x.p.id, td)).map(x => x.p.full_name.split(' ')[0]);
+  home = { team, teamOff, t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => toAct ? toAct.has(r.id) : (r.user_id !== ME.id || ME.role === 'owner')).map(r => r.id) : [],
     sup: sup ? (sup.data || []) : [], sitems: sitems ? (sitems.data || []) : [], counts: scounts ? (scounts.data || []) : [], thr: sthr ? (sthr.data || []) : [], dpr: dprr ? (dprr.error ? { error: true } : (dprr.data || [])) : null,
     tasks: (tpl.data || []).filter(x => myPos.has(x.position_id)), done, ms: msnap ? (msnap.data || []) : null, ns: nsnap ? (nsnap.data || []) : null, meta: meta ? (meta.data || []) : [] };
   drawHome();
@@ -113,7 +116,7 @@ function drawHome() {
     const rows = H.team.map(x => ({ name: x.p.full_name, n: x.s.assigned, d: Math.min(x.s.done_today || 0, x.s.assigned) })).sort((a, b) => a.d / a.n - b.d / b.n);
     teamCard = `<div class="hcard"><h3>Team tasks</h3>` + (tn ? `<div class="tk-progress"><div class="tk-today"><b>${tp}%</b> done today <span class="muted">• ${tdn} of ${tn} tasks</span></div></div><div class="meter tk-meter" style="max-width:none;margin:.5rem 0 .8rem"><i style="width:${Math.min(tp, 100)}%"></i></div>` +
         rows.slice(0, 6).map(r => `<p class="hline"><b>${esc(r.name.split(' ')[0])}</b> <span class="muted">${r.d >= r.n ? '✓ all done' : `${r.d} of ${r.n} • ${Math.round(100 * r.d / r.n)}%`}</span></p>`).join('') + (rows.length > 6 ? `<p class="muted hsmall">and ${rows.length - 6} more</p>` : '')
-      : '<p class="lead" style="margin:0">No tasks assigned to your team yet.</p>') + '<a class="hlink" href="#tasks">Open team tasks →</a></div>';
+      : (H.teamOff.length ? '<p class="lead" style="margin:0">Everyone with tasks is off today.</p>' : '<p class="lead" style="margin:0">No tasks assigned to your team yet.</p>')) + (H.teamOff.length ? `<p class="muted hsmall">Off today: ${esc(H.teamOff.join(', '))}</p>` : '') + '<a class="hlink" href="#tasks">Open team tasks →</a></div>';
     const waiting = offs.filter(o => H.pendIds.includes(o.id) && canDecide(o)).slice(0, 5), more = H.pendIds.length - waiting.length;
     mgrOffCard = `<div class="hcard"><h3>Time off to approve${H.pendIds.length ? ` <span class="hcount">${H.pendIds.length}</span>` : ''}</h3>` +
       (waiting.length ? waiting.map(o => `<div class="happ"><div><b>${esc(o.full_name)}</b> <span class="muted">${rng(o)}</span>${clashes(o).length ? `<small class="up-warn">Also out: ${esc(clashes(o).map(c => c.full_name.split(' ')[0]).join(', '))}</small>` : ''}</div><span><button class="sm" data-hdecide="approved" data-id="${o.id}">Approve</button> <button class="quiet sm" data-hdecide="denied" data-id="${o.id}">Decline</button></span></div>`).join('') + (more > 0 ? `<p class="muted hsmall">and ${more} more on the calendar</p>` : '')
