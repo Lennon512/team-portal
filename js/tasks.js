@@ -9,6 +9,25 @@ const elapsed = () => isCur() ? new Date().getDate() : (ymd(tk.month) < todayStr
 const addDays = (d, n) => { const x = new Date(d + 'T00:00'); x.setDate(x.getDate() + n); return ymd(x); };
 const fmtDay = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 // "today" / "yesterday" / "on Mon, Oct 26": used in sentences about the selected day
+// Frequencies: daily tasks are due every day, weekly once any day Mon-Sun, monthly once any day that month
+const FREQ = { daily: 'Every day', weekly: 'Weekly', monthly: 'Monthly' };
+const fq = r => r.frequency || 'daily';
+const weekStart = d => { const x = new Date(d + 'T00:00'); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return ymd(x); };
+const monthEnd = d => ymd(new Date(+d.slice(0, 4), +d.slice(5, 7), 0));
+const periodOf = (r, d) => fq(r) === 'weekly' ? [weekStart(d), addDays(weekStart(d), 6)] : fq(r) === 'monthly' ? [d.slice(0, 8) + '01', monthEnd(d)] : [d, d];
+// The date a task was checked off within its period around day d (or null if not done yet)
+function doneDate(r, d) {
+  const [a, b] = periodOf(r, d);
+  for (let x = a; x <= b; x = addDays(x, 1)) if (tk.done.has(r.id + '|' + x)) return x;
+  return null;
+}
+const fqOrder = { daily: 0, weekly: 1, monthly: 2 };
+const byFreq = (a, b) => fqOrder[fq(a)] - fqOrder[fq(b)];
+// Monthly score from the database (skips days on approved time off). null until task_frequency.sql is run.
+async function loadScore() {
+  const { data, error } = await db.rpc('task_scores', { p_month: ymd(tk.month), p_day: tk.day.slice(0, 7) === ymd(tk.month).slice(0, 7) ? tk.day : ymd(tk.month), p_today: todayStr() });
+  tk.score = error ? null : (data || []).find(x => x.user_id === tk.uid) || null;
+}
 const dayWord = d => d === todayStr() ? 'today' : d === addDays(todayStr(), -1) ? 'yesterday' : 'on ' + fmtDay(d);
 // Keep the selected day inside the month being shown (today if it's this month, else that month's last day)
 function fitDay() { if (tk.day.slice(0, 7) !== ymd(tk.month).slice(0, 7)) tk.day = isCur() ? todayStr() : ymd(new Date(tk.month.getFullYear(), tk.month.getMonth() + 1, 0)); }
@@ -36,9 +55,12 @@ function drawTaskBar() {
 }
 
 async function loadMine() {
-  const uid = tk.uid, s = ymd(tk.month), e = ymd(new Date(tk.month.getFullYear(), tk.month.getMonth() + 1, 0));
+  const uid = tk.uid, s = addDays(ymd(tk.month), -6), e = ymd(new Date(tk.month.getFullYear(), tk.month.getMonth() + 1, 0));
   const [pp, who] = await Promise.all([db.from('profile_positions').select('position_id').eq('user_id', uid),
-    uid === ME.id ? Promise.resolve({ data: ME }) : db.from('profiles').select('full_name,email').eq('id', uid).maybeSingle()]);
+    uid === ME.id ? Promise.resolve({ data: ME }) : db.from('profiles').select('full_name,email,location_id').eq('id', uid).maybeSingle()]);
+  // Managers can only open checklists for people at their own studio
+  tk.blocked = ME.role === 'manager' && uid !== ME.id && (!who.data || who.data.location_id !== ME.location_id);
+  if (tk.blocked) { tk.rows = []; tk.who = ''; renderMine(); return; }
   const mine = new Set((pp.data || []).map(x => x.position_id));
   tk.rows = templates.filter(x => mine.has(x.position_id));
   tk.who = (who.data && (who.data.full_name || who.data.email)) || 'Tasks';
@@ -50,7 +72,7 @@ async function loadMine() {
     from += 1000;
   }
   tk.done = new Set(checks.map(c => c.template_id + '|' + c.check_date));
-  renderMine();
+  await loadScore(); renderMine();
 }
 
 // Long task text gets a short headline; the rest is tucked behind "Details".
@@ -68,21 +90,26 @@ function splitTitle(t) {
 
 function renderMine() {
   const td = todayStr(), n = dim(tk.month), ro = tk.uid !== ME.id, ym = ymd(tk.month).slice(0, 8);
+  if (tk.blocked) { $('taskBody').innerHTML = '<p class="lead">You can only see task checklists for your own team.</p>'; return; }
   if (!tk.rows.length) { $('taskBody').innerHTML = `${ro ? `<h3>${esc(tk.who)}</h3>` : ''}<p class="lead">No tasks assigned yet.${ro ? '' : ' The owner assigns task sets by position.'}</p>`; return; }
   const groups = positions.filter(p => tk.rows.some(r => r.position_id === p.id));
   const box = (r, d) => `<input type="checkbox" data-t="${r.id}" data-d="${d}" aria-label="${esc(splitTitle(r.title)[0])} ${d}" ${tk.done.has(r.id + '|' + d) ? 'checked' : ''} ${ro || d > td ? 'disabled' : ''}>`;
+  // Day view box: weekly/monthly tasks count as done if checked any day in their week/month
+  const pbox = (r, d) => { const dd = doneDate(r, d); return `<input type="checkbox" data-t="${r.id}" data-d="${dd || d}" aria-label="${esc(splitTitle(r.title)[0])}" ${dd ? 'checked' : ''} ${ro || d > td || (dd && dd > td) ? 'disabled' : ''}>`; };
+  const ftag = (r, d) => { if (fq(r) === 'daily') return ''; const dd = doneDate(r, d), [, end] = periodOf(r, d);
+    return `<span class="tk-freq">${fq(r) === 'weekly' ? 'This week' : 'This month'}${dd ? (dd !== d ? ' \u2022 done ' + fmtDay(dd).split(',')[0] : '') : ' \u2022 by ' + fmtDay(end)}</span>`; };
   let h = '<div class="stats" id="tkStats"></div>';
   if (tk.mode === 'day') {
-    const day = tk.day, isDone = r => tk.done.has(r.id + '|' + day);
+    const day = tk.day, isDone = r => !!doneDate(r, day);
     const item = r => {
       const [head, more] = splitTitle(r.title), open = tk.open.has(r.id);
-      return `<div class="tk${isDone(r) ? ' done' : ''}${ro ? ' ro' : ''}" data-row-t="${r.id}"><label class="tk-main">${box(r, day)}<span class="tk-title">${esc(head)}</span></label>` +
+      return `<div class="tk${isDone(r) ? ' done' : ''}${ro ? ' ro' : ''}" data-row-t="${r.id}"><label class="tk-main">${pbox(r, day)}<span class="tk-title">${esc(head)}${ftag(r, day)}</span></label>` +
         `<span class="tk-side">${/member success/i.test(r.title) ? '<a class="tk-link" href="#members">Open report</a>' : ''}${more ? `<button type="button" class="tk-more" data-more="${r.id}" aria-expanded="${open}">${open ? 'Hide' : 'Details'}</button>` : ''}</span>` +
         (more ? `<div class="tk-detail"${open ? '' : ' hidden'}>${esc(more)}</div>` : '') + '</div>';
     };
     const doneRows = tk.rows.filter(isDone);
     h += groups.map(g => {
-      const rows = tk.rows.filter(r => r.position_id === g.id), left = rows.filter(r => !isDone(r));
+      const rows = tk.rows.filter(r => r.position_id === g.id).sort(byFreq), left = rows.filter(r => !isDone(r));
       return `<h3 class="sub tk-group">${esc(g.name)} <span>${rows.length - left.length} of ${rows.length} done</span></h3>` +
         (left.length ? left.map(item).join('') : '<p class="tk-clear">All clear here ✓</p>');
     }).join('');
@@ -90,7 +117,7 @@ function renderMine() {
   } else {
     const days = Array.from({ length: n }, (_, i) => i + 1), ds = d => ym + String(d).padStart(2, '0');
     h += `<div class="cal-wrap"><table class="tg"><thead><tr><th class="tt">Task</th>${days.map(d => `<th class="${ds(d) === td ? 'td' : ''}">${d}</th>`).join('')}</tr></thead><tbody>` +
-      groups.map(g => `<tr class="grp"><td colspan="${n + 1}"><span>${esc(g.name)}</span></td></tr>` + tk.rows.filter(r => r.position_id === g.id).map(r => `<tr><td class="tt" title="${esc(r.title)}">${esc(splitTitle(r.title)[0])}</td>${days.map(d => `<td class="${ds(d) === td ? 'td' : ''}">${box(r, ds(d))}</td>`).join('')}</tr>`).join('')).join('') + '</tbody></table></div>';
+      groups.map(g => `<tr class="grp"><td colspan="${n + 1}"><span>${esc(g.name)}</span></td></tr>` + tk.rows.filter(r => r.position_id === g.id).sort(byFreq).map(r => `<tr><td class="tt" title="${esc(r.title)}">${esc(splitTitle(r.title)[0])}${fq(r) !== 'daily' ? ` <span class="tk-freq">${FREQ[fq(r)]}</span>` : ''}</td>${days.map(d => `<td class="${ds(d) === td ? 'td' : ''}">${box(r, ds(d))}</td>`).join('')}</tr>`).join('')).join('') + '</tbody></table></div>';
   }
   $('taskBody').innerHTML = h; paintStats();
   const db_ = $('tkDoneBox'); if (db_) db_.ontoggle = () => { tk.doneOpen = db_.open; };
@@ -109,13 +136,17 @@ function paintStats() {
   const cur = isCur(), past = cur ? elapsed() - 1 : elapsed(), full = Object.entries(perDay).filter(([d, c]) => c >= n && (!cur || d < td)).length;
   const mon = tk.month.toLocaleString('en-US', { month: 'short' });
   const range = past > 0 ? (past === 1 ? `${mon} 1` : `${mon} 1–${past}`) : '';
-  const monthLine = past > 0
+  const sc = tk.score, scoreOn = sc !== undefined && sc !== null;
+  const monthLine = scoreOn
+    ? (sc.pct !== null ? `${cur ? 'Earlier this month' : 'This month'}${range ? ` (${range})` : ''}: <b>${sc.pct}%</b> of tasks done <span class="muted">\u2022 days on approved time off don\u2019t count</span>` : 'Your monthly score starts tomorrow.')
+    : past > 0
     ? `${cur ? 'Earlier this month' : 'This month'} (${range}): <b>${mp}%</b> of tasks done • <b>${full} of ${past}</b> days fully done`
     : 'Your monthly score starts tomorrow.';
+  const doneOn = d => tk.rows.filter(r => doneDate(r, d)).length;
   tk.ro = tk.uid !== ME.id;
   const who = tk.uid !== ME.id ? `<h3 style="margin:0 0 .6rem">${esc(tk.who)}</h3>` : '';
   if (tk.mode === 'day') {
-    let dn = 0; tk.done.forEach(k => { const [id, d] = k.split('|'); if (ids.has(id) && d === tk.day) dn++; });
+    const dn = doneOn(tk.day);
     const all = n && dn >= n, dp = n ? Math.round(100 * dn / n) : 0, w = dayWord(tk.day), isToday = tk.day === td;
     el.innerHTML = who + (all ? `<div class="tk-party" role="status"><span class="tk-party-emoji" aria-hidden="true">\uD83C\uDF89</span><div><b>All done ${w}!</b><small>${n} of ${n} tasks checked off. Nice work.</small></div></div>` : '') +
       `<div class="tk-progress"><div class="tk-today"><b>${dn} of ${n}</b> done ${w}</div><div class="meter tk-meter"><i style="width:${Math.min(dp, 100)}%"></i></div></div><p class="tk-month">${monthLine}</p>` +
@@ -123,28 +154,34 @@ function paintStats() {
     return;
   }
   if (cur) {
-    const all = n && t >= n;
+    t = doneOn(td); const all = n && t >= n, tp = n ? Math.round(100 * t / n) : 0;
     el.innerHTML = who + (all ? `<div class="tk-party" role="status"><span class="tk-party-emoji" aria-hidden="true">🎉</span><div><b>All done for today!</b><small>${n} of ${n} tasks checked off. Nice work.</small></div></div>` : '') +
       `<div class="tk-progress"><div class="tk-today"><b>${t} of ${n}</b> done today</div><div class="meter tk-meter"><i style="width:${Math.min(tp, 100)}%"></i></div></div><p class="tk-month">${monthLine}</p>`;
   } else {
-    el.innerHTML = who + `<div class="tk-progress"><div class="tk-today">${monthLine}</div><div class="meter tk-meter"><i style="width:${Math.min(mp || 0, 100)}%"></i></div></div>`;
+    el.innerHTML = who + `<div class="tk-progress"><div class="tk-today">${monthLine}</div><div class="meter tk-meter"><i style="width:${Math.min((scoreOn ? sc.pct : mp) || 0, 100)}%"></i></div></div>`;
   }
 }
 
 // ---------- Team overview ----------
 async function loadOverview() {
   const td = todayStr(), day = tk.day, mon = ymd(tk.month);
-  const calls = [db.from('profiles').select('id,full_name,email,location_id').order('full_name'), db.from('profile_positions').select('*'), db.rpc('task_overview', { p_month: mon, p_today: td })];
-  if (day !== td) calls.push(db.rpc('task_overview', { p_month: mon, p_today: day }));   // counts for the picked day
-  const [pe, pp, ov, ovDay] = await Promise.all(calls);
+  const [pe, pp, sc] = await Promise.all([db.from('profiles').select('id,full_name,email,location_id').order('full_name'), db.from('profile_positions').select('*'),
+    db.rpc('task_scores', { p_month: mon, p_day: day, p_today: td })]);
+  let ov = sc, ovDay = null;
+  if (sc.error) {   // task_frequency.sql not run yet: use the old counts
+    const calls = [db.rpc('task_overview', { p_month: mon, p_today: td })];
+    if (day !== td) calls.push(db.rpc('task_overview', { p_month: mon, p_today: day }));
+    [ov, ovDay] = await Promise.all(calls);
+  } else (sc.data || []).forEach(x => { x.assigned = x.total; x.done_today = x.done_day; });
   const stat = {}, dstat = {}, pos = {};
   (ov.data || []).forEach(x => stat[x.user_id] = x);
   ((ovDay || ov).data || []).forEach(x => dstat[x.user_id] = x);
+  if (ME.role === 'manager') tk.studio = ME.location_id || '';
   (pp.data || []).forEach(x => (pos[x.user_id] = pos[x.user_id] || []).push((positions.find(p => p.id === x.position_id) || {}).name));
   const people = (pe.data || []).filter(u => !tk.studio || u.location_id === tk.studio).map(u => {
     const s = stat[u.id], n = s && s.assigned ? s.assigned : 0, dn = n ? Math.min((dstat[u.id] || {}).done_today || 0, n) : 0;
-    return { u, sets: pos[u.id] || [], n, dn, pct: n ? mtd(s.done_month, s.done_today, n) : null, st: !n ? 'none' : dn >= n ? 'done' : dn > 0 ? 'prog' : 'zero' };
-  });
+    return { u, sets: pos[u.id] || [], n, dn, pct: !n ? null : sc.error ? mtd(s.done_month, s.done_today, n) : s.pct, st: !n ? 'none' : dn >= n ? 'done' : dn > 0 ? 'prog' : 'zero' };
+  }).filter(r => sc.error || stat[r.u.id]);   // the database only returns people this person may see
   tk.ov = people; renderOverview();
 }
 
@@ -198,11 +235,12 @@ function renderManage() {
       return `<li class="mg-row${dup ? ' dup' : ''}"><span class="mg-num">${i + 1}</span>
         <span class="mg-text" data-edit="${t.id}" title="Click to edit"><span class="mg-head">${esc(head)}</span>${more ? `<span class="mg-more">${esc(more)}</span>` : ''}
           ${dup ? '<span class="mg-badge">Duplicate</span>' : ''}${typo ? `<button class="mg-badge soft" data-fix="${t.id}" title="Add the missing space after the period">Fix spacing</button>` : ''}</span>
+        <select class="mg-freq" data-freq="${t.id}" aria-label="How often">${Object.entries(FREQ).map(([v, l]) => `<option value="${v}" ${fq(t) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <span class="mg-acts"><button class="mg-ic" data-move="-1" data-id="${t.id}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="mg-ic" data-move="1" data-id="${t.id}" aria-label="Move down" ${i === list.length - 1 ? 'disabled' : ''}>↓</button><button class="mg-ic" data-edit="${t.id}" aria-label="Edit">✎</button><button class="mg-ic del" data-rm="${t.id}" aria-label="Remove">✕</button></span></li>`;
     };
     return `<details class="mg-pos" data-pos="${p.id}"${tk.openPos.has(p.id) ? ' open' : ''}><summary><span class="mg-name">${esc(p.name)}</span><span class="mg-meta">${list.length} task${list.length === 1 ? '' : 's'} • ${ppl} ${ppl === 1 ? 'person' : 'people'}</span>${dups ? `<span class="mg-badge">${dups} duplicates</span>` : ''}</summary>
       ${list.length ? `<ol class="mg-list">${list.map(row).join('')}</ol>` : '<p class="lead" style="margin:.5rem 0 1rem">No tasks yet. Add some below.</p>'}
-      <div class="mg-add"><textarea data-add="${p.id}" rows="3" placeholder="Add tasks, one per line"></textarea><div class="mg-addbar"><small data-hint="${p.id}"></small><button class="sm" data-addbtn="${p.id}">Add tasks</button></div></div></details>`;
+      <div class="mg-add"><textarea data-add="${p.id}" rows="3" placeholder="Add tasks, one per line"></textarea><div class="mg-addbar"><small data-hint="${p.id}"></small><select class="mg-freq" data-addfreq="${p.id}" aria-label="How often for new tasks">${Object.entries(FREQ).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select><button class="sm" data-addbtn="${p.id}">Add tasks</button></div></div></details>`;
   };
   $('taskBody').innerHTML = '<p class="lead">Tap a position to open it. Click any task to edit it, use the arrows to reorder. Removing a task keeps its past check-offs, and you can undo it.</p>' +
     `<div class="mg-tools"><button class="quiet sm" data-expand="1">Open all</button><button class="quiet sm" data-expand="0">Close all</button></div>` +
@@ -292,8 +330,9 @@ $('taskBody').onclick = async e => {
     const lines = all.filter(x => { const k = normTitle(x); if (have.has(k) || seen.has(k)) return false; seen.add(k); return true; });
     if (!lines.length) { if (all.length) toast('Those tasks are already on the list'); return; }
     const base = Math.max(0, ...posList(pid).map(x => x.sort_order || 0)) + 1;
-    const { error } = await db.from('task_templates').insert(lines.map((title, i) => ({ position_id: pid, title, sort_order: base + i })));
-    if (error) { alert(error.message); return; }
+    const freq = (document.querySelector(`[data-addfreq="${pid}"]`) || {}).value || 'daily';
+    const { error } = await db.from('task_templates').insert(lines.map((title, i) => Object.assign({ position_id: pid, title, sort_order: base + i }, freq !== 'daily' ? { frequency: freq } : {})));
+    if (error) { alert(/frequency/.test(error.message) ? 'Weekly and monthly tasks need the database update first (task_frequency.sql).' : error.message); return; }
     tk.openPos.add(pid);
     toast(`Added ${lines.length} task${lines.length === 1 ? '' : 's'}` + (all.length > lines.length ? ` (skipped ${all.length - lines.length} already on the list)` : ''));
     loadTasks();
@@ -317,6 +356,12 @@ $('taskBody').addEventListener('keydown', e => {
 });
 $('taskBody').onchange = async e => {
   const c = e.target;
+  if (c.dataset.freq) {
+    const id = c.dataset.freq, { error } = await db.from('task_templates').update({ frequency: c.value }).eq('id', id);
+    if (error) { alert(/frequency/.test(error.message) ? 'Weekly and monthly tasks need the database update first (task_frequency.sql).' : error.message); renderManage(); return; }
+    const x = templates.find(y => y.id === id); if (x) x.frequency = c.value;
+    toast(FREQ[c.value]); return;
+  }
   if (c.dataset.t) {
     const k = { user_id: ME.id, template_id: c.dataset.t, check_date: c.dataset.d };
     c.disabled = true;
@@ -324,6 +369,7 @@ $('taskBody').onchange = async e => {
     c.disabled = false;
     if (error) { c.checked = !c.checked; alert('Could not save that. ' + error.message); return; }
     const key = k.template_id + '|' + k.check_date; c.checked ? tk.done.add(key) : tk.done.delete(key);
+    if (k.check_date < todayStr()) loadScore().then(paintStats);   // past days change the monthly score
     const card = c.closest('.tk');
     if (card) {   // Today view: let the check animate, then move the task to (or out of) the Done list
       card.classList.add(c.checked ? 'just-done' : 'just-undone');
