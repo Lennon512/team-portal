@@ -261,9 +261,7 @@ function renderManage() {
     '<div class="mg-newpos"><input id="newPos" placeholder="New position, e.g. Sales" aria-label="New position name"><button class="sm" id="addPos">Add position</button></div>' +
     `<h3 class="sub" style="margin-top:2rem">Who gets which set</h3><p class="lead" style="margin-bottom:.8rem">Tick a box to give someone that position’s checklist.</p><div class="cal-wrap"><table class="tg mg-who"><thead><tr><th class="tt">Person</th>${positions.map(p => `<th>${esc(p.name)}</th>`).join('')}</tr></thead><tbody>` +
     pe.map(u => `<tr><td class="tt">${esc(u.full_name || u.email)}</td>${positions.map(p => `<td><input type="checkbox" data-u="${u.id}" data-p="${p.id}" aria-label="${esc(p.name)} for ${esc(u.full_name || u.email)}" ${has.has(u.id + '|' + p.id) ? 'checked' : ''}></td>`).join('')}</tr>`).join('') + '</tbody></table></div>' +
-    `<h3 class="sub" style="margin-top:2rem">Usual work days</h3><p class="lead" style="margin-bottom:.8rem">${sched ? 'Untick the days someone doesn\u2019t usually work. Tasks only count on their work days, and approved time off is skipped too.' : 'Run task_schedules.sql in Supabase to turn on work days.'}</p>` +
-    (sched ? `<div class="cal-wrap"><table class="tg mg-who"><thead><tr><th class="tt">Person</th>${WD.map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>` +
-      pe.map(u => `<tr><td class="tt">${esc(u.full_name || u.email)}</td>${WD.map((d, i) => `<td><input type="checkbox" data-wdu="${u.id}" data-wdd="${i + 1}" aria-label="${esc(u.full_name || u.email)} works ${d}" ${!sched[u.id] || sched[u.id].includes(i + 1) ? 'checked' : ''}></td>`).join('')}</tr>`).join('') + '</tbody></table></div>' : '');
+    `<p class="lead" style="margin-top:1.5rem">Work days are set on each person\u2019s card on the <a href="#team">Team</a> page. Tasks only count on the days someone works.</p>`;
   const ed = $('mgEdit'); if (ed) { ed.focus(); ed.setSelectionRange(ed.value.length, ed.value.length); }
 }
 
@@ -373,13 +371,6 @@ $('taskBody').addEventListener('keydown', e => {
 });
 $('taskBody').onchange = async e => {
   const c = e.target;
-  if (c.dataset.wdu) {   // usual work days
-    const uid = c.dataset.wdu, d = +c.dataset.wdd, cur = sched[uid] || [1, 2, 3, 4, 5, 6, 7];
-    const days = (c.checked ? [...new Set([...cur, d])] : cur.filter(x => x !== d)).sort();
-    const { error } = await db.from('work_schedules').upsert({ user_id: uid, days, updated_at: new Date().toISOString() });
-    if (error) { c.checked = !c.checked; alert('Could not save that. ' + error.message); return; }
-    sched[uid] = days; toast('Work days saved'); return;
-  }
   if (c.dataset.kind) {
     const id = c.dataset.kind, { error } = await db.from('task_templates').update({ kind: c.value }).eq('id', id);
     if (error) { alert(/kind/.test(error.message) ? 'Number tasks need the database update first (task_numbers.sql).' : error.message); renderManage(); return; }
