@@ -16,8 +16,9 @@ async function loadLeads() {
 const dayOf = t => t ? ymd(new Date(t)) : null;
 // How often a lead should hear from us, based on how new they are and where they stand
 // Stage groups. Cooled is the same as Unscheduled; DNR means do not contact.
-const LD_GRPS = [['all', 'All stages'], ['unsched', 'Unscheduled / cooled'], ['noshow', 'No show'], ['missed', 'Missed sale'], ['sched', 'Scheduled'], ['other', 'Other']];
-const leadGrp = s => { s = (s || '').toLowerCase(); return /dnr|do not/.test(s) ? 'dnr' : /missed/.test(s) ? 'missed' : /no ?show/.test(s) ? 'noshow' : /^sched/.test(s) ? 'sched' : (!s || /cool|unsched/.test(s)) ? 'unsched' : 'other'; };
+const LD_GRPS = [['all', 'All stages'], ['cooled', 'Cooled'], ['unsched', 'Unscheduled'], ['missed', 'Missed sale'], ['noshow', 'No show'], ['sched', 'Scheduled'], ['other', 'Other']];
+const LD_GRPS_ALWAYS = ['all', 'cooled', 'unsched', 'missed', 'noshow'];   // always listed, even when 0
+const leadGrp = s => { s = (s || '').toLowerCase(); return /dnr|do not/.test(s) ? 'dnr' : /missed/.test(s) ? 'missed' : /no ?show/.test(s) ? 'noshow' : /^sched/.test(s) ? 'sched' : /cool/.test(s) ? 'cooled' : (!s || /unsched/.test(s)) ? 'unsched' : 'other'; };
 const isDnr = l => leadGrp(l.stage) === 'dnr';
 LD.grp = 'all';
 
@@ -119,7 +120,7 @@ function drawLeads() {
   const ageLbl = LD.age === '7w' ? 'Last 7 days' : LD.age === '30w' ? 'Last 30 days' : LD.age === 'gt30' ? 'Over 30 days' : null;
   $('memExtra').innerHTML = `<span class="ldfilters">
       <select id="ldAge" aria-label="When added">${LD_AGES.map(([k, t]) => `<option value="${k}" ${LD.age === k ? 'selected' : ''}>${k === 'all' ? 'Any time' : t} (${cnt(k)})</option>`).join('')}${ageLbl ? `<option value="${LD.age}" selected>${ageLbl} (${cnt(LD.age)})</option>` : ''}</select>
-      <select id="ldGrp" aria-label="Stage">${LD_GRPS.filter(([g]) => g === 'all' || g === LD.grp || gcnt(g)).map(([g, t]) => `<option value="${g}" ${LD.grp === g ? 'selected' : ''}>${t} (${gcnt(g)})</option>`).join('')}</select>
+      <select id="ldGrp" aria-label="Stage">${LD_GRPS.filter(([g]) => LD_GRPS_ALWAYS.includes(g) || g === LD.grp || gcnt(g)).map(([g, t]) => `<option value="${g}" ${LD.grp === g ? 'selected' : ''}>${t} (${gcnt(g)})</option>`).join('')}</select>
       <select id="ldSrc" aria-label="Source"><option value="">All sources</option>${srcs.map(s => `<option ${s === LD.src ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
       <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></span>`;
   $('memBody').innerHTML = `
