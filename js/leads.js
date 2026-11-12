@@ -117,11 +117,12 @@ function drawLeads() {
   const ds = base.map(x => x.l.added_on).filter(Boolean).sort(), span = ds.length ? fmt(ds[0]) + ' \u2013 ' + fmt(ds[ds.length - 1]) : '';
   const filtered = LD.age !== 'all' || LD.grp !== 'all' || LD.dueOnly || LD.never || LD.src;
   const ageLbl = LD.age === '7w' ? 'Last 7 days' : LD.age === '30w' ? 'Last 30 days' : LD.age === 'gt30' ? 'Over 30 days' : null;
-  $('memBody').innerHTML = `<div class="ldfilters">
+  $('memExtra').innerHTML = `<span class="ldfilters">
       <select id="ldAge" aria-label="When added">${LD_AGES.map(([k, t]) => `<option value="${k}" ${LD.age === k ? 'selected' : ''}>${k === 'all' ? 'Any time' : t} (${cnt(k)})</option>`).join('')}${ageLbl ? `<option value="${LD.age}" selected>${ageLbl} (${cnt(LD.age)})</option>` : ''}</select>
       <select id="ldGrp" aria-label="Stage">${LD_GRPS.filter(([g]) => g === 'all' || g === LD.grp || gcnt(g)).map(([g, t]) => `<option value="${g}" ${LD.grp === g ? 'selected' : ''}>${t} (${gcnt(g)})</option>`).join('')}</select>
       <select id="ldSrc" aria-label="Source"><option value="">All sources</option>${srcs.map(s => `<option ${s === LD.src ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
-      <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></div>
+      <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></span>`;
+  $('memBody').innerHTML = `
     <p class="lead mem-lead">Showing <b>${rows.length}</b> of <b>${base.length}</b> leads${span ? ' added ' + span : ''}${LD.dueOnly ? ', only those due for a call or text' : ''}${LD.never ? ', only never contacted' : ''}, ${sortTxt}.${filtered ? ' <button class="linkish" data-ldreset="1">Clear filters</button>' : ''} Click a lead for their full history.</p>` +
     (rows.length ? speedStrip(rows) : '') +
     (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr>${LD_COLS.map(th).join('')}</tr></thead><tbody>` +
