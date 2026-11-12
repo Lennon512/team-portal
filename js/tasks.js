@@ -1,5 +1,5 @@
 // ---------- Tasks ----------
-let tk = { tab: 'mine', month: new Date(), mode: 'day', day: ymd(new Date()), uid: null, who: '', studio: '', rows: [], done: new Set(), doneOpen: false, open: new Set(), ovFilter: 'all', ov: null, mg: null, openPos: new Set(), edit: null };
+let tk = { tab: 'mine', month: new Date(), mode: 'day', day: ymd(new Date()), uid: null, who: '', studio: '', rows: [], done: new Set(), doneOpen: false, open: new Set(), ovFilter: 'all', ov: null, mg: null, openPos: new Set(), edit: null, showOff: new Set() };
 tk.month.setDate(1);
 let positions = [], templates = [];
 // Usual work days per person (1 = Mon ... 7 = Sun). null = schedules not set up yet; no entry = works every day.
@@ -113,6 +113,13 @@ function renderMine() {
   let h = '<div class="stats" id="tkStats"></div>';
   if (tk.mode === 'day') {
     const day = tk.day, isDone = r => !!doneDate(r, day);
+    // Day off (not a usual work day): show nothing, unless they already checked something that day or chose to show tasks
+    if (!worksOn(tk.uid, day) && !tk.showOff.has(tk.uid + '|' + day) && !tk.rows.some(r => tk.done.has(r.id + '|' + day))) {
+      const wkd = new Date(day + 'T00:00').toLocaleDateString('en-US', { weekday: 'long' });
+      $('taskBody').innerHTML = `<div class="tk-off">${ro ? `<h3 style="margin:0 0 .4rem">${esc(tk.who)}</h3>` : ''}<b>Day off</b><p>${ro ? esc(tk.who.split(' ')[0]) + ' doesn\u2019t' : 'You don\u2019t'} usually work ${wkd}s, so there are no tasks ${dayWord(day)}.</p>` +
+        (!ro && day <= td ? '<button type="button" class="linkish" data-showoff="1">Picked up a shift? Show tasks anyway</button>' : '') + '</div>';
+      return;
+    }
     const item = r => {
       const [head, more] = splitTitle(r.title), open = tk.open.has(r.id);
       return `<div class="tk${isDone(r) ? ' done' : ''}${ro ? ' ro' : ''}" data-row-t="${r.id}"><label class="tk-main">${pbox(r, day)}<span class="tk-title">${esc(head)}${ftag(r, day)}</span></label>` +
@@ -127,9 +134,10 @@ function renderMine() {
     }).join('');
     if (doneRows.length) h += `<details class="tk-donebox" id="tkDoneBox"${tk.doneOpen ? ' open' : ''}><summary>Done ${day === td ? 'today' : dayWord(day)} <span>${doneRows.length}</span></summary>${doneRows.map(item).join('')}</details>`;
   } else {
-    const days = Array.from({ length: n }, (_, i) => i + 1), ds = d => ym + String(d).padStart(2, '0');
-    h += `<div class="cal-wrap"><table class="tg"><thead><tr><th class="tt">Task</th>${days.map(d => `<th class="${ds(d) === td ? 'td' : ''}">${d}</th>`).join('')}</tr></thead><tbody>` +
-      groups.map(g => `<tr class="grp"><td colspan="${n + 1}"><span>${esc(g.name)}</span></td></tr>` + tk.rows.filter(r => r.position_id === g.id).sort(byFreq).map(r => `<tr><td class="tt" title="${esc(r.title)}">${esc(splitTitle(r.title)[0])}${fq(r) !== 'daily' ? ` <span class="tk-freq">${FREQ[fq(r)]}</span>` : ''}</td>${days.map(d => `<td class="${ds(d) === td ? 'td' : ''}">${isNum(r) ? `<span class="tg-val">${tk.done.has(r.id + '|' + ds(d)) ? (numFmt(tk.vals[r.id + '|' + ds(d)]) || '✓') : ''}</span>` : box(r, ds(d))}</td>`).join('')}</tr>`).join('')).join('') + '</tbody></table></div>';
+    const days = Array.from({ length: n }, (_, i) => i + 1), ds = d => ym + String(d).padStart(2, '0'), offD = d => !worksOn(tk.uid, ds(d));
+    const cls = d => [ds(d) === td ? 'td' : '', offD(d) ? 'off' : ''].filter(Boolean).join(' ');
+    h += `<div class="cal-wrap"><table class="tg"><thead><tr><th class="tt">Task</th>${days.map(d => `<th class="${cls(d)}"${offD(d) ? ' title="Day off"' : ''}>${d}</th>`).join('')}</tr></thead><tbody>` +
+      groups.map(g => `<tr class="grp"><td colspan="${n + 1}"><span>${esc(g.name)}</span></td></tr>` + tk.rows.filter(r => r.position_id === g.id).sort(byFreq).map(r => `<tr><td class="tt" title="${esc(r.title)}">${esc(splitTitle(r.title)[0])}${fq(r) !== 'daily' ? ` <span class="tk-freq">${FREQ[fq(r)]}</span>` : ''}</td>${days.map(d => offD(d) && !tk.done.has(r.id + '|' + ds(d)) ? `<td class="${cls(d)}"></td>` : `<td class="${cls(d)}">${isNum(r) ? `<span class="tg-val">${tk.done.has(r.id + '|' + ds(d)) ? (numFmt(tk.vals[r.id + '|' + ds(d)]) || '✓') : ''}</span>` : box(r, ds(d))}</td>`).join('')}</tr>`).join('')).join('') + '</tbody></table></div>';
   }
   $('taskBody').innerHTML = h; paintStats();
   const db_ = $('tkDoneBox'); if (db_) db_.ontoggle = () => { tk.doneOpen = db_.open; };
@@ -328,6 +336,7 @@ $('taskBody').onclick = async e => {
     d.hidden = !open; more.textContent = open ? 'Hide' : 'Details'; more.setAttribute('aria-expanded', String(open));
     return;
   }
+  if (at('[data-showoff]')) { tk.showOff.add(tk.uid + '|' + tk.day); renderMine(); return; }
   const ovf = at('[data-ovf]'); if (ovf) { tk.ovFilter = ovf.dataset.ovf; renderOverview(); return; }
   const go = at('[data-gotab]'); if (go) { tk.tab = go.dataset.gotab; loadTasks(); return; }
   const fix = at('[data-fix]'); if (fix) { const x = templates.find(y => y.id === fix.dataset.fix); if (x) saveTitle(x.id, fixSpacing(x.title)); return; }
