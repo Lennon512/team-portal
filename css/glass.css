@@ -794,3 +794,8 @@ a.htask { text-decoration:none; color:inherit; }
 .twdays { display:flex; flex-wrap:wrap; gap:.3rem; }
 .twday { padding:.3rem .6rem; font-size:.8rem; border-radius:999px; background:rgba(255,255,255,.7); color:var(--muted); border:1px solid rgba(38,30,20,.18); box-shadow:none; }
 .twday.on { background:var(--em); color:#fff; border-color:var(--em); }
+/* Days off on Tasks */
+.tk-off { padding:1.6rem 1.25rem; border-radius:16px; background:rgba(255,255,255,.55); text-align:center; }
+.tk-off b { font-size:1.1rem; }
+.tk-off p { margin:.35rem 0 .6rem; color:var(--muted); }
+.tg th.off, .tg td.off { background:rgba(38,30,20,.05); }

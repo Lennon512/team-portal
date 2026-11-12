@@ -34,7 +34,7 @@ async function loadHome() {
   const myPos = new Set((pp.data || []).map(x => x.position_id)), done = new Set((chk.data || []).filter(c => { const [a, b] = periodOf({ frequency: fOf(c.template_id) }, td); return c.check_date >= a && c.check_date <= b; }).map(x => x.template_id));
   // Managers see their team's task progress: everyone at their studio except themselves
   // Work days (if set up) so people who are off today don't drag the team number down
-  if (mgr) { const ws = await db.from('work_schedules').select('user_id,days'); sched = ws.error ? null : Object.fromEntries((ws.data || []).map(x => [x.user_id, x.days || []])); }
+  { const ws = await db.from('work_schedules').select('user_id,days'); sched = ws.error ? null : Object.fromEntries((ws.data || []).map(x => [x.user_id, x.days || []])); }
   const team0 = mgr ? (dir.data || []).filter(p => p.location_id === ME.location_id && p.id !== ME.id).map(p => ({ p, s: (ov.data || []).find(x => x.user_id === p.id) })).filter(x => x.s && x.s.assigned) : [];
   const team = team0.filter(x => worksOn(x.p.id, td)), teamOff = team0.filter(x => !worksOn(x.p.id, td)).map(x => x.p.full_name.split(' ')[0]);
   home = { team, teamOff, t: (ov.data || []).find(x => x.user_id === ME.id), mine: mine.data || [], pendIds: pend ? (pend.data || []).filter(r => toAct ? toAct.has(r.id) : (r.user_id !== ME.id || ME.role === 'owner')).map(r => r.id) : [],
@@ -96,7 +96,9 @@ function drawHome() {
   // ---- my tasks: progress + next three open ----
   const n = T && T.assigned ? T.assigned : H.tasks.length, d = T && T.assigned ? Math.min(T.done_today || 0, n) : H.tasks.filter(x => H.done.has(x.id)).length, pct = n ? Math.round(100 * d / n) : 0;
   const open = H.tasks.filter(x => !H.done.has(x.id)).sort(byFreq).slice(0, 3);
-  const taskCard = `<div class="hcard"><h3>My tasks</h3>` + (n ? `<div class="tk-progress"><div class="tk-today"><b>${d} of ${n}</b> done today</div></div><div class="meter tk-meter" style="max-width:none;margin:.5rem 0 .8rem"><i style="width:${Math.min(pct, 100)}%"></i></div>` +
+  const offToday = !worksOn(ME.id, td) && d === 0;
+  const taskCard = offToday ? `<div class="hcard"><h3>My tasks</h3><p class="lead" style="margin:0">You don\u2019t usually work today, so there are no tasks. Enjoy your day off.</p><a class="hlink" href="#tasks">Open my tasks \u2192</a></div>`
+    : `<div class="hcard"><h3>My tasks</h3>` + (n ? `<div class="tk-progress"><div class="tk-today"><b>${d} of ${n}</b> done today</div></div><div class="meter tk-meter" style="max-width:none;margin:.5rem 0 .8rem"><i style="width:${Math.min(pct, 100)}%"></i></div>` +
       (open.length ? '<div class="hopen">' + open.map(x => isNum(x) ? `<a class="htask" href="#tasks"><span class="tk-num-ic" aria-hidden="true">#</span><span>${esc(splitTitle(x.title)[0])} <span class="tk-freq">Enter number</span></span></a>` : `<label class="htask"><input type="checkbox" data-htask="${x.id}"><span>${esc(splitTitle(x.title)[0])}${fq(x) !== 'daily' ? ` <span class="tk-freq">${fq(x) === 'weekly' ? 'This week' : 'This month'}</span>` : ''}</span></label>`).join('') + '</div>' : '<p class="hclear" style="margin:0">✓ All done for today!</p>')
     : '<p class="lead" style="margin:0">No tasks assigned yet.</p>') + `<a class="hlink" href="#tasks">${open.length && n - d > open.length ? `See all ${n - d} left →` : 'Open my tasks →'}</a></div>`;
 
