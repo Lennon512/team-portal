@@ -1,5 +1,6 @@
 // ---------- Studio page ----------
-let sd = { id: null, info: null, photo: null, all: null, hasNotes: null, wk: null };
+let sd = { id: null, info: null, photo: null, all: null, hasNotes: null, hasTemp: null, wk: null };
+const tempBanner = i => i && i.temp_closed ? `<div class="stemp"><b>Temporarily closed</b>${i.temp_closed_note ? `<span>${esc(i.temp_closed_note)}</span>` : ''}</div>` : '';
 const SDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ----- hours: stored as text lines like "Mon: 7:00 AM - 7:00 PM" / "Sun: Closed" -----
@@ -33,6 +34,7 @@ const mapsUrl = a => 'https://www.google.com/maps/search/?api=1&query=' + encode
 async function loadStudio(idFromHash) {
   sd.id = idFromHash || null;
   if (sd.hasNotes === null) { const t = await db.from('studio_info').select('staff_notes').limit(1); sd.hasNotes = !t.error; }
+  if (sd.hasTemp === null) { const t = await db.from('studio_info').select('temp_closed').limit(1); sd.hasTemp = !t.error; }
   if (!sd.id) return loadStudioGrid();
   const td = todayStr(), wk = ymd(new Date(Date.now() + 7 * DAY)), lead = ME.role !== 'staff' && canPage('members');
   const [i, , ev, req, its, cnt, thr, ms, ns, meta] = await Promise.all([db.from('studio_info').select('*').eq('location_id', sd.id).maybeSingle(), loadPeople(),
@@ -54,13 +56,13 @@ async function loadStudioGrid() {
 }
 
 function drawStudioGrid() {
-  const td = todayStr(), empty = locs.filter(l => { const i = sd.all[l.id]; return !i || (!i.address && !i.hours && !i.phone); });
+  const td = todayStr(), empty = locs.filter(l => { const i = sd.all[l.id]; return (!i || (!i.address && !i.hours && !i.phone)) && !(i && i.temp_closed); });
   const can = l => ME.role === 'owner' || (ME.role === 'manager' && ME.location_id === l.id);
   $('studioBody').innerHTML = `<h2 style="margin:0 0 .25rem">Our studios</h2><p class="lead" style="margin:0 0 1rem">Tap a studio for its hours, contact info, team and what’s happening this week.</p>` +
     (empty.length && locs.some(can) ? `<div class="tnudge"><span><b>${empty.length} studio${empty.length === 1 ? ' has' : 's have'} no info yet.</b> Add the address, phone and hours so the team can find them.</span></div>` : '') +
     `<div class="sgrid">${locs.map(l => { const i = sd.all[l.id] || {}, n = people.filter(p => p.location_id === l.id).length, st = openStatus(parseHours(i.hours));
       const out = teamX.offs.filter(o => o.location_id === l.id && o.start_date <= td && o.end_date >= td).length, need = sd.allReq.filter(r => r.studio_id === l.id).length;
-      return `<a class="scard" href="#studio/${l.id}"><div class="scard-b"><b>${esc(l.name)}</b>${st ? `<span class="sopen ${st.open ? 'yes' : ''}">${esc(st.t)}</span>` : ''}<small>${esc(i.address || 'No info yet')}</small>
+      return `<a class="scard${i.temp_closed ? ' tclosed' : ''}" href="#studio/${l.id}"><div class="scard-b"><b>${esc(l.name)}</b>${i.temp_closed ? tempBanner(i) : st ? `<span class="sopen ${st.open ? 'yes' : ''}">${esc(st.t)}</span>` : ''}${i.address || !i.temp_closed ? `<small>${esc(i.address || 'No info yet')}</small>` : ''}
         <div class="sstats"><span>${n} on the team</span>${out ? `<span class="tbadge out">${out} out today</span>` : ''}${need ? `<span class="tbadge tsoon">${need} supply request${need === 1 ? '' : 's'}</span>` : ''}</div></div></a>`; }).join('')}</div>`;
 }
 
@@ -89,7 +91,7 @@ function drawStudio() {
     mc && mc.age > 7 ? stat(mc.age + 'd', 'since ClubReady upload', 'mem', 'hot') : ''].join('');
   const notes = sd.hasNotes && i.staff_notes ? `<section class="spanel"><h3>Studio info for staff</h3><p class="snotes">${esc(i.staff_notes)}</p></section>` : (sd.hasNotes && can ? `<section class="spanel"><h3>Studio info for staff</h3><p class="muted" style="margin:0">Add door codes, Wi-Fi, alarm steps, vendor contacts or opening and closing steps with Edit studio info.</p></section>` : '');
   $('studioBody').innerHTML = `<a class="back" href="#studio">← All studios</a>
-    <div class="shero2${sd.photo ? '' : ' nophoto'}">${sd.photo ? `<img src="${esc(sd.photo)}" alt="">` : ''}<div class="shero2-t"><h2>${esc(l.name)}</h2>${st ? `<span class="sopen ${st.open ? 'yes' : ''}">${esc(st.t)}</span>` : ''}</div></div>
+    <div class="shero2${sd.photo ? '' : ' nophoto'}">${sd.photo ? `<img src="${esc(sd.photo)}" alt="">` : ''}<div class="shero2-t"><h2>${esc(l.name)}</h2>${st && !i.temp_closed ? `<span class="sopen ${st.open ? 'yes' : ''}">${esc(st.t)}</span>` : ''}</div></div>${tempBanner(i)}
     <div class="sbtns">${i.phone ? `<a class="tbtn" href="tel:${esc(telOf(i.phone))}">☎ ${esc(fmtPhone(i.phone))}</a>` : ''}${i.address ? `<a class="tbtn" href="${mapsUrl(i.address)}" target="_blank" rel="noopener">📍 Directions</a>` : ''}${i.email ? `<a class="tbtn" href="mailto:${esc(i.email)}">✉ Email</a>` : ''}${can ? '<button class="sm" id="stEdit">Edit studio info</button>' : ''}</div>
     <div class="slayout">
       <div class="scol">
@@ -110,6 +112,8 @@ function stForm() {
   const i = sd.info || {}, H = parseHours(i.hours) || {}, legacy = i.hours && !parseHours(i.hours);
   const row = d => { const v = H[d] || {}; return `<tr><td>${d}</td><td><input type="time" data-ho="${d}" value="${v.o || ''}" ${v.closed ? 'disabled' : ''}></td><td><input type="time" data-hc="${d}" value="${v.c || ''}" ${v.closed ? 'disabled' : ''}></td><td><label class="chkline" style="margin:0"><input type="checkbox" data-hx="${d}" ${v.closed ? 'checked' : ''}> Closed</label></td></tr>`; };
   $('dlgBody').innerHTML = `<h2>Edit studio info</h2>
+    ${sd.hasTemp ? `<label class="chkline"><input type="checkbox" id="sTemp" ${i.temp_closed ? 'checked' : ''}> Temporarily closed (shows a banner on the Studios page)</label>
+    <label>Closed note (optional) <input id="sTempNote" maxlength="120" placeholder="Reopening in early 2027" value="${esc(i.temp_closed_note)}"></label>` : ''}
     <div class="grid2"><label>Phone <input id="sPhone" maxlength="40" value="${esc(i.phone)}"></label>
     <label>Email <input id="sEmail" type="email" maxlength="120" value="${esc(i.email)}"></label></div>
     <label>Address <input id="sAddr" maxlength="200" value="${esc(i.address)}" placeholder="2009 Main St Ste 300, Lakeway, TX 78734"></label>
@@ -151,6 +155,7 @@ async function stSave() {
     const hrs = Object.keys(H).length ? fmtHoursText(H) : (sd.info && sd.info.hours) || null;
     const v = id => $(id).value.trim() || null, row = { location_id: sd.id, bio: v('sBio'), address: v('sAddr'), phone: v('sPhone'), email: v('sEmail'), hours: hrs, updated_by: ME.id, updated_at: new Date().toISOString() };
     if (sd.hasNotes) row.staff_notes = v('sNotes');
+    if (sd.hasTemp) { row.temp_closed = $('sTemp').checked; row.temp_closed_note = v('sTempNote'); }
     if (path) row.photo_path = path;
     const { error } = await db.from('studio_info').upsert(row, { onConflict: 'location_id' }); if (error) throw error;
   } catch (e) { $('sErr').textContent = 'Could not save. ' + (e.message || ''); return; }

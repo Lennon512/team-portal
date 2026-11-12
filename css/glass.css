@@ -810,3 +810,9 @@ a.htask { text-decoration:none; color:inherit; }
 /* Half days: studio open shorter hours */
 .cd.half { background:linear-gradient(135deg, rgba(70,50,30,.07) 0 50%, transparent 50%); }
 .cbar.half, .up-item.half .up-dot, .legend .sw.half { background:#a8927a; color:#fff; }
+/* Studios: temporarily closed */
+.stemp { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; margin:.45rem 0; padding:.5rem .8rem; border-radius:12px; background:#6b5e50; color:#fff; }
+.stemp b { font-size:.9rem; letter-spacing:.01em; }
+.stemp span { font-size:.82rem; opacity:.9; }
+.shero2 + .stemp { margin:0 0 1rem; font-size:1rem; }
+.scard.tclosed { opacity:.85; }

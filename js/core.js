@@ -45,7 +45,7 @@ async function showApp(user) {
     db.from('locations').select('*').order('name'),
     db.from('profiles').select('*').eq('id', user.id).maybeSingle()
   ]);
-  locs = l.data || [];
+  locs = (l.data || []).sort((a, b) => /four\s*points/i.test(a.name) - /four\s*points/i.test(b.name));   // Fourpoints last in every list
   const me = m.data;
   if (!me) { $('hello').textContent = 'Account not set up'; $('note').textContent = 'Your login has no profile yet. Ask the owner for help.'; return; }
   ME = me;
