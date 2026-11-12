@@ -296,3 +296,4 @@ nav a { display:inline-flex; align-items:center; }
 .pj-paths p { margin:0; color:var(--muted); line-height:1.4; }
 @media (max-width:1000px) { .pj-top-five { grid-template-columns:repeat(2,1fr); } .pj-workspace { grid-template-columns:1fr; } .pj-impact { grid-template-columns:repeat(3,1fr); } .pj-impact-title { grid-column:1/-1; } }
 @media (max-width:700px) { .pj-top, .pj-top-five, .pj-grid, .pj-paths, .pj-impact { grid-template-columns:1fr; } }
+.mt th[data-ldsort] { cursor:pointer; text-decoration:underline dotted; }

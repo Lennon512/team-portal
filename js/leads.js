@@ -42,6 +42,10 @@ function leadCalc(l) {
 // Lead age groups shown as filter chips
 const LD_AGES = [['all', 'All', () => true], ['1', 'New (0–1 day)', a => a <= 1], ['7', '2–7 days', a => a >= 2 && a <= 7], ['30', '8–30 days', a => a >= 8 && a <= 30], ['60', '31–60 days', a => a >= 31 && a <= 60], ['old', '60+ days', a => a > 60]];
 const LD_SORTS = { new: 'Newest first', old: 'Oldest first', quiet: 'Longest since last contact', most: 'Most contacts', least: 'Fewest contacts' };
+// Column header sorting. dir 1 = the natural first click (newest, A–Z, most contacts, longest since contact)
+const LD_COLS = [['name', 'Lead', 'A\u2013Z', 'Z\u2013A'], ['contacts', 'Contacts', 'most first', 'fewest first'], ['added', 'Added', 'newest first', 'oldest first'],
+  ['last', 'Last contact', 'longest since contact first', 'most recent contact first'], ['how', 'How', 'A\u2013Z', 'Z\u2013A'], ['by', 'By', 'A\u2013Z', 'Z\u2013A']];
+const LD_OLD = { new: ['added', 1], old: ['added', -1], quiet: ['last', 1], most: ['contacts', 1], least: ['contacts', -1] };
 Object.assign(LD, { age: 'all', sort: 'new', dueOnly: false, never: false });
 
 function sumLeads() {
@@ -59,7 +63,7 @@ function sumLeads() {
 }
 // Clicking a tile sets the filters below it
 function leadTile(q) {
-  Object.assign(LD, { age: 'all', dueOnly: false, never: false, sort: 'new', grp: 'all', src: '' });
+  Object.assign(LD, { age: 'all', dueOnly: false, never: false, sort: 'new', dir: 1, grp: 'all', src: '' });
   if (q === 'due') Object.assign(LD, { dueOnly: true, sort: 'quiet', age: '30w' });
   if (q === 'week') LD.age = '7w';
   if (q === 'speed' || q === 'month') LD.age = '30w';
@@ -97,23 +101,30 @@ function drawLeads() {
   const base = LD.rows.filter(l => (!q || (l.name || '').toLowerCase().includes(q) || (l.phone || '').includes(q)) && mineOk({ club_id: l.club_id }) && !isDnr(l) && (!LD.src || l.source === LD.src)).map(l => ({ l, c: leadCalc(l) }));
   const grpOk = x => LD.grp === 'all' || leadGrp(x.l.stage) === LD.grp;
   const rows = base.filter(x => grpOk(x) && ageOk(x.c.age ?? 0) && (!LD.dueOnly || x.c.due) && (!LD.never || !x.c.n));
-  const S = { new: (a, b) => (b.l.added_on || '') < (a.l.added_on || '') ? -1 : 1, old: (a, b) => (a.l.added_on || '') < (b.l.added_on || '') ? -1 : 1,
-    quiet: (a, b) => (b.c.dc ?? 1e9) - (a.c.dc ?? 1e9) || ((b.l.added_on || '') < (a.l.added_on || '') ? -1 : 1), most: (a, b) => b.c.n - a.c.n, least: (a, b) => a.c.n - b.c.n };
-  rows.sort(S[LD.sort] || S.new);
+  if (LD_OLD[LD.sort]) [LD.sort, LD.dir] = LD_OLD[LD.sort];   // shortcuts from the summary tiles
+  if (!LD_COLS.some(x => x[0] === LD.sort)) { LD.sort = 'added'; LD.dir = 1; }
+  LD.dir = LD.dir || 1;
+  const txt = v => String(v || '\uffff').toLowerCase(), newest = (a, b) => (b.l.added_on || '') < (a.l.added_on || '') ? -1 : (b.l.added_on || '') > (a.l.added_on || '') ? 1 : 0;
+  const S = { added: newest, name: (a, b) => txt(a.l.name).localeCompare(txt(b.l.name)), contacts: (a, b) => b.c.n - a.c.n,
+    last: (a, b) => (b.c.dc ?? 1e9) - (a.c.dc ?? 1e9), how: (a, b) => txt(a.c.last && howOf(a.c.last.kind)).localeCompare(txt(b.c.last && howOf(b.c.last.kind))),
+    by: (a, b) => txt(a.c.last && a.c.last.staff).localeCompare(txt(b.c.last && b.c.last.staff)) };
+  rows.sort((a, b) => LD.dir * S[LD.sort](a, b) || newest(a, b));
+  const col = LD_COLS.find(x => x[0] === LD.sort), sortTxt = 'sorted by ' + col[1].toLowerCase() + ' (' + (LD.dir > 0 ? col[2] : col[3]) + ')';
+  const th = ([k, label]) => `<th data-ldsort="${k}" class="${LD.sort === k ? 'on' : ''}" title="Sort by ${label.toLowerCase()} (click again to flip)">${label}${LD.sort === k ? (LD.dir > 0 ? ' \u25BE' : ' \u25B4') : ''}</th>`;
   const gcnt = g => base.filter(x => (g === 'all' || leadGrp(x.l.stage) === g) && ageOk(x.c.age ?? 0) && (!LD.dueOnly || x.c.due) && (!LD.never || !x.c.n)).length;
   const cnt = k => base.filter(x => grpOk(x) && (k === '7w' ? x.c.age <= 7 : k === '30w' ? x.c.age <= 30 : k === 'gt30' ? x.c.age > 30 : (LD_AGES.find(y => y[0] === k) || LD_AGES[0])[2](x.c.age ?? 0)) && (!LD.dueOnly || x.c.due)).length;
   const srcs = [...new Set(LD.rows.map(l => l.source).filter(Boolean))].sort();
   const ds = base.map(x => x.l.added_on).filter(Boolean).sort(), span = ds.length ? fmt(ds[0]) + ' \u2013 ' + fmt(ds[ds.length - 1]) : '';
   const filtered = LD.age !== 'all' || LD.grp !== 'all' || LD.dueOnly || LD.never || LD.src;
   const ageLbl = LD.age === '7w' ? 'Last 7 days' : LD.age === '30w' ? 'Last 30 days' : LD.age === 'gt30' ? 'Over 30 days' : null;
-  $('memBody').innerHTML = `<div class="ldbar"><span class="tabs ldages">${LD_AGES.map(([k, t]) => `<button type="button" data-ldage="${k}" class="${LD.age === k ? 'on' : ''}">${t} <small>${cnt(k)}</small></button>`).join('')}${ageLbl ? `<button type="button" class="on">${ageLbl} <small>${cnt(LD.age)}</small></button>` : ''}</span></div>
-    <div class="ldbar"><span class="tabs ldages ldgrps">${LD_GRPS.filter(([g]) => g === 'all' || g === LD.grp || gcnt(g)).map(([g, t]) => `<button type="button" data-ldgrp="${g}" class="${LD.grp === g ? 'on' : ''}">${t} <small>${gcnt(g)}</small></button>`).join('')}</span></div>
-    <div class="ldfilters"><select id="ldSort" aria-label="Sort">${Object.entries(LD_SORTS).map(([k, t]) => `<option value="${k}" ${LD.sort === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+  $('memBody').innerHTML = `<div class="ldfilters">
+      <select id="ldAge" aria-label="When added">${LD_AGES.map(([k, t]) => `<option value="${k}" ${LD.age === k ? 'selected' : ''}>${k === 'all' ? 'Any time' : t} (${cnt(k)})</option>`).join('')}${ageLbl ? `<option value="${LD.age}" selected>${ageLbl} (${cnt(LD.age)})</option>` : ''}</select>
+      <select id="ldGrp" aria-label="Stage">${LD_GRPS.filter(([g]) => g === 'all' || g === LD.grp || gcnt(g)).map(([g, t]) => `<option value="${g}" ${LD.grp === g ? 'selected' : ''}>${t} (${gcnt(g)})</option>`).join('')}</select>
       <select id="ldSrc" aria-label="Source"><option value="">All sources</option>${srcs.map(s => `<option ${s === LD.src ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
       <label class="mem-mine"><input type="checkbox" id="ldNever" ${LD.never ? 'checked' : ''}> Never contacted</label></div>
-    <p class="lead mem-lead">Showing <b>${rows.length}</b> of <b>${base.length}</b> leads${span ? ' added ' + span : ''}${LD.dueOnly ? ', only those due for a call or text' : ''}${LD.never ? ', only never contacted' : ''}, ${LD_SORTS[LD.sort].toLowerCase()}.${filtered ? ' <button class="linkish" data-ldreset="1">Clear filters</button>' : ''} Click a lead for their full history.</p>` +
+    <p class="lead mem-lead">Showing <b>${rows.length}</b> of <b>${base.length}</b> leads${span ? ' added ' + span : ''}${LD.dueOnly ? ', only those due for a call or text' : ''}${LD.never ? ', only never contacted' : ''}, ${sortTxt}.${filtered ? ' <button class="linkish" data-ldreset="1">Clear filters</button>' : ''} Click a lead for their full history.</p>` +
     (rows.length ? speedStrip(rows) : '') +
-    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Lead</th><th>Contacts</th><th>Added</th><th>Last contact</th><th>How</th><th>By</th></tr></thead><tbody>` +
+    (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr>${LD_COLS.map(th).join('')}</tr></thead><tbody>` +
       rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l)}</td><td>${attCell(c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>${detailCells(c)}</tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No leads match these filters.</p>') +
     `<p class="legend nb-legend"><span><i class="hchip h0"></i>Today / 1 day</span><span><i class="hchip h1"></i>2–3 days</span><span><i class="hchip h2"></i>4–7</span><span><i class="hchip h3"></i>8–14</span><span><i class="hchip h4"></i>15+ or never</span><span class="muted">(last contact). Added: 1 / 7 / 30 / 60 days..</span></p>`;
 }
@@ -157,8 +168,9 @@ async function saveLeads() {
   return (await chunk('lead_snapshot', rows)) || (await chunk('lead_contacts', cs)) || null;
 }
 
-document.addEventListener('change', e => { const t = e.target, m = { ldSrc: 'src', ldSort: 'sort' }[t.id];
+document.addEventListener('change', e => { const t = e.target, m = { ldSrc: 'src', ldAge: 'age', ldGrp: 'grp' }[t.id];
   if (m) { LD[m] = t.value; drawLeads(); } else if (t.id === 'ldDue') { LD.dueOnly = t.checked; drawLeads(); } else if (t.id === 'ldNever') { LD.never = t.checked; drawLeads(); } });
 document.addEventListener('click', e => { const a = e.target.closest('[data-ldage]'); if (a) { LD.age = a.dataset.ldage; drawLeads(); return; }
   const g = e.target.closest('[data-ldgrp]'); if (g) { LD.grp = g.dataset.ldgrp; drawLeads(); return; }
+  const hs = e.target.closest('th[data-ldsort]'); if (hs) { if (LD.sort === hs.dataset.ldsort) LD.dir = -LD.dir; else { LD.sort = hs.dataset.ldsort; LD.dir = 1; } drawLeads(); return; }
   if (e.target.closest('[data-ldreset]')) { leadTile(''); drawLeads(); } });
