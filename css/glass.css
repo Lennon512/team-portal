@@ -807,3 +807,6 @@ a.htask { text-decoration:none; color:inherit; }
 .mem-filters:has(.ldfilters) { flex:1 1 100%; margin-left:0; }
 .mem-filters:has(.ldfilters) .ldfilters { order:1; }
 .mem-filters:has(.ldfilters) #memFind { order:2; margin-left:auto; }
+/* Half days: studio open shorter hours */
+.cd.half { background:linear-gradient(135deg, rgba(70,50,30,.07) 0 50%, transparent 50%); }
+.cbar.half, .up-item.half .up-dot, .legend .sw.half { background:#a8927a; color:#fff; }

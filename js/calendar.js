@@ -26,6 +26,8 @@ function celItems(d, sf) {
 // ----- helpers -----
 const addD = (d, n) => { const x = new Date(d + 'T00:00'); x.setDate(x.getDate() + n); return ymd(x); };
 const isClosed = ev => /^closed\b/i.test(ev.title || '');
+const isHalf = ev => /^half day\b/i.test(ev.title || '');   // studio open shorter hours that day
+const bareTitle = t => (t || '').replace(/^(closed|half day)\s*:\s*/i, '');
 const fmtLong = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 // Major US holidays for a year (fixed dates plus Memorial Day, Labor Day, Thanksgiving)
 function holidays(y) {
@@ -51,12 +53,12 @@ function calItems(from, to) {
   const sf = x => !calStudio || x.location_id === calStudio, ov = (s, e) => s <= to && e >= from, out = [];
   if (calTab === 'all' || calTab === 'events') {
     events.filter(x => ov(x.event_date, x.ends_on || x.event_date) && (!x.location_id || sf(x))).forEach(x => out.push({ s: x.event_date, e: x.ends_on || x.event_date,
-      t: (x.time_label ? x.time_label + ' ' : '') + (x.location_id && !calStudio ? studio(x.location_id) + ': ' : '') + x.title, k: isClosed(x) ? 'closed' : x.location_id ? 'es' : 'ea', id: x.id }));
+      t: (x.time_label ? x.time_label + ' ' : '') + (x.location_id && !calStudio ? studio(x.location_id) + ': ' : '') + x.title, k: isClosed(x) ? 'closed' : isHalf(x) ? 'half' : x.location_id ? 'es' : 'ea', id: x.id }));
     for (let y = +from.slice(0, 4); y <= +to.slice(0, 4); y++) holidays(y).filter(([d]) => d >= from && d <= to).forEach(([d, t]) => out.push({ s: d, e: d, t, k: 'hol' }));
   }
   if (calTab === 'all' || calTab === 'off') offs.filter(o => ov(o.start_date, o.end_date) && sf(o)).forEach(o => out.push({ s: o.start_date, e: o.end_date, t: o.full_name + ' out', k: o.status === 'pending' ? 'pend' : 'off', oid: o.id, o }));
   if (calTab === 'all' || calTab === 'cel') for (let d = from; d <= to; d = addD(d, 1)) celItems(d, sf).forEach(c => out.push({ s: d, e: d, t: c.t, k: 'cel', pid: c.pid }));
-  const rank = { closed: 0, hol: 1, ea: 2, es: 3, off: 4, pend: 5, cel: 6 };
+  const rank = { closed: 0, half: 0.5, hol: 1, ea: 2, es: 3, off: 4, pend: 5, cel: 6 };
   return out.sort((a, b) => a.s < b.s ? -1 : a.s > b.s ? 1 : (b.e > a.e) - (a.e > b.e) || rank[a.k] - rank[b.k]);
 }
 // How many people are out per studio on a day; returns the busiest studio
@@ -95,10 +97,11 @@ function drawCal() {
       return { ...x, c1, c2, lane, cl: x.s < from, cr: x.e > to };
     });
     const closedDays = new Set(items.filter(x => x.k === 'closed').flatMap(x => keys.filter(k => k >= x.s && k <= x.e)));
+    const halfDays = new Set(items.filter(x => x.k === 'half').flatMap(x => keys.filter(k => k >= x.s && k <= x.e)));
     const L = Math.max(lanes.length, 2);
     h += `<div class="wk" style="grid-template-rows:2rem repeat(${L}, 1.55rem) minmax(.8rem, 1fr)">` +
       days.map((d, i) => { const k = keys[i], cov = coverage(k);
-        return `<div class="cd${d.getMonth() !== m ? ' out' : ''}${k === today ? ' today' : ''}${i === 0 || i === 6 ? ' wkend' : ''}${closedDays.has(k) ? ' closed' : ''}" style="grid-column:${i + 1}" data-day="${k}"><span class="cdn">${d.getDate()}</span>` +
+        return `<div class="cd${d.getMonth() !== m ? ' out' : ''}${k === today ? ' today' : ''}${i === 0 || i === 6 ? ' wkend' : ''}${closedDays.has(k) ? ' closed' : halfDays.has(k) ? ' half' : ''}" style="grid-column:${i + 1}" data-day="${k}"><span class="cdn">${d.getDate()}</span>` +
           (cov && calTab !== 'cel' && calTab !== 'events' ? `<span class="cov" title="${esc(studio(cov.loc))}: ${esc(cov.names.join(', '))}">${cov.n} out</span>` : '') + '</div>'; }).join('') +
       placed.map(x => `<button class="cbar ${x.k}${x.cl ? ' cl' : ''}${x.cr ? ' cr' : ''}" style="grid-column:${x.c1 + 1} / ${x.c2 + 2};grid-row:${x.lane + 2}" ${attrs(x)} title="${esc(x.t)}">${esc(x.t)}${x.k === 'pend' ? ' <i>pending</i>' : ''}</button>`).join('') + '</div>';
   }
@@ -146,13 +149,13 @@ function eventForm(ev) {
   ev = ev || {};
   const loc = ev.id ? ev.location_id : ((!calStudio && ME.role === 'owner') ? '' : (calStudio || ME.location_id));
   $('dlgBody').innerHTML = `<h2>${ev.id ? 'Edit event' : 'New event'}</h2>
-    <label>Title <input id="eT" maxlength="100" value="${esc((ev.title || '').replace(/^closed:\s*/i, ''))}"></label>
+    <label>Title <input id="eT" maxlength="100" value="${esc(bareTitle(ev.title))}"></label>
     <label>Date <input id="eD" type="date" value="${esc(ev.event_date)}"></label>
     <label>End date (optional) <input id="eE" type="date" value="${esc(ev.ends_on)}"></label>
-    <label>Time (optional) <input id="eTm" maxlength="30" placeholder="6:00 PM" value="${esc(ev.time_label)}"></label>
+    <label>Studio hours <select id="eC"><option value="">Open as usual</option><option value="half" ${ev.title && isHalf(ev) ? 'selected' : ''}>Half day (shorter hours)</option><option value="closed" ${ev.title && isClosed(ev) ? 'selected' : ''}>Closed all day</option></select></label>
+    <label><span id="eTmL">${ev.title && isHalf(ev) ? 'Hours that day' : 'Time (optional)'}</span> <input id="eTm" maxlength="30" placeholder="${ev.title && isHalf(ev) ? '9 AM - 1 PM' : '6:00 PM'}" value="${esc(ev.time_label)}"></label>
     ${ME.role === 'owner' ? `<label>Where <select id="eL"><option value="">All of Austin</option>${locs.map(x => `<option value="${x.id}" ${x.id === loc ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}
     <label>Details <textarea id="eN" maxlength="600">${esc(ev.notes)}</textarea></label>
-    <label class="chkline"><input type="checkbox" id="eC" ${ev.title && isClosed(ev) ? 'checked' : ''}> Studio closed (shades the day on the calendar)</label>
     <div id="cErr" role="alert" style="color:var(--danger)"></div>
     <div class="acts"><button data-act="saveEv" data-id="${ev.id || ''}">Save</button>${ev.id ? `<button class="quiet" data-act="delEv" data-id="${ev.id}">Delete</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div>`;
   if (!$('dlg').open) $('dlg').showModal();
@@ -176,7 +179,7 @@ $('dlgBody').addEventListener('click', async e => {
   else if (a === 'editEv') eventForm(events.find(x => x.id === id));
   else if (a === 'delEv') { const { error } = await db.from('events').delete().eq('id', id); if (error) return fail('Could not delete.'); $('dlg').close(); loadCal(); }
   else if (a === 'saveEv') {
-    const t0 = $('eT').value.trim().replace(/^closed:\s*/i, ''), row = { title: $('eC').checked && t0 ? (/^closed\b/i.test(t0) ? t0 : 'Closed: ' + t0) : t0, event_date: $('eD').value, ends_on: $('eE').value || null, time_label: $('eTm').value.trim() || null, notes: $('eN').value.trim() || null,
+    const t0 = bareTitle($('eT').value.trim()), hrs = $('eC').value, row = { title: !t0 ? t0 : hrs === 'closed' ? 'Closed: ' + t0 : hrs === 'half' ? 'Half day: ' + t0 : t0, event_date: $('eD').value, ends_on: $('eE').value || null, time_label: $('eTm').value.trim() || null, notes: $('eN').value.trim() || null,
       location_id: ME.role === 'owner' ? ($('eL').value || null) : ME.location_id };
     if (!row.title || !row.event_date) return fail('Add a title and a date.');
     if (row.ends_on && row.ends_on < row.event_date) return fail('The end date is before the start date.');
@@ -235,3 +238,7 @@ function quickAdd(day) {
   eventForm({ event_date: day });
 }
 $('cal').onclick = e => { const b = e.target.closest('[data-ev]'), o = e.target.closest('[data-off]'), c = e.target.closest('[data-cel]'); if (b) showEv(b.dataset.ev); else if (o) showOff(o.dataset.off); else if (c) showCel(c.dataset.cel); else { const cell = e.target.closest('[data-day]'); if (cell) quickAdd(cell.dataset.day); } };
+
+// Event form: relabel the time box when Half day is picked
+document.addEventListener('change', e => { if (e.target.id !== 'eC') return; const h = e.target.value === 'half';
+  $('eTmL').textContent = h ? 'Hours that day' : 'Time (optional)'; $('eTm').placeholder = h ? '9 AM - 1 PM' : '6:00 PM'; });

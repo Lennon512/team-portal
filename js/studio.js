@@ -82,7 +82,7 @@ function drawStudio() {
   }
   const wkRows = [
     ...outs.map(o => `<li><i class="up-dot" style="background:${o.status === 'pending' ? '#f6e2b0' : '#e8b84a'}"></i><span><b>${esc(o.full_name.split(' ')[0])}</b> out ${o.start_date <= td ? 'until ' + fmt(o.end_date) : fmt(o.start_date) + (o.end_date !== o.start_date ? '–' + fmt(o.end_date) : '')}${o.status === 'pending' ? ' <em class="muted">pending</em>' : ''}</span></li>`),
-    ...W.ev.map(e => `<li><i class="up-dot" style="background:${isClosed(e) ? '#6b5e50' : e.location_id ? '#4a86c5' : '#2f5f8f'}"></i><span><b>${fmt(e.event_date)}</b> ${esc(e.title)}${e.time_label ? ' • ' + esc(e.time_label) : ''}</span></li>`)];
+    ...W.ev.map(e => `<li><i class="up-dot" style="background:${isClosed(e) ? '#6b5e50' : isHalf(e) ? '#a8927a' : e.location_id ? '#4a86c5' : '#2f5f8f'}"></i><span><b>${fmt(e.event_date)}</b> ${esc(e.title)}${e.time_label ? ' • ' + esc(e.time_label) : ''}</span></li>`)];
   const stat = (n, label, go, cls) => `<button class="sstat ${cls || ''}" data-go="${go}"><b>${n}</b>${label}</button>`;
   const stats = [rq || low ? stat(rq + low, 'supplies low or requested', 'sup', 'warm') : '', ordered ? stat(ordered, 'supplies on the way', 'sup') : '',
     mc && mc.call ? stat(mc.call, mc.inv ? 'members to call' : 'members not booked', 'mem', 'warm') : '', mc && mc.risk ? stat(mc.risk, 'new members at risk', 'new', 'warm') : '',
