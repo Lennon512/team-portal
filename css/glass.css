@@ -816,3 +816,9 @@ a.htask { text-decoration:none; color:inherit; }
 .stemp span { font-size:.82rem; opacity:.9; }
 .shero2 + .stemp { margin:0 0 1rem; font-size:1rem; }
 .scard.tclosed { opacity:.85; }
+/* Top bar: Slack button (looks like the Password / Sign out buttons) */
+.who .slackbtn { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .95rem; font-size:.85rem; font-weight:500; border-radius:999px; text-decoration:none;
+  background:rgba(255,255,255,.42); color:var(--ink); border:1px solid rgba(255,255,255,.7); white-space:nowrap; }
+.who .slackbtn:hover { background:rgba(255,255,255,.7); }
+.who .slackbtn:focus-visible { outline:2px solid var(--dark); outline-offset:2px; }
+@media (max-width: 640px) { .who .slackbtn { padding:.45rem .6rem; font-size:0; gap:0; } .who .slackbtn svg { width:18px; height:18px; } }
