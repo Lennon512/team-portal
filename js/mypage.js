@@ -94,7 +94,7 @@ function drawHome() {
   const n = T && T.assigned ? T.assigned : H.tasks.length, d = T && T.assigned ? Math.min(T.done_today || 0, n) : H.tasks.filter(x => H.done.has(x.id)).length, pct = n ? Math.round(100 * d / n) : 0;
   const open = H.tasks.filter(x => !H.done.has(x.id)).sort(byFreq).slice(0, 3);
   const taskCard = `<div class="hcard"><h3>My tasks</h3>` + (n ? `<div class="tk-progress"><div class="tk-today"><b>${d} of ${n}</b> done today</div></div><div class="meter tk-meter" style="max-width:none;margin:.5rem 0 .8rem"><i style="width:${Math.min(pct, 100)}%"></i></div>` +
-      (open.length ? '<div class="hopen">' + open.map(x => `<label class="htask"><input type="checkbox" data-htask="${x.id}"><span>${esc(splitTitle(x.title)[0])}${fq(x) !== 'daily' ? ` <span class="tk-freq">${fq(x) === 'weekly' ? 'This week' : 'This month'}</span>` : ''}</span></label>`).join('') + '</div>' : '<p class="hclear" style="margin:0">✓ All done for today!</p>')
+      (open.length ? '<div class="hopen">' + open.map(x => isNum(x) ? `<a class="htask" href="#tasks"><span class="tk-num-ic" aria-hidden="true">#</span><span>${esc(splitTitle(x.title)[0])} <span class="tk-freq">Enter number</span></span></a>` : `<label class="htask"><input type="checkbox" data-htask="${x.id}"><span>${esc(splitTitle(x.title)[0])}${fq(x) !== 'daily' ? ` <span class="tk-freq">${fq(x) === 'weekly' ? 'This week' : 'This month'}</span>` : ''}</span></label>`).join('') + '</div>' : '<p class="hclear" style="margin:0">✓ All done for today!</p>')
     : '<p class="lead" style="margin:0">No tasks assigned yet.</p>') + `<a class="hlink" href="#tasks">${open.length && n - d > open.length ? `See all ${n - d} left →` : 'Open my tasks →'}</a></div>`;
 
   // ---- time off: mine + approvals ----

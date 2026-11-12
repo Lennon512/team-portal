@@ -21,6 +21,9 @@ function doneDate(r, d) {
   for (let x = a; x <= b; x = addDays(x, 1)) if (tk.done.has(r.id + '|' + x)) return x;
   return null;
 }
+const KIND = { check: 'Checkbox', number: 'Number' };
+const isNum = r => r.kind === 'number';
+const numFmt = v => v === null || v === undefined || v === '' ? '' : String(+v);
 const fqOrder = { daily: 0, weekly: 1, monthly: 2 };
 const byFreq = (a, b) => fqOrder[fq(a)] - fqOrder[fq(b)];
 // Monthly score from the database (skips days on approved time off). null until task_frequency.sql is run.
@@ -66,12 +69,13 @@ async function loadMine() {
   tk.who = (who.data && (who.data.full_name || who.data.email)) || 'Tasks';
   let checks = [], from = 0;
   for (;;) {
-    const { data } = await db.from('task_checks').select('id,template_id,check_date').eq('user_id', uid).gte('check_date', s).lte('check_date', e).order('id').range(from, from + 999);
+    const { data } = await db.from('task_checks').select('*').eq('user_id', uid).gte('check_date', s).lte('check_date', e).order('id').range(from, from + 999);
     checks = checks.concat(data || []);
     if (!data || data.length < 1000) break;
     from += 1000;
   }
   tk.done = new Set(checks.map(c => c.template_id + '|' + c.check_date));
+  tk.vals = {}; checks.forEach(c => { if (c.value !== null && c.value !== undefined) tk.vals[c.template_id + '|' + c.check_date] = c.value; });
   await loadScore(); renderMine();
 }
 
@@ -95,7 +99,9 @@ function renderMine() {
   const groups = positions.filter(p => tk.rows.some(r => r.position_id === p.id));
   const box = (r, d) => `<input type="checkbox" data-t="${r.id}" data-d="${d}" aria-label="${esc(splitTitle(r.title)[0])} ${d}" ${tk.done.has(r.id + '|' + d) ? 'checked' : ''} ${ro || d > td ? 'disabled' : ''}>`;
   // Day view box: weekly/monthly tasks count as done if checked any day in their week/month
-  const pbox = (r, d) => { const dd = doneDate(r, d); return `<input type="checkbox" data-t="${r.id}" data-d="${dd || d}" aria-label="${esc(splitTitle(r.title)[0])}" ${dd ? 'checked' : ''} ${ro || d > td || (dd && dd > td) ? 'disabled' : ''}>`; };
+  const pbox = (r, d) => { const dd = doneDate(r, d);
+    if (isNum(r)) return `<input type="number" inputmode="decimal" step="any" min="0" class="tk-num${dd ? ' has' : ''}" data-num="${r.id}" data-d="${dd || d}" value="${dd ? numFmt(tk.vals[r.id + '|' + dd]) : ''}" placeholder="#" aria-label="${esc(splitTitle(r.title)[0])}" ${ro || d > td ? 'disabled' : ''}>`;
+    return `<input type="checkbox" data-t="${r.id}" data-d="${dd || d}" aria-label="${esc(splitTitle(r.title)[0])}" ${dd ? 'checked' : ''} ${ro || d > td || (dd && dd > td) ? 'disabled' : ''}>`; };
   const ftag = (r, d) => { if (fq(r) === 'daily') return ''; const dd = doneDate(r, d), [, end] = periodOf(r, d);
     return `<span class="tk-freq">${fq(r) === 'weekly' ? 'This week' : 'This month'}${dd ? (dd !== d ? ' \u2022 done ' + fmtDay(dd).split(',')[0] : '') : ' \u2022 by ' + fmtDay(end)}</span>`; };
   let h = '<div class="stats" id="tkStats"></div>';
@@ -117,7 +123,7 @@ function renderMine() {
   } else {
     const days = Array.from({ length: n }, (_, i) => i + 1), ds = d => ym + String(d).padStart(2, '0');
     h += `<div class="cal-wrap"><table class="tg"><thead><tr><th class="tt">Task</th>${days.map(d => `<th class="${ds(d) === td ? 'td' : ''}">${d}</th>`).join('')}</tr></thead><tbody>` +
-      groups.map(g => `<tr class="grp"><td colspan="${n + 1}"><span>${esc(g.name)}</span></td></tr>` + tk.rows.filter(r => r.position_id === g.id).sort(byFreq).map(r => `<tr><td class="tt" title="${esc(r.title)}">${esc(splitTitle(r.title)[0])}${fq(r) !== 'daily' ? ` <span class="tk-freq">${FREQ[fq(r)]}</span>` : ''}</td>${days.map(d => `<td class="${ds(d) === td ? 'td' : ''}">${box(r, ds(d))}</td>`).join('')}</tr>`).join('')).join('') + '</tbody></table></div>';
+      groups.map(g => `<tr class="grp"><td colspan="${n + 1}"><span>${esc(g.name)}</span></td></tr>` + tk.rows.filter(r => r.position_id === g.id).sort(byFreq).map(r => `<tr><td class="tt" title="${esc(r.title)}">${esc(splitTitle(r.title)[0])}${fq(r) !== 'daily' ? ` <span class="tk-freq">${FREQ[fq(r)]}</span>` : ''}</td>${days.map(d => `<td class="${ds(d) === td ? 'td' : ''}">${isNum(r) ? `<span class="tg-val">${tk.done.has(r.id + '|' + ds(d)) ? (numFmt(tk.vals[r.id + '|' + ds(d)]) || '✓') : ''}</span>` : box(r, ds(d))}</td>`).join('')}</tr>`).join('')).join('') + '</tbody></table></div>';
   }
   $('taskBody').innerHTML = h; paintStats();
   const db_ = $('tkDoneBox'); if (db_) db_.ontoggle = () => { tk.doneOpen = db_.open; };
@@ -235,8 +241,8 @@ function renderManage() {
       return `<li class="mg-row${dup ? ' dup' : ''}"><span class="mg-num">${i + 1}</span>
         <span class="mg-text" data-edit="${t.id}" title="Click to edit"><span class="mg-head">${esc(head)}</span>${more ? `<span class="mg-more">${esc(more)}</span>` : ''}
           ${dup ? '<span class="mg-badge">Duplicate</span>' : ''}${typo ? `<button class="mg-badge soft" data-fix="${t.id}" title="Add the missing space after the period">Fix spacing</button>` : ''}</span>
-        <select class="mg-freq" data-freq="${t.id}" aria-label="How often">${Object.entries(FREQ).map(([v, l]) => `<option value="${v}" ${fq(t) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        <span class="mg-acts"><button class="mg-ic" data-move="-1" data-id="${t.id}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="mg-ic" data-move="1" data-id="${t.id}" aria-label="Move down" ${i === list.length - 1 ? 'disabled' : ''}>↓</button><button class="mg-ic" data-edit="${t.id}" aria-label="Edit">✎</button><button class="mg-ic del" data-rm="${t.id}" aria-label="Remove">✕</button></span></li>`;
+        <span class="mg-side"><select class="mg-freq" data-kind="${t.id}" aria-label="Checkbox or number">${Object.entries(KIND).map(([v, l]) => `<option value="${v}" ${(t.kind || 'check') === v ? 'selected' : ''}>${l}</option>`).join('')}</select><select class="mg-freq" data-freq="${t.id}" aria-label="How often">${Object.entries(FREQ).map(([v, l]) => `<option value="${v}" ${fq(t) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <span class="mg-acts"><button class="mg-ic" data-move="-1" data-id="${t.id}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="mg-ic" data-move="1" data-id="${t.id}" aria-label="Move down" ${i === list.length - 1 ? 'disabled' : ''}>↓</button><button class="mg-ic" data-edit="${t.id}" aria-label="Edit">✎</button><button class="mg-ic del" data-rm="${t.id}" aria-label="Remove">✕</button></span></span></li>`;
     };
     return `<details class="mg-pos" data-pos="${p.id}"${tk.openPos.has(p.id) ? ' open' : ''}><summary><span class="mg-name">${esc(p.name)}</span><span class="mg-meta">${list.length} task${list.length === 1 ? '' : 's'} • ${ppl} ${ppl === 1 ? 'person' : 'people'}</span>${dups ? `<span class="mg-badge">${dups} duplicates</span>` : ''}</summary>
       ${list.length ? `<ol class="mg-list">${list.map(row).join('')}</ol>` : '<p class="lead" style="margin:.5rem 0 1rem">No tasks yet. Add some below.</p>'}
@@ -350,12 +356,33 @@ $('taskBody').addEventListener('input', e => {
   if (h) h.textContent = n ? `${n} task${n === 1 ? '' : 's'} ready to add` : '';
 });
 $('taskBody').addEventListener('keydown', e => {
+  if (e.target.dataset && e.target.dataset.num && e.key === 'Enter') { e.preventDefault(); e.target.blur(); return; }   // Enter saves a number
   if (e.target.id !== 'mgEdit') return;
   if (e.key === 'Escape') { tk.edit = null; renderManage(); }
   else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(tk.edit, e.target.value); }
 });
 $('taskBody').onchange = async e => {
   const c = e.target;
+  if (c.dataset.kind) {
+    const id = c.dataset.kind, { error } = await db.from('task_templates').update({ kind: c.value }).eq('id', id);
+    if (error) { alert(/kind/.test(error.message) ? 'Number tasks need the database update first (task_numbers.sql).' : error.message); renderManage(); return; }
+    const x = templates.find(y => y.id === id); if (x) x.kind = c.value;
+    toast(c.value === 'number' ? 'Now a number task' : 'Now a checkbox task'); return;
+  }
+  if (c.dataset.num) {   // number tasks: save, change or clear the number
+    const k = { user_id: ME.id, template_id: c.dataset.num, check_date: c.dataset.d }, key = k.template_id + '|' + k.check_date, v = c.value.trim();
+    if (v !== '' && !(+v >= 0)) { alert('Please enter a number.'); return; }
+    c.disabled = true;
+    const had = tk.done.has(key);
+    const { error } = v === '' ? (had ? await db.from('task_checks').delete().match(k) : { error: null })
+      : had ? await db.from('task_checks').update({ value: +v }).match(k) : await db.from('task_checks').insert(Object.assign({ value: +v }, k));
+    c.disabled = false;
+    if (error) { alert(/value/.test(error.message) ? 'Number tasks need the database update first (task_numbers.sql).' : 'Could not save that. ' + error.message); return; }
+    if (v === '') { tk.done.delete(key); delete tk.vals[key]; } else { tk.done.add(key); tk.vals[key] = +v; }
+    if (v !== '' && !had) toast('Saved');
+    renderMine(); if (k.check_date < todayStr()) loadScore().then(paintStats);
+    return;
+  }
   if (c.dataset.freq) {
     const id = c.dataset.freq, { error } = await db.from('task_templates').update({ frequency: c.value }).eq('id', id);
     if (error) { alert(/frequency/.test(error.message) ? 'Weekly and monthly tasks need the database update first (task_frequency.sql).' : error.message); renderManage(); return; }
