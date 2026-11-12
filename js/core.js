@@ -312,3 +312,20 @@ function toast(msg, undo) {
   el.classList.add('show');
   el._t = setTimeout(() => el.classList.remove('show'), undo ? 6000 : 2200);
 }
+
+// Pop-up cards close when you click outside them. If you've typed something, it asks first so nothing is lost.
+// (Only counts when the click starts and ends outside, so selecting text and dragging out doesn't close it.)
+(() => {
+  const d = $('dlg'); let downOut = false, dirty = false;
+  const outside = e => { const r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
+  d.addEventListener('mousedown', e => { downOut = e.target === d && outside(e); });
+  d.addEventListener('input', () => { dirty = true; });
+  d.addEventListener('close', () => { dirty = false; });
+  new MutationObserver(() => { dirty = false; }).observe($('dlgBody'), { childList: true });   // new card content = nothing unsaved yet
+  d.addEventListener('click', e => {
+    if (!(downOut && e.target === d && outside(e))) return;
+    downOut = false;
+    if (dirty && !confirm('Close without saving your changes?')) return;
+    d.close();
+  });
+})();
