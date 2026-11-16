@@ -409,7 +409,7 @@ td.due-soon { color:#7d5608; font-weight:500; }
 .cbar.off, .up-item.off .up-dot, .legend .sw.off { background:#e8b84a; color:#3d2c05; }
 .cbar.pend { background:repeating-linear-gradient(135deg, rgba(232,184,74,.45) 0 6px, rgba(232,184,74,.25) 6px 12px); color:#5c4307; box-shadow:inset 0 0 0 1.5px #e8b84a; }
 .up-item.pend .up-dot, .legend .sw.pend { background:repeating-linear-gradient(135deg, #e8b84a 0 3px, #f6e2b0 3px 6px); border:0; }
-.cbar.cel, .up-item.cel .up-dot, .legend .sw.cel { background:#c58af9; color:#1c1330; }
+.cbar.cel, .up-item.cel .up-dot, .legend .sw.cel { background:#ec7fb5; color:#3a0f24; }
 .cbar.hol, .up-item.hol .up-dot, .legend .sw.hol { background:rgba(38,30,20,.12); color:var(--ink); }
 .cbar.closed, .up-item.closed .up-dot, .legend .sw.closed { background:#6b5e50; color:#fff; }
 .legend { align-items:center; } .legend .sw { border-radius:4px; }

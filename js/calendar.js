@@ -29,6 +29,9 @@ const isClosed = ev => /^closed\b/i.test(ev.title || '');
 const isHalf = ev => /^half day\b/i.test(ev.title || '');   // studio open shorter hours that day
 const isMeeting = ev => /^meeting\s*:/i.test(ev.title || '');   // meetings are events whose title starts with "Meeting:"
 const bareTitle = t => (t || '').replace(/^(closed|half day|meeting)\s*:\s*/i, '');
+// Times look the same however they were typed: "1pm", "1:00pm", "1:00 p.m." all show as "1:00 PM"
+const tFmt = t => String(t || '').replace(/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b\.?/gi, (_, h, m, ap) => `${+h}:${m || '00'} ${ap.toUpperCase()}M`)
+  .replace(/\b(\d{1,2}):(\d{2})\s*-\s*(?=\d{1,2}(:\d{2})? [AP]M)/g, '$1:$2 \u2013 ').replace(/([AP]M)\s*-\s*/g, '$1 \u2013 ').replace(/\s+-\s+/g, ' \u2013 ');
 const fmtLong = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 // Major US holidays for a year (fixed dates plus Memorial Day, Labor Day, Thanksgiving)
 function holidays(y) {
@@ -54,10 +57,11 @@ function calItems(from, to) {
   const sf = x => !calStudio || x.location_id === calStudio, ov = (s, e) => s <= to && e >= from, out = [];
   if (calTab === 'all' || calTab === 'events' || calTab === 'meet') {
     events.filter(x => ov(x.event_date, x.ends_on || x.event_date) && (!x.location_id || sf(x)) && (calTab === 'all' || (calTab === 'meet') === isMeeting(x))).forEach(x => out.push({ s: x.event_date, e: x.ends_on || x.event_date,
-      t: (x.time_label ? x.time_label + ' ' : '') + (x.location_id && !calStudio ? studio(x.location_id) + ': ' : '') + (isMeeting(x) ? (calTab === 'meet' ? bareTitle(x.title) : 'Meeting: ' + bareTitle(x.title)) : x.title), k: isMeeting(x) ? 'mt' : isClosed(x) ? 'closed' : isHalf(x) ? 'half' : x.location_id ? 'es' : 'ea', id: x.id }));
+      t: (x.time_label ? tFmt(x.time_label) + ' ' : '') + (x.location_id && !calStudio ? studio(x.location_id) + ': ' : '') + (isMeeting(x) ? (calTab === 'meet' ? bareTitle(x.title) : 'Meeting: ' + bareTitle(x.title)) : x.title), k: isMeeting(x) ? 'mt' : isClosed(x) ? 'closed' : isHalf(x) ? 'half' : x.location_id ? 'es' : 'ea', id: x.id }));
   }
   if (calTab === 'all' || calTab === 'events') {
-    for (let y = +from.slice(0, 4); y <= +to.slice(0, 4); y++) holidays(y).filter(([d]) => d >= from && d <= to).forEach(([d, t]) => out.push({ s: d, e: d, t, k: 'hol' }));
+    const closedOn = d => events.some(x => isClosed(x) && x.event_date <= d && (x.ends_on || x.event_date) >= d && (!x.location_id || sf(x)));   // you're closed that day: the closure shows, not the holiday too
+    for (let y = +from.slice(0, 4); y <= +to.slice(0, 4); y++) holidays(y).filter(([d]) => d >= from && d <= to && !closedOn(d)).forEach(([d, t]) => out.push({ s: d, e: d, t, k: 'hol' }));
   }
   if (calTab === 'all' || calTab === 'off') offs.filter(o => ov(o.start_date, o.end_date) && sf(o)).forEach(o => out.push({ s: o.start_date, e: o.end_date, t: o.full_name + ' out', k: o.status === 'pending' ? 'pend' : 'off', oid: o.id, o }));
   if (calTab === 'all' || calTab === 'cel') for (let d = from; d <= to; d = addD(d, 1)) celItems(d, sf).forEach(c => out.push({ s: d, e: d, t: c.t, k: 'cel', pid: c.pid }));
@@ -133,7 +137,7 @@ function drawUpcoming() {
 
 function showEv(id) {
   const ev = events.find(x => x.id === id); if (!ev) return;
-  const when = fmt(ev.event_date) + (ev.ends_on ? ' \u2013 ' + fmt(ev.ends_on) : '') + (ev.time_label ? ' \u2022 ' + ev.time_label : '') + (ev.series_id ? ' \u2022 \u21BB ' + (ev.repeat_rule || 'Repeats') : '');
+  const when = fmt(ev.event_date) + (ev.ends_on ? ' \u2013 ' + fmt(ev.ends_on) : '') + (ev.time_label ? ' \u2022 ' + tFmt(ev.time_label) : '') + (ev.series_id ? ' \u2022 \u21BB ' + (ev.repeat_rule || 'Repeats') : '');
   const link = t => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   $('dlgBody').innerHTML = `${isMeeting(ev) ? '<span class="pill mtpill">Meeting</span>' : ''}<h2>${esc(isMeeting(ev) ? bareTitle(ev.title) : ev.title)}</h2><p class="lead" style="margin:.25rem 0 1rem">${esc(when)} \u2022 ${esc(ev.location_id ? studio(ev.location_id) : 'All of Austin')}</p>
     <p style="white-space:pre-wrap">${link(ev.notes || '')}</p>
@@ -215,7 +219,7 @@ $('dlgBody').addEventListener('click', async e => {
     const { error } = all ? await db.from('events').delete().eq('series_id', ev.series_id).gte('event_date', ev.event_date) : await db.from('events').delete().eq('id', id);
     if (error) return fail('Could not delete.'); $('dlg').close(); loadCal(); }
   else if (a === 'saveEv') {
-    const t0 = bareTitle($('eT').value.trim()), mtg = $('eK').value === 'meeting', hrs = mtg ? '' : $('eC').value, row = { title: !t0 ? t0 : mtg ? 'Meeting: ' + t0 : hrs === 'closed' ? 'Closed: ' + t0 : hrs === 'half' ? 'Half day: ' + t0 : t0, event_date: $('eD').value, ends_on: $('eE').value || null, time_label: $('eTm').value.trim() || null, notes: $('eN').value.trim() || null,
+    const t0 = bareTitle($('eT').value.trim()), mtg = $('eK').value === 'meeting', hrs = mtg ? '' : $('eC').value, row = { title: !t0 ? t0 : mtg ? 'Meeting: ' + t0 : hrs === 'closed' ? 'Closed: ' + t0 : hrs === 'half' ? 'Half day: ' + t0 : t0, event_date: $('eD').value, ends_on: $('eE').value || null, time_label: tFmt($('eTm').value.trim()) || null, notes: $('eN').value.trim() || null,
       location_id: ME.role === 'owner' ? ($('eL').value || null) : ME.location_id };
     if (!row.title || !row.event_date) return fail('Add a title and a date.');
     if (row.ends_on && row.ends_on < row.event_date) return fail('The end date is before the start date.');

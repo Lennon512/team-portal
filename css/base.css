@@ -162,7 +162,7 @@ dialog { background:var(--panel); } dialog::backdrop { background:rgba(15,22,31,
 .cal > div:not(.dow):hover span:first-child { text-decoration:underline; }
 .legend { display:flex; gap:1.25rem; flex-wrap:wrap; margin:.75rem 0 0; color:var(--muted); font-size:.85rem; }
 .legend .sw { display:inline-block; width:.9rem; height:.9rem; border-radius:3px; margin-right:.4rem; vertical-align:-2px; }
-.legend .ea { background:var(--lb); } .legend .es { background:#2f6db0; } .legend .off { background:var(--accent); } .legend .pend { border:1px dashed var(--accent); } .legend .cel { background:#c58af9; }
+.legend .ea { background:var(--lb); } .legend .es { background:#2f6db0; } .legend .off { background:var(--accent); } .legend .pend { border:1px dashed var(--accent); } .legend .cel { background:#ec7fb5; }
 .tg .td, .tg .grp td { background:var(--tint); }
 .meter { background:var(--line); }
 .ov tbody tr:hover, .mt tbody tr:hover { background:var(--tint); }
@@ -229,7 +229,7 @@ select.cellin { min-width:9.5rem; }
 .hsplit > div:first-child { border-right:1px solid var(--line); padding-right:1rem; }
 @media (max-width:640px) { .hsplit { grid-template-columns:1fr; } .hsplit > div:first-child { border-right:0; border-bottom:1px solid var(--line); padding-right:0; padding-bottom:.75rem; } }
 .pill.ok { background:#2f6b45; color:#dff5e6; }
-.chip.cel { background:#c58af9; color:#1c1330; }
+.chip.cel { background:#ec7fb5; color:#3a0f24; }
 .contact { display:flex; flex-wrap:wrap; gap:.4rem 1.25rem; margin:.6rem 0 0; font-size:.9rem; color:var(--muted); }
 .contact a { color:var(--lb); }
 .shero.sm { aspect-ratio:auto; height:160px; }
