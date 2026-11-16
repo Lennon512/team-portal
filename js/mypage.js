@@ -185,7 +185,7 @@ function drawAnnouncements() {
   const card = (r, soon) => {
     const [ic, lab] = ANN_KINDS[r.kind] || ANN_KINDS.news, left = r.ends_on ? Math.round((new Date(r.ends_on + 'T00:00') - new Date(td + 'T00:00')) / DAY) : null;
     const when = soon ? `Starts ${fmtD(r.starts_on)}` : left === null ? '' : left === 0 ? 'Ends today' : left === 1 ? 'Ends tomorrow' : `Ends ${fmtD(r.ends_on)}${left <= 7 ? ` • ${left} days left` : ''}`;
-    const who = own && r.location_ids && r.location_ids.length ? r.location_ids.map(studio).join(', ') : '';
+    const who = own && r.location_ids && r.location_ids.length && !locs.every(l => r.location_ids.includes(l.id)) ? r.location_ids.map(studio).join(', ') : '';   // every studio ticked = same as everyone
     return `<article class="ann ann-${esc(r.kind)}${soon ? ' ann-soon' : ''}">
       <div class="ann-top"><span class="ann-tag"><span aria-hidden="true">${ic}</span> ${lab}</span>${r.pinned ? '<span class="ann-pin">Pinned</span>' : ''}${when ? `<span class="ann-when">${when}</span>` : ''}
         ${own ? `<button class="quiet sm ann-edit" data-annedit="${r.id}" aria-label="Edit announcement">Edit</button>` : ''}</div>

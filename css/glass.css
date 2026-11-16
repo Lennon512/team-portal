@@ -876,14 +876,14 @@ a.htask { text-decoration:none; color:inherit; }
 .ann-edit { position:absolute; top:.7rem; right:.8rem; }
 .ann:has(.ann-edit) .ann-top { padding-right:3.6rem; }
 #anPin { margin-top:.6rem; }
-.ann-promo { border-left-color:#c2410c; background:rgba(255,240,228,.6); }
-.ann-promo .ann-tag { color:#9a3412; }
-.ann-contest { border-left-color:#7c3aed; background:rgba(243,237,255,.6); }
-.ann-contest .ann-tag { color:#6d28d9; }
-.ann-news .ann-tag { color:#0b5c3f; }
-.ann-news { border-left-color:#0f8a5f; }
-.ann-important { border-left-color:#d65a40; background:rgba(255,230,222,.65); }
-.ann-important .ann-tag { color:#b42318; }
+.ann-promo { border-left-color:#f5b800; background:rgba(255,236,170,.55); }
+.ann-promo .ann-tag { color:#8a6400; }
+.ann-contest { border-left-color:#0057b8; background:rgba(214,229,250,.6); }
+.ann-contest .ann-tag { color:#0057b8; }
+.ann-news { border-left-color:#1d3f7a; background:rgba(226,233,245,.55); }
+.ann-news .ann-tag { color:#1d3f7a; }
+.ann-important { border-left-color:#f5b800; background:linear-gradient(90deg, rgba(255,236,170,.6), rgba(214,229,250,.55)); }
+.ann-important .ann-tag { color:#0057b8; }
 .ann-soon { opacity:.65; }
 .ann-setup { margin:0 0 1rem; padding:.7rem 1rem; border-radius:10px; background:rgba(255,236,226,.6); }
 
