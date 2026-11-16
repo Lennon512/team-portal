@@ -41,9 +41,9 @@ async function drawCompare() {
   if (!PF.cmpIndex) { $('pfBody').innerHTML = '<p class="lead">Loading locations...</p>'; await loadCmpIndex(); }
   const slot = (side, label) => {
     const c = PF.cmp[side];
-    return `<div class="hcard"><label>${label}${cmpSelectHtml(side)}</label>${c ? `<div class="lead" style="margin:.45rem 0 0">${esc([c.franchise, c.tier].filter(Boolean).join(' \u2022 '))}${c.rows.length ? ' \u2022 ' + c.rows.length + ' month' + (c.rows.length === 1 ? '' : 's') + ' on file' : ' \u2022 no history yet'}</div>` : ''}</div>`;
+    return `<label class="cmpslot">${label}${cmpSelectHtml(side)}${c ? `<small class="muted">${esc([c.franchise, c.tier].filter(Boolean).join(' \u2022 '))}${c.rows.length ? ' \u2022 ' + c.rows.length + ' month' + (c.rows.length === 1 ? '' : 's') + ' on file' : ' \u2022 no history yet'}</small>` : ''}</label>`;
   };
-  let html = `<p class="lead" style="margin:0 0 1rem">Pick any two Stretch Zone locations you\u2019ve uploaded a scorecard for, yours or anyone else\u2019s.</p><div class="dgrid3">${slot('a', 'Location A')}${slot('b', 'Location B')}</div>`;
+  let html = '', perSel = '';
   if (PF.cmp.a && PF.cmp.b) {
     const A = PF.cmp.a, B = PF.cmp.b, per = PF.cmp.per || 'latest';
     const months = [...new Set([...A.rows.map(r => r.month), ...B.rows.map(r => r.month)])].sort().reverse();
@@ -57,7 +57,7 @@ async function drawCompare() {
     };
     const have = loc => nAvg ? loc.rows.filter(r => win.includes(r.month)).length : pick(loc) ? 1 : 0;
     const opt = (v, l) => `<option value="${v}" ${per === v ? 'selected' : ''}>${l}</option>`;
-    const perSel = `<select id="cmpPer" aria-label="Time frame" class="cmpper">${opt('latest', 'Most recent month')}${months.length >= 3 ? opt('avg3', 'Average of last 3 months') : ''}${months.length >= 6 ? opt('avg6', 'Average of last 6 months') : ''}${months.length >= 12 ? opt('avg12', 'Average of last 12 months') : ''}<optgroup label="Pick a month">${months.map(m => opt(m, mLbl(m, 1))).join('')}</optgroup></select>`;
+    perSel = `<label class="cmpslot cmpperl">Time frame<select id="cmpPer" aria-label="Time frame" class="cmpper">${opt('latest', 'Most recent month')}${months.length >= 3 ? opt('avg3', 'Average of last 3 months') : ''}${months.length >= 6 ? opt('avg6', 'Average of last 6 months') : ''}${months.length >= 12 ? opt('avg12', 'Average of last 12 months') : ''}<optgroup label="Pick a month">${months.map(m => opt(m, mLbl(m, 1))).join('')}</optgroup></select></label>`;
     const la = !nAvg ? pick(A) : null, lb = !nAvg ? pick(B) : null;
     const rows = CORP.map(([k, n, f]) => {
       const va = val(A, k), vb = val(B, k);
@@ -67,10 +67,12 @@ async function drawCompare() {
     const note = per === 'latest' ? `${la ? esc(A.name) + '\u2019s most recent month on file is ' + mLbl(la.month) : esc(A.name) + ' has no history yet'}, ${lb ? esc(B.name) + '\u2019s is ' + mLbl(lb.month) : esc(B.name) + ' has no history yet'}${la && lb && la.month !== lb.month ? ' (different months, pick a month to line them up)' : ''}.`
       : nAvg ? `Average of ${mLbl(win[win.length - 1])} \u2013 ${mLbl(win[0])}: ${esc(A.name)} has ${have(A)} of those months on file, ${esc(B.name)} has ${have(B)}.`
       : `${mLbl(per, 1)}.${!have(A) ? ' ' + esc(A.name) + ' has no scorecard for that month.' : ''}${!have(B) ? ' ' + esc(B.name) + ' has no scorecard for that month.' : ''}`;
-    html += `<div class="cmphead"><h3 class="sub" style="margin:0">Side by side</h3>${perSel}</div><p class="lead" style="margin:0 0 .5rem">${note} The better number for each KPI is highlighted. Click a row to chart it.</p>
-      <div class="table-wrap"><table class="mt"><thead><tr><th>KPI</th><th>${esc(A.name)}</th><th>${esc(B.name)}</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="pcard" style="margin-top:1rem"><h3 id="cmpTitle"></h3><div style="position:relative;height:320px"><canvas id="cmpChart"></canvas></div></div>`;
+    html += `<p class="muted cmpnote">${note} Better number highlighted. Click a row to chart it.</p>
+      <div class="cmpgrid"><div class="table-wrap"><table class="mt cmpt"><thead><tr><th>KPI</th><th>${esc(A.name)}</th><th>${esc(B.name)}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="pcard cmpchart"><h3 id="cmpTitle"></h3><div style="position:relative;height:320px"><canvas id="cmpChart"></canvas></div></div></div>`;
   }
+  html = `<div class="cmpbar">${slot('a', 'Location A')}${slot('b', 'Location B')}${perSel}</div>` +
+    (PF.cmp.a && PF.cmp.b ? '' : '<p class="muted" style="margin:.2rem 0 0">Pick any two Stretch Zone locations you\u2019ve uploaded a scorecard for, yours or anyone else\u2019s.</p>') + html;
   $('pfBody').innerHTML = html;
   if (PF.cmp.a && PF.cmp.b) drawCmpChart();
 }
