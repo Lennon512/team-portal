@@ -1,5 +1,12 @@
 // ---------- Time off page ----------
-let to = { reqs: [], offs: [], msg: '', apv: [], apvLoaded: false, dir: {}, err: '' };
+let to = { reqs: [], offs: [], msg: '', apv: [], apvLoaded: false, dir: {}, err: '', tab: 'req', aw: 'up', ast: '', aloc: '', aq: '' };
+// Lennon and Kevin (time off admins) can delete any request; everyone can delete their own
+const canDelOff = r => !!r && (r.user_id === ME.id || (to.admins ? to.admins.includes(ME.id) : ME.role === 'owner'));
+async function delOff(id) {
+  let { error } = await db.rpc('delete_time_off', { p_id: id });
+  if (error && /function|schema cache/i.test(error.message)) ({ error } = await db.from('time_off_requests').delete().eq('id', id));   // before sql/time_off_delete.sql is run
+  return error;
+}
 const SHIFT = { full: 'Full shift', partial: 'Partial shift', flexible: 'Can adjust shift time' };
 const dayDiff = (a, b) => Math.round((new Date(b + 'T00:00') - new Date(a + 'T00:00')) / DAY);
 
@@ -46,14 +53,15 @@ async function showOff(id) {
     <p style="margin:0 0 .75rem">${esc(line)}</p>
     ${clashes(o).length ? `<p class="clash">Heads up: also out at ${esc(studio(o.location_id))} during these days: ${clashes(o).map(c => `<b>${esc(c.full_name)}</b> (${esc(fmt(c.start_date) + (c.end_date !== c.start_date ? '\u2013' + fmt(c.end_date) : ''))}${c.status === 'pending' ? ', pending' : ''})`).join(', ')}.</p>` : ''}
     ${r && toInfo(r) ? `<p style="margin:0 0 .75rem">${toInfo(r)}</p>` : '<p class="lead" style="font-size:.85rem;margin:0 0 .75rem">Only the person and their managers can see the reason and coverage details.</p>'}
-    <div class="acts">${decide ? `<button data-act="offDecide" data-s="approved" data-id="${id}">Approve</button><button class="quiet" data-act="offDecide" data-s="denied" data-id="${id}">Deny</button>` : ''}${r && r.user_id === ME.id && r.status === 'pending' ? `<button class="quiet" data-act="offCancel" data-id="${id}">Cancel request</button>` : ''}<button class="quiet" data-act="close">Close</button></div>`;
+    <div class="acts">${decide ? `<button data-act="offDecide" data-s="approved" data-id="${id}">Approve</button><button class="quiet" data-act="offDecide" data-s="denied" data-id="${id}">Deny</button>` : ''}${canDelOff(r) ? `<button class="quiet" data-act="offCancel" data-id="${id}">${r.user_id === ME.id && r.status === 'pending' ? 'Cancel request' : 'Delete'}</button>` : ''}<button class="quiet" data-act="close">Close</button></div>`;
   if (!$('dlg').open) $('dlg').showModal();
 }
 
 $('dlgBody').addEventListener('click', async e => {
   const a = e.target.dataset.act; if (a !== 'offDecide' && a !== 'offCancel') return;
   const id = e.target.dataset.id;
-  const { error } = a === 'offCancel' ? await db.from('time_off_requests').delete().eq('id', id) : await db.rpc('decide_time_off', { p_id: id, p_status: e.target.dataset.s });
+  if (a === 'offCancel' && !confirm('Delete this time off request? This can\u2019t be undone.')) return;
+  const { error } = a === 'offCancel' ? { error: await delOff(id) } : await db.rpc('decide_time_off', { p_id: id, p_status: e.target.dataset.s });
   if (error) { alert('That did not work: ' + error.message); return; }
   $('dlg').close(); loadCal(); timeOffBadge();
 });
@@ -82,10 +90,14 @@ function drawTimeOff() {
   const urgent = r => r.status === 'pending' && r.created_at && dayDiff(r.created_at.slice(0, 10), r.start_date) <= 14;
   const pend = ME.role === 'staff' ? [] : to.reqs.filter(r => canDecide(r));
   const mine = to.reqs.filter(r => r.user_id === ME.id), up = mine.filter(r => r.end_date >= td).sort((a, b) => a.start_date < b.start_date ? -1 : 1), past = mine.filter(r => r.end_date < td);
-  const myRow = r => `<div class="toreq ${r.status}"><div><b>${toSpan(r)}</b> <span class="muted">${dayDiff(r.start_date, r.end_date) + 1} day${r.end_date !== r.start_date ? 's' : ''}</span><small>${toInfo(r)}</small><small class="toline">${esc(sline(r))}</small></div><div class="toacts">${toPill(r.status)}${r.status === 'pending' ? `<button class="quiet sm" data-a="cancel" data-id="${r.id}">Cancel</button>` : ''}</div></div>`;
+  const myRow = r => `<div class="toreq ${r.status}"><div><b>${toSpan(r)}</b> <span class="muted">${dayDiff(r.start_date, r.end_date) + 1} day${r.end_date !== r.start_date ? 's' : ''}</span><small>${toInfo(r)}</small><small class="toline">${esc(sline(r))}</small></div><div class="toacts">${toPill(r.status)}${r.end_date >= td ? `<button class="quiet sm" data-a="cancel" data-id="${r.id}">${r.status === 'pending' ? 'Cancel' : 'Delete'}</button>` : ''}</div></div>`;
   const apRow = r => { const cl = toClash(reqLoc(r), r.user_id, r.start_date, r.end_date, r.id);
     return `<div class="toreq pending"><div><b>${esc(toNm(r))}</b> <span class="muted">• ${esc(studio(reqLoc(r)))}</span><div class="todates">${toSpan(r)} <span class="muted">• ${dayDiff(r.start_date, r.end_date) + 1} day${r.end_date !== r.start_date ? 's' : ''}</span>${urgent(r) ? ' <span class="topill denied">Within 2 weeks</span>' : ''}</div><small>${toInfo(r)}</small>${cl.length ? `<small class="up-warn">Also out: ${esc(cl.map(c => c.full_name.split(' ')[0] + ' (' + toSpan(c) + ')').join(', '))}</small>` : ''}</div><div class="toacts"><button class="sm" data-a="approved" data-id="${r.id}">Approve</button><button class="quiet sm" data-a="denied" data-id="${r.id}">Decline</button></div></div>`; };
-  $('toBody').innerHTML = (to.err ? `<p class="err">Could not load requests: ${esc(to.err)}</p>` : '') + (to.msg ? `<p class="hclear">✓ ${to.msg}</p>` : '') +
+  const lead = ME.role !== 'staff';
+  if (!lead) to.tab = 'req';
+  const tabs = lead ? `<div class="tabs totabs" id="toTabs"><button data-tot="req" class="${to.tab === 'req' ? 'on' : ''}">Request time off${pend.length ? ` <span class="hcount">${pend.length}</span>` : ''}</button><button data-tot="all" class="${to.tab === 'all' ? 'on' : ''}">All requests</button></div>` : '';
+  if (to.tab === 'all') { $('toBody').innerHTML = tabs + (to.err ? `<p class="err">Could not load requests: ${esc(to.err)}</p>` : '') + allRequests(sline); return; }
+  $('toBody').innerHTML = tabs + (to.err ? `<p class="err">Could not load requests: ${esc(to.err)}</p>` : '') + (to.msg ? `<p class="hclear">✓ ${to.msg}</p>` : '') +
     (pend.length ? `<h3 class="sub">Waiting for your approval <span class="hcount">${pend.length}</span></h3><div class="tolist">${pend.sort((a, b) => a.start_date < b.start_date ? -1 : 1).map(apRow).join('')}</div>` : '') +
     `<h3 class="sub" style="margin-top:${pend.length ? '1.6rem' : '0'}">Request time off</h3>
     <div class="toform-wrap"><div class="pcard toform">
@@ -105,6 +117,31 @@ function drawTimeOff() {
     (up.length ? `<div class="tolist">${up.map(myRow).join('')}</div>` : '<p class="lead" style="margin:0">No upcoming requests.</p>') +
     (past.length ? `<details class="tk-donebox mem-done"><summary>Past requests <span>${past.length}</span></summary><div class="tolist">${past.map(myRow).join('')}</div></details>` : '');
   toHint();
+}
+
+// Every request in one place (owners: all studios, managers: their studio), with filters
+function allRequests(sline) {
+  const td = todayStr(), own = ME.role === 'owner', q = to.aq.trim().toLowerCase();
+  const mineLoc = r => own || reqLoc(r) === ME.location_id || r.user_id === ME.id;
+  let L = to.reqs.filter(r => mineLoc(r)
+    && (to.aw === 'all' || (to.aw === 'up' ? r.end_date >= td : r.end_date < td))
+    && (!to.ast || r.status === to.ast) && (!to.aloc || reqLoc(r) === to.aloc) && (!q || toNm(r).toLowerCase().includes(q)));
+  L.sort(to.aw === 'up' ? (a, b) => a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : 0 : (a, b) => a.start_date < b.start_date ? 1 : -1);
+  const n = st => L.filter(r => r.status === st).length;
+  const opt = (v, l, cur) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`;
+  const row = r => { const cl = r.status !== 'denied' && r.end_date >= td ? toClash(reqLoc(r), r.user_id, r.start_date, r.end_date, r.id) : [];
+    return `<div class="toreq ${r.status}"><div><b>${esc(toNm(r))}</b> <span class="muted">• ${esc(studio(reqLoc(r)))}</span>
+      <div class="todates">${toSpan(r)} <span class="muted">• ${dayDiff(r.start_date, r.end_date) + 1} day${r.end_date !== r.start_date ? 's' : ''}${r.start_date <= td && r.end_date >= td ? ' • out now' : ''}</span></div>
+      <small>${toInfo(r)}</small><small class="toline">${esc(sline(r))}</small>${cl.length ? `<small class="up-warn">Also out: ${esc(cl.map(c => c.full_name.split(' ')[0] + ' (' + toSpan(c) + ')').join(', '))}</small>` : ''}</div>
+      <div class="toacts">${toPill(r.status)}${r.status === 'pending' && canDecide(r) ? `<button class="sm" data-a="approved" data-id="${r.id}">Approve</button><button class="quiet sm" data-a="denied" data-id="${r.id}">Decline</button>` : ''}${canDelOff(r) ? `<button class="quiet sm todel" data-a="del" data-id="${r.id}" title="Delete this request">Delete</button>` : ''}</div></div>`; };
+  return `<div class="tofilters">
+      <select id="toAw" aria-label="When">${opt('up', 'Upcoming and out now', to.aw)}${opt('past', 'Past', to.aw)}${opt('all', 'All dates', to.aw)}</select>
+      <select id="toAst" aria-label="Status">${opt('', 'Any status', to.ast)}${opt('pending', 'Pending', to.ast)}${opt('approved', 'Approved', to.ast)}${opt('denied', 'Denied', to.ast)}</select>
+      ${own ? `<select id="toAloc" aria-label="Studio">${opt('', 'All studios', to.aloc)}${locs.map(l => opt(l.id, esc(l.name), to.aloc)).join('')}</select>` : ''}
+      <input id="toAq" type="search" placeholder="Find a name" value="${esc(to.aq)}">
+    </div>
+    <p class="muted tocount">${L.length} request${L.length === 1 ? '' : 's'}${L.length ? ` • ${n('pending')} pending • ${n('approved')} approved${n('denied') ? ` • ${n('denied')} denied` : ''}` : ''}</p>` +
+    (L.length ? `<div class="tolist">${L.map(row).join('')}</div>` : '<p class="lead" style="margin:0">No requests match.</p>');
 }
 
 // Live summary beside the form
@@ -137,13 +174,16 @@ async function sendTo() {
   to.f = { s: '', e: '', shift: 'full', from: '', till: '', cv: 'no', co: 'no', cn: '', n: '' }; loadTimeOff();
 }
 
+$('toBody').addEventListener('change', e => { const m = { toAw: 'aw', toAst: 'ast', toAloc: 'aloc' }[e.target.id]; if (m) { to[m] = e.target.value; drawTimeOff(); } });
 $('toBody').oninput = e => {
+  if (e.target.id === 'toAq') { to.aq = e.target.value; drawTimeOff(); const f = $('toAq'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); return; }
   const id = e.target.id, F = to.f, map = { tS: 's', tE: 'e', tFrom: 'from', tTill: 'till', tCn: 'cn', tN: 'n' };
   if (map[id]) { F[map[id]] = e.target.value; if (id === 'tS' && F.e && F.e < F.s) { F.e = ''; $('tE').value = ''; } if (id === 'tS') $('tE').min = F.s || todayStr(); $('tErr').textContent = ''; toHint(); }
 };
 $('toBody').onclick = async e => {
   const t = e.target;
   if (t.id === 'tSend') return sendTo();
+  const tb = t.closest('[data-tot]'); if (tb) { to.tab = tb.dataset.tot; to.msg = ''; drawTimeOff(); return; }
   const q = t.closest('[data-quick]');
   if (q) {
     const d = new Date(), add = n => { const x = new Date(d); x.setDate(d.getDate() + n); return ymd(x); };
@@ -161,9 +201,11 @@ $('toBody').onclick = async e => {
     toHint(); return;
   }
   const a = t.dataset.a, id = t.dataset.id; if (!a) return;
+  if (a === 'del' || a === 'cancel') { const r = to.reqs.find(x => x.id === id);
+    if (r && !confirm(`Delete ${r.user_id === ME.id ? 'your' : toNm(r).split(' ')[0] + '\u2019s'} time off request for ${toSpan(r)}? This can\u2019t be undone.`)) return; }
   to.msg = ''; t.disabled = true;
-  const { error } = a === 'cancel' ? await db.from('time_off_requests').delete().eq('id', id) : await db.rpc('decide_time_off', { p_id: id, p_status: a });
+  const { error } = a === 'cancel' || a === 'del' ? { error: await delOff(id) } : await db.rpc('decide_time_off', { p_id: id, p_status: a });
   if (error) { t.disabled = false; alert('That did not work: ' + error.message); return; }
-  toast(a === 'cancel' ? 'Request cancelled' : a === 'approved' ? 'Approved' : 'Declined');
+  toast(a === 'del' ? 'Request deleted' : a === 'cancel' ? 'Request cancelled' : a === 'approved' ? 'Approved' : 'Declined');
   loadTimeOff();
 };
