@@ -947,3 +947,13 @@ a.htask { text-decoration:none; color:inherit; }
 .nett td.good { background:rgba(31,157,106,.14); color:#0b5c3f; font-weight:600; } .nett td.bad { background:rgba(208,83,60,.13); color:#8f2a1a; font-weight:600; }
 .netwrap, .dlwrap { padding-top:0; }
 .nett thead th, .dlwrap thead th { background:#f3efe9; box-shadow:0 1px 0 rgba(38,30,20,.12); }
+
+/* Library: image thumbnails, New tag, in-page viewer */
+.lbthumb { flex:none; width:4.2rem; height:4.2rem; border-radius:10px; overflow:hidden; background:rgba(38,30,20,.07); }
+.lbthumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.lbnew { display:inline-block; margin-left:.3rem; padding:.05rem .45rem; border-radius:999px; background:#d6efe3; color:#0b5c3f; font-size:.7rem; font-weight:700; vertical-align:middle; }
+.lbview { margin:0 0 .8rem; border-radius:12px; overflow:hidden; background:rgba(38,30,20,.05); text-align:center; }
+.lbview img { max-width:100%; max-height:70vh; display:block; margin:0 auto; }
+.lbview.pdf iframe { width:100%; height:70vh; border:0; display:block; }
+.lbtxt span.lbnew { display:inline-block; width:auto; margin:0 0 0 .35rem; }
+.lbtxt span.lbnew { align-self:flex-start; }
