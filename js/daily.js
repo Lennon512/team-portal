@@ -157,9 +157,11 @@ function drawDaily() {
   const totRow = !T ? '' : `<tr class="dltot"><td><b>Austin total</b><small class="nm-sub">${inn.length} studio${inn.length === 1 ? '' : 's'}</small></td>` + COLS.map(c => {
     let v = c[0] === 'active' ? inn.reduce((n, x) => n + (x.a.avgActive || 0), 0) || null : c[0] === 'revenue' ? (inn.some(x => x.row.revenue !== null && x.row.revenue !== undefined) ? T.revenue : null) : c[0] === 'labor' ? T.labor : c[2](T, {}, { id: '' });
     if (c[0] === 'nmg') return `<td class="${v > 0 ? 'good' : v < 0 ? 'bad' : ''}">${c[3](v)}</td>`;
-    const gl = c[4] ? inn.map(x => c[4](x.tt)) : [], ok = gl.length && gl.every(g => g !== null && g !== undefined && g !== '' && !isNaN(g));
+    // Only count goals for studios that have this number (e.g. revenue goal only for studios that entered revenue)
+    const has = c[0] === 'revenue' ? inn.filter(x => x.row.revenue !== null && x.row.revenue !== undefined) : c[0] === 'labor' ? inn.filter(x => payOk(x.l.id)) : inn;
+    const gl = c[4] ? has.map(x => c[4](x.tt)) : [], ok = gl.length && gl.every(g => g !== null && g !== undefined && g !== '' && !isNaN(g));
     const g = !ok ? null : c[6] ? gl.reduce((n, x) => n + +x, 0) / gl.length : gl.reduce((n, x) => n + +x, 0);
-    return `<td class="${tone(v, g, c[5])}"${g !== null ? ` title="Goal ${c[5] ? 'at most ' : ''}${gfmt(c, g)}"` : ''}>${v === null || v === undefined ? '–' : c[3](v)}</td>`; }).join('') + '</tr>';
+    return `<td class="${tone(v, g, c[5])}"${g !== null ? ` title="Goal ${c[5] ? 'at most ' : ''}${gfmt(c, g)}"` : ''}>${v === null || v === undefined ? '–' : c[3](v)}${c[0] === 'revenue' && g !== null && v !== null ? `<small class="nm-sub">of ${money(Math.round(g))}</small>` : ''}</td>`; }).join('') + '</tr>';
   const table = `<div class="table-wrap"><table class="mt ovt dlt"><thead><tr><th>Studio</th>${COLS.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>` + goalRow +
     rv.map(({ l, row, a, tt, focus }) => row ? `<tr><td><b>${esc(l.name)}</b>${row.open_day === false ? '<small class="nm-sub">Closed</small>' : ''}<div class="dlfocusline"><span class="dlfocus" title="Today's #1 focus">${esc(focus)}</span></div></td>${COLS.map(c => cell(c, a, row, l, tt)).join('')}</tr>`
       : `<tr class="dlmiss"><td><b>${esc(l.name)}</b><div class="dlfocusline"><span class="dlfocus miss">${esc(FOCUSES[0])}</span></div></td><td colspan="${COLS.length}"><span class="muted">Not entered yet</span>${canWrite(l.id) ? ` <button class="linkish" data-dlstudio="${l.id}">Enter now</button>` : ''}</td></tr>`).join('') +
