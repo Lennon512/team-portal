@@ -204,10 +204,10 @@ const missing = p => [!p.photo_path && 'a photo', !p.job_title && 'your title', 
 function renderPeople() {
   const f = $('studioFilter').value, q = ($('teamFind').value || '').toLowerCase().trim();
   const list = people.filter(p => (!f || p.location_id === f) && (!q || [p.full_name, p.job_title, studio(p.location_id)].join(' ').toLowerCase().includes(q)));
-  const isOwner = p => p.role === 'owner', isLead = p => !isOwner(p) && (p.role === 'manager' || /\blead\b|manager|\bgm\b/i.test(p.job_title || ''));
+  const isOwner = p => p.role === 'owner', isLead = p => !isOwner(p) && /\blead\b|manager|\bgm\b/i.test(p.job_title || '');   // by the title on their card
   const card = (p, lead) => `<div class="tcard" data-id="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.full_name)}">
       ${avatar(p)}
-      <div class="tinfo"><b>${esc(p.full_name)}${lead ? ' <span class="tlead">Lead</span>' : ''}</b><span>${esc(p.job_title || '')}${isOwner(p) && p.location_id ? (p.job_title ? ' • ' : '') + esc(studio(p.location_id)) : ''}</span>${teamBadges(p) ? `<div class="tbadges">${teamBadges(p)}</div>` : ''}</div>
+      <div class="tinfo"><b>${esc(p.full_name)}</b><span>${esc(p.job_title || '')}${isOwner(p) && p.location_id ? (p.job_title ? ' • ' : '') + esc(studio(p.location_id)) : ''}</span>${teamBadges(p) ? `<div class="tbadges">${teamBadges(p)}</div>` : ''}</div>
       <div class="tacts">${p.phone ? `<a class="tic" href="tel:${esc(telOf(p.phone))}" title="Call ${esc(fmtPhone(p.phone))}" aria-label="Call">☎</a><a class="tic" href="sms:${esc(telOf(p.phone))}" title="Text" aria-label="Text">💬</a>` : ''}${p.email ? `<a class="tic" href="mailto:${esc(p.email)}" title="${esc(p.email)}" aria-label="Email">✉</a>` : ''}</div>
     </div>`;
   const leadsFirst = ps => ps.slice().sort((a, b) => isLead(b) - isLead(a));   // the list is already A-Z
