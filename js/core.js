@@ -167,7 +167,9 @@ const workDaysText = id => { const d = workDaysOf(id); return d.length === 7 ? '
 async function loadPeople() {
   const td = todayStr();
   const [{ data }, o, pp, ps, ws] = await Promise.all([db.from('team_directory').select('*').order('full_name'), db.from('time_off_calendar').select('*').gte('end_date', td).order('start_date'), db.from('profile_positions').select('*'), db.from('positions').select('id,name'), db.from('work_schedules').select('user_id,days')]);
-  people = data || []; urls = {};
+  people = (data || []).filter(p => !/\bbot\b/i.test(p.full_name || '')); urls = {};
+  // Who's an owner or a studio lead (for the Leadership group and putting leads first)
+  if (!people.some(p => p.role)) { const ap = await db.from('time_off_approvers').select('id,role'); (ap.data || []).forEach(a => { const p = people.find(x => x.id === a.id); if (p) p.role = a.role; }); }
   teamX = { offs: o.data || [], pos: pp.data || [], posNames: Object.fromEntries((ps.data || []).map(x => [x.id, x.name])),
     ws: ws.error ? null : Object.fromEntries((ws.data || []).map(x => [x.user_id, x.days || []])) };
   const paths = people.map(p => p.photo_path).filter(Boolean);
@@ -192,6 +194,8 @@ function teamBadges(p) {
   const o = teamX.offs.find(x => x.user_id === p.id && x.start_date <= td && x.end_date >= td);
   if (o) out.push(`<span class="tbadge out">Out${o.end_date > td ? ' until ' + fmt(o.end_date) : ' today'}${o.status === 'pending' ? ' (pending)' : ''}</span>`);
   else { const n = teamX.offs.find(x => x.user_id === p.id && x.start_date > td && x.start_date <= wk); if (n) out.push(`<span class="tbadge tsoon">Out ${wd(n.start_date)}${n.end_date !== n.start_date ? '–' + wd(n.end_date) : ''}${n.status === 'pending' ? ' (pending)' : ''}</span>`); }
+  if (p.start_date) { for (let i = 0; i < 7; i++) { const d = ymd(new Date(Date.now() + i * DAY)), yrs = +d.slice(0, 4) - +p.start_date.slice(0, 4);
+    if (yrs > 0 && d.slice(5) === p.start_date.slice(5)) { out.push(`<span class="tbadge anniv">🎉 ${yrs} yr${yrs > 1 ? 's' : ''} ${i === 0 ? 'today' : i === 1 ? 'tomorrow' : wd(d)}</span>`); break; } } }
   if (p.birthday) { for (let i = 0; i < 7; i++) { const d = ymd(new Date(Date.now() + i * DAY)); if (d.slice(5) === p.birthday.slice(5)) { out.push(`<span class="tbadge bday">🎂 Birthday ${i === 0 ? 'today' : i === 1 ? 'tomorrow' : wd(d)}</span>`); break; } } }
   return out.join('');
 }
@@ -200,16 +204,20 @@ const missing = p => [!p.photo_path && 'a photo', !p.job_title && 'your title', 
 function renderPeople() {
   const f = $('studioFilter').value, q = ($('teamFind').value || '').toLowerCase().trim();
   const list = people.filter(p => (!f || p.location_id === f) && (!q || [p.full_name, p.job_title, studio(p.location_id)].join(' ').toLowerCase().includes(q)));
-  const card = p => `<div class="tcard" data-id="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.full_name)}">
+  const isOwner = p => p.role === 'owner', isLead = p => !isOwner(p) && (p.role === 'manager' || /\blead\b|manager|\bgm\b/i.test(p.job_title || ''));
+  const card = (p, lead) => `<div class="tcard" data-id="${p.id}" tabindex="0" role="button" aria-label="Open ${esc(p.full_name)}">
       ${avatar(p)}
-      <div class="tinfo"><b>${esc(p.full_name)}</b><span>${esc(p.job_title || '')}${p.job_title && !f ? ' • ' : ''}${f ? '' : esc(p.location_id ? studio(p.location_id) : '')}</span>${teamBadges(p) ? `<div class="tbadges">${teamBadges(p)}</div>` : ''}
-      <div class="tacts">${p.phone ? `<a class="tic" href="tel:${esc(telOf(p.phone))}" title="Call ${esc(fmtPhone(p.phone))}" aria-label="Call">☎</a><a class="tic" href="sms:${esc(telOf(p.phone))}" title="Text" aria-label="Text">💬</a>` : ''}${p.email ? `<a class="tic" href="mailto:${esc(p.email)}" title="${esc(p.email)}" aria-label="Email">✉</a>` : ''}</div></div>
+      <div class="tinfo"><b>${esc(p.full_name)}${lead ? ' <span class="tlead">Lead</span>' : ''}</b><span>${esc(p.job_title || '')}${isOwner(p) && p.location_id ? (p.job_title ? ' • ' : '') + esc(studio(p.location_id)) : ''}</span>${teamBadges(p) ? `<div class="tbadges">${teamBadges(p)}</div>` : ''}</div>
+      <div class="tacts">${p.phone ? `<a class="tic" href="tel:${esc(telOf(p.phone))}" title="Call ${esc(fmtPhone(p.phone))}" aria-label="Call">☎</a><a class="tic" href="sms:${esc(telOf(p.phone))}" title="Text" aria-label="Text">💬</a>` : ''}${p.email ? `<a class="tic" href="mailto:${esc(p.email)}" title="${esc(p.email)}" aria-label="Email">✉</a>` : ''}</div>
     </div>`;
-  const groups = locs.map(l => [l.name, list.filter(p => p.location_id === l.id)]).concat([['No studio yet', list.filter(p => !p.location_id || !locs.some(l => l.id === p.location_id))]]).filter(g => g[1].length);
+  const leadsFirst = ps => ps.slice().sort((a, b) => isLead(b) - isLead(a));   // the list is already A-Z
+  const owners = list.filter(isOwner), rest = list.filter(p => !isOwner(p));
+  const groups = (owners.length && !f ? [['Leadership', owners]] : []).concat(locs.map(l => [l.name, leadsFirst((f ? list : rest).filter(p => p.location_id === l.id))]))
+    .concat([['No studio yet', rest.filter(p => !p.location_id || !locs.some(l => l.id === p.location_id))]]).filter(g => g[1].length);
   const me = people.find(p => p.id === ME.id), need = me ? missing(me) : [];
   $('teamNudge').innerHTML = need.length ? `<div class="tnudge"><span>${avatar(me, 'sm')}<span><b>Finish your card.</b> Add ${need.length > 1 ? need.slice(0, -1).join(', ') + ' and ' + need.slice(-1) : need[0]} so the team gets to know you.</span></span><button class="sm" data-editme="1">Edit my card</button></div>` : '';
   $('people').className = 'tgroups';
-  $('people').innerHTML = groups.map(([name, ps]) => `<section class="tgroup${name === 'No studio yet' ? ' nostudio' : ''}"><h3>${esc(name)} <span class="hcount">${ps.length}</span>${name === 'No studio yet' && ME.role === 'owner' ? ' <a class="tfix" href="#people">Assign studios in People →</a>' : ''}</h3><div class="tgrid">${ps.map(card).join('')}</div></section>`).join('')
+  $('people').innerHTML = groups.map(([name, ps]) => `<section class="tgroup${name === 'No studio yet' ? ' nostudio' : ''}"><h3>${esc(name)} <span class="hcount">${ps.length}</span>${name === 'No studio yet' && ME.role === 'owner' ? ' <a class="tfix" href="#people">Assign studios in People →</a>' : ''}</h3><div class="tgrid">${ps.map(p => card(p, name !== 'Leadership' && isLead(p))).join('')}</div></section>`).join('')
     || `<p class="lead">${q ? 'No one matches that search.' : 'No one here yet. Names are added by the owner.'}</p>`;
 }
 $('teamFind').oninput = renderPeople;
