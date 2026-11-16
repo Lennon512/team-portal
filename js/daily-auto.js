@@ -18,8 +18,7 @@ function buildDailyAuto() {
   const want = (...ks) => ks.forEach(k => cols.add(k));
   const asmt = {};   // person -> days of their completed Stretching Assessments (demos)
 
-  // Leads: one per person, on the day they were added
-  if (leads) { want('leads'); const seen = new Set(); leads.forEach(r => { const id = +r['User ID']; if (!id || seen.has(id)) return; seen.add(id); add(toDay(r['Date Added']), 'leads'); }); }
+  // Leads, booked and held demos come from the Sales Process report (loaded each morning by the bot), not from here.
 
   // Contacts: every call, text, email or visit logged in ClubReady
   if (contacts) { want('contacts'); contacts.forEach(r => add(toDay(r['Contact Date']), 'contacts')); }
@@ -33,9 +32,8 @@ function buildDailyAuto() {
     const B = [...seen.values()], done = b => /^completed/i.test(b.st), dropped = b => /cancel/i.test(b.st) && !/late/i.test(b.st);
     // Stretches completed: every finished session that day
     want('stretches_completed'); B.forEach(b => { if (done(b)) add(b.day, 'stretches_completed'); });
-    // Demos: Stretching Assessment / Consultation bookings. Booked = not cancelled, on the day of the assessment; Held = completed.
-    want('demos_booked', 'demos_held');
-    B.forEach(b => { if (!b.demo || dropped(b)) return; add(b.day, 'demos_booked'); if (done(b)) { add(b.day, 'demos_held'); (asmt[b.id] = asmt[b.id] || []).push(b.day); } });
+    // Who has had a completed Stretching Assessment / Consultation (a demo), and when: used for Close % below
+    B.forEach(b => { if (b.demo && done(b)) (asmt[b.id] = asmt[b.id] || []).push(b.day); });
   }
 
   // Agreements (add-ons don't count). The Agreements Log's last column, Previous Agreements, decides:
