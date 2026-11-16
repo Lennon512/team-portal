@@ -63,7 +63,8 @@ function agg(sid, from, to) {
   o.labor = payroll !== null && o.revenue ? payroll / o.revenue : null; o.cpd = o.open ? o.contacts / o.open : null; o.rpm = o.avgActive ? o.revenue / o.avgActive : null;
   const goals = ids ? [...ids].map(tgtOf) : sid ? [tgtOf(sid)] : dlStudios().map(l => tgtOf(l.id));
   const g = goals.reduce((n, t) => n + (+t.revenue_goal || 0), 0); const fullMonth = from.slice(8) === '01' && to.slice(0, 7) === from.slice(0, 7) && dAdd(to, 1).slice(8) === '01';
-  o.goal = g ? (fullMonth ? g : g * 12 / 365 * days) : null;   // a whole calendar month uses the monthly goal as is o.gap = o.goal !== null ? o.revenue - o.goal : null; o.days = days;
+  o.goal = g ? (fullMonth ? g : g * 12 / 365 * days) : null;   // a whole calendar month uses the monthly goal as is
+  o.gap = o.goal !== null ? o.revenue - o.goal : null; o.days = days;
   return o;
 }
 
@@ -121,6 +122,8 @@ function dlSetupCard() {
 function dlReview(items, from, to, period) {
   const showLabor = items.some(x => payOk(x.l.id)), per = (k, x) => { const g = x.tt[k]; return g === null || g === undefined || g === '' || isNaN(g) ? null : +g * x.days; };
   const dayGoal = mo => mo ? mo * 12 / 365 : null;
+  const fullMonth = from.slice(8) === '01' && to.slice(0, 7) === from.slice(0, 7) && dAdd(to, 1).slice(8) === '01';
+  const nmgG = x => { const g = x.tt.nmg_target; return g === null || g === undefined || g === '' || isNaN(g) ? null : fullMonth ? +g : +g * 12 / 365 * x.days; };
   // [key, header, value, format, goal for a studio (x), goal shown in the Goal row (per day), lower is better, is a %]
   const C = (k, h, v, f, g, gd, lower, pct) => ({ k, h, v, f, g, gd, lower, pct });
   const COLS = [
@@ -135,27 +138,25 @@ function dlReview(items, from, to, period) {
     C('sales', 'Sales', x => x.a.agreements, numf, x => per('sales_target', x), t => t.sales_target),
     C('react', 'React.', x => x.a.reactivations, numf, x => per('react_target', x), t => t.react_target),
     C('cancels', 'Cancels', x => x.a.cancellations, numf, x => per('cancels_max', x), t => t.cancels_max, true),
-    C('nmg', 'NMG', x => x.a.nmg, v => (v > 0 ? '+' : '') + v, null, null),
+    { ...C('nmg', 'NMG', x => x.a.nmg, v => (v > 0 ? '+' : '') + v, nmgG, t => dayGoal(+t.nmg_target)), signed: 1 },
     C('active', 'Active', x => x.a.avgActive || null, numf, null, null),
     C('util', 'Util.', x => x.a.util, pctf, x => x.tt.util_target, t => t.util_target, false, 1)];
   if (showLabor) COLS.push(C('labor', 'Labor %', x => payOk(x.l.id) ? x.a.labor : null, pctf, x => payOk(x.l.id) ? x.tt.labor_max : null, t => t.labor_max, true, 1));
   const ok = g => g !== null && g !== undefined && g !== '' && !isNaN(g);
   const tone = (v, g, lower) => v === null || v === undefined || !ok(g) ? '' : (lower ? v <= +g : v >= +g) ? 'good' : 'bad';
-  const gfmt = (c, g) => !ok(g) ? '' : c.pct ? pctf(+g) : c.k === 'revenue' ? money(Math.round(g)) : numf(+g, +g % 1 ? 1 : 0);
+  const gfmt = (c, g) => !ok(g) ? '' : c.signed ? (+g > 0 ? '+' : '') + numf(+g, Math.abs(+g) < 10 && +g % 1 ? 1 : 0) : c.pct ? pctf(+g) : c.k === 'revenue' ? money(Math.round(g)) : numf(+g, +g % 1 ? 1 : 0);
   const tip = (c, g) => ok(g) ? ` title="Goal ${c.lower ? 'at most ' : ''}${gfmt(c, g)}"` : '';
   const cell = (c, x) => { const v = c.v(x), g = c.g ? c.g(x) : null;
     if (c.k === 'revenue' && v === null) return `<td>${period === 'day' && canWrite(x.l.id) && !x.closed ? `<button class="linkish" data-dlstudio="${x.l.id}">Add</button>` : '–'}</td>`;
-    const k = c.k === 'nmg' ? (v > 0 ? 'good' : v < 0 ? 'bad' : '') : x.closed ? '' : tone(v, g, c.lower);
+    const k = x.closed ? '' : tone(v, g, c.lower);
     return `<td class="${k}"${x.closed ? '' : tip(c, g)}>${v === null || v === undefined ? '–' : c.f(v)}</td>`; };
   const st = items.map(x => x.l);
   // The Goal row matches the period on screen: per day on Daily, the week on Weekly, the month (or month to date) on Monthly.
   // Counts and revenue are the daily goal times the days in the period; percentages stay the same.
   const nDays = period === 'day' ? 1 : Math.round((new Date(to + 'T00:00') - new Date(from + 'T00:00')) / DAY) + 1;
   const pLbl = period === 'day' ? 'per day' : dlMonthly() ? (dlRange().to < dlRange().last ? 'month to date' : 'for the month') : DL.period === 'week' ? 'for the week' : DL.period === 'mtd' ? 'month to date' : 'for 30 days';
-  const fullMonth = from.slice(8) === '01' && to.slice(0, 7) === from.slice(0, 7) && dAdd(to, 1).slice(8) === '01';
-  const scaleG = (c, g) => !ok(g) || c.pct || c.avg ? g : c.k === 'revenue' && fullMonth ? +g * 365 / 12 : +g * nDays;
+  const scaleG = (c, g) => !ok(g) || c.pct || c.avg ? g : (c.k === 'revenue' || c.k === 'nmg') && fullMonth ? +g * 365 / 12 : +g * nDays;
   const goalRow = `<tr class="dlgoal"><td><b>Goal</b><small class="nm-sub">per studio, ${pLbl}</small></td>` + COLS.map(c => {
-    if (c.k === 'nmg') { const m = [...new Set(st.map(l => tgtOf(l.id).nmg_target).filter(ok))]; return `<td>${m.length === 1 ? '+' + m[0] + '/mo' : m.length ? 'varies' : '–'}</td>`; }
     if (!c.gd) return '<td>–</td>';
     const gs = st.map(l => [l.name, scaleG(c, c.gd(tgtOf(l.id)))]).filter(([, g]) => ok(g)), uniq = [...new Set(gs.map(([, g]) => gfmt(c, g)))];
     return `<td${uniq.length > 1 ? ` title="${esc(gs.map(([n, g]) => n + ': ' + gfmt(c, g)).join(', '))}"` : ''}>${!gs.length ? '–' : uniq.length === 1 ? (c.lower ? '≤ ' : '') + uniq[0] : 'varies'}</td>`; }).join('') + '</tr>';
@@ -164,13 +165,12 @@ function dlReview(items, from, to, period) {
     const has = c.k === 'revenue' ? inn.filter(x => x.revKnown) : c.k === 'labor' ? inn.filter(x => payOk(x.l.id)) : inn;
     const tx = { a: T, l: { id: '' }, revKnown: has.length > 0 };
     const v = c.k === 'active' ? inn.reduce((n, x) => n + (x.a.avgActive || 0), 0) || null : c.k === 'labor' ? (has.length ? T.labor : null) : c.v(tx);
-    if (c.k === 'nmg') return `<td class="${v > 0 ? 'good' : v < 0 ? 'bad' : ''}">${c.f(v)}</td>`;
     // Goals: added up for counts, averaged for percentages, only over studios that have the number
     const gl = c.g ? has.map(x => c.g(x)) : [], all = gl.length && gl.every(ok);
     const g = !all ? null : c.pct || c.avg ? gl.reduce((n, x) => n + +x, 0) / gl.length : gl.reduce((n, x) => n + +x, 0);
     return `<td class="${tone(v, g, c.lower)}"${tip(c, g)}>${v === null || v === undefined ? '–' : c.f(v)}${c.k === 'revenue' && ok(g) && v !== null ? `<small class="nm-sub">of ${money(Math.round(g))}</small>` : ''}</td>`; }).join('') + '</tr>';
-  return `<div class="table-wrap"><table class="mt ovt dlt"><thead><tr><th>Studio</th>${COLS.map(c => `<th>${c.h}</th>`).join('')}</tr></thead><tbody>` + goalRow +
-    items.map(x => !x.miss ? `<tr><td><b>${esc(x.l.name)}</b>${x.closed ? '<small class="nm-sub">Closed</small>' : ''}${x.sub ? `<small class="nm-sub">${x.sub}</small>` : ''}${x.tag ? `<div class="dlfocusline"><span class="dlfocus${x.tagCls ? ' ' + x.tagCls : ''}" title="${esc(x.tagTitle || '')}">${esc(x.tag)}</span></div>` : ''}</td>${COLS.map(c => cell(c, x)).join('')}</tr>`
+  return `<div class="table-wrap dlwrap"><table class="mt ovt dlt"><thead><tr><th>Studio</th>${COLS.map(c => `<th>${c.h}</th>`).join('')}</tr></thead><tbody>` + goalRow +
+    items.map(x => !x.miss ? `<tr><td>${period === 'day' ? `<b>${esc(x.l.name)}</b>` : `<button class="linkish dlname" data-dldays="${x.l.id}" title="See ${esc(x.l.name)} day by day"><b>${esc(x.l.name)}</b> <span aria-hidden="true">›</span></button>`}${x.closed ? '<small class="nm-sub">Closed</small>' : ''}${x.sub ? `<small class="nm-sub">${x.sub}</small>` : ''}${x.tag ? `<div class="dlfocusline"><span class="dlfocus${x.tagCls ? ' ' + x.tagCls : ''}" title="${esc(x.tagTitle || '')}">${esc(x.tag)}</span></div>` : ''}</td>${COLS.map(c => cell(c, x)).join('')}</tr>`
       : `<tr class="dlmiss"><td><b>${esc(x.l.name)}</b>${period === 'day' ? `<div class="dlfocusline"><span class="dlfocus miss">${esc(FOCUSES[0])}</span></div>` : ''}</td><td colspan="${COLS.length}"><span class="muted">${period === 'day' ? 'Not entered yet' : 'No entries for this period'}</span>${period === 'day' && canWrite(x.l.id) ? ` <button class="linkish" data-dlstudio="${x.l.id}">Enter now</button>` : ''}</td></tr>`).join('') +
     `</tbody><tfoot>${totRow}</tfoot></table></div>`;
 }
@@ -236,7 +236,7 @@ function dlRange() {
 function drawWeekly() {
   const R = dlRange(), st = dlStudios(), allPay = st.every(l => payOk(l.id)), anyPay = st.some(l => payOk(l.id));
   const cur = Object.fromEntries(st.map(l => [l.id, agg(l.id, R.from, R.to)])), prv = Object.fromEntries(st.map(l => [l.id, agg(l.id, R.pFrom, R.pTo)]));
-  const reg = agg('', R.from, R.to), rp = agg('', R.pFrom, R.pTo);
+  const ids = st.map(l => l.id), reg = agg(ids, R.from, R.to), rp = agg(ids, R.pFrom, R.pTo);   // same studios as the table (temporarily closed ones left out)
   if (!allPay) { reg.payroll = null; reg.labor = null; rp.labor = null; }
   const T = { ...DEF_T }; // region targets: workbook uses the same defaults for every studio
   const ch = (a, b, f, lower) => { if (a === null || b === null || a === undefined || b === undefined) return ''; if (f === 'pct') { const d = (a - b) * 100; return Math.abs(d) < .5 ? '' : `<span class="${(d > 0) !== !!lower ? 'up' : 'dn'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)} pts</span>`; } if (!b) return ''; const d = (a - b) / Math.abs(b) * 100; return Math.abs(d) < .5 ? '' : `<span class="${d > 0 ? 'up' : 'dn'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)}%</span>`; };
@@ -246,18 +246,24 @@ function drawWeekly() {
   const goalSub = reg.goal ? `<span class="kdl">Goal ${money(reg.goal)} • <span class="${reg.gap >= 0 ? 'up' : 'dn'}">${reg.gap >= 0 ? '+' : '−'}${money(Math.abs(reg.gap))}</span></span>` : '';
   const pace = dlPer() === 'mtd' && R.to < R.last ? (() => { const el = Math.round((new Date(R.to + 'T00:00') - new Date(R.from + 'T00:00')) / DAY) + 1, all = +R.last.slice(8, 10); return v => v / el * all; })() : null;
   const paceSub = pace && reg.revenue ? (() => { const mg = st.reduce((n, l) => n + (+tgtOf(l.id).revenue_goal || 0), 0), p = pace(reg.revenue); return `<span class="kdl">On pace for <b>${money(p)}</b>${mg ? ` vs ${money(mg)} goal` : ''}</span>`; })() : '';
-  const snap = `<div class="kgrid kg4">${card('Revenue', reg.revenue, 'usd', rp.revenue, null, false, goalSub + paceSub)}${allPay ? card('Labor %', reg.labor, 'pct', rp.labor, T.labor_max, true, reg.payroll !== null ? `<span class="kdl">Payroll ${money(reg.payroll)}</span>` : '') : ''}${card('Net member growth', reg.nmg, 'signed', rp.nmg, null, false, `<span class="kdl">${reg.agreements} new • ${reg.reactivations} back • ${reg.cancellations} cancelled</span>`)}${card('Leads', reg.leads, '', rp.leads)}${card('Lead → demo', reg.l2d, 'pct', rp.l2d, T.l2d_target)}${card('Show rate', reg.show, 'pct', rp.show, T.show_target)}${card('Close rate', reg.close, 'pct', rp.close, T.close_target)}${card('Utilization', reg.util, 'pct', rp.util, T.util_target)}</div>`;
+  const snap = `<div class="kgrid kg4">${card('Revenue', reg.revenue, 'usd', rp.revenue, null, false, goalSub + paceSub)}${card('Net member growth', reg.nmg, 'signed', rp.nmg, null, false, `<span class="kdl">${reg.agreements} new • ${reg.reactivations} back • ${reg.cancellations} cancelled</span>`)}${card('Leads', reg.leads, '', rp.leads)}${card('Close rate', reg.close, 'pct', rp.close, T.close_target)}</div>`;
   // Studio scorecard
   const tone = (v, t, lower) => v === null || t === null || t === undefined ? '' : (lower ? v > t : v < t) ? 'bad' : 'good';
   const flag = (a, t, sid) => a.gap !== null && a.gap < 0 ? 'REVENUE' : payOk(sid) && a.labor !== null && a.labor > t.labor_max ? 'LABOR' : a.l2d !== null && a.l2d < t.l2d_target ? 'BOOKING' : a.attrition !== null && a.attrition > t.attrition_max ? 'RETENTION' : 'MONITOR';
   const has = st.filter(l => cur[l.id].entries);
   const prio = (a, t, sid) => ({ REVENUE: 'Revenue gap', LABOR: 'Labor', BOOKING: 'Booking', RETENTION: 'Retention', MONITOR: 'Monitor' })[flag(a, t, sid)];
-  const score = dlReview(st.map(l => { const a = cur[l.id], p = prv[l.id], rk = DL.rows.some(r => r.studio_id === l.id && r.day >= R.from && r.day <= R.to && r.revenue !== null && r.revenue !== undefined);
-    return { l, a, tt: tgtOf(l.id), days: a.entries, revKnown: rk, miss: !a.entries, tag: a.entries ? prio(a, tgtOf(l.id), l.id) : '', tagTitle: 'Priority', tagCls: flag(a, tgtOf(l.id), l.id) === 'MONITOR' ? '' : 'miss',
+  // Each studio's biggest miss: the number furthest below (or above, for labor) its goal
+  const okG = g => g !== null && g !== undefined && g !== '' && !isNaN(g) && +g > 0;
+  const bigMiss = (a, t, sid, rk) => {
+    const L = [['Revenue', rk ? a.revenue : null, a.goal, money], ['Contacts/day', a.cpd, t.contacts_target, v => numf(v, v < 10 && v % 1 ? 1 : 0)], ['Leads', a.leads, okG(t.leads_target) ? t.leads_target * a.entries : null, v => numf(v, v % 1 ? 1 : 0)],
+      ['Lead→demo', a.l2d, t.l2d_target, pctf], ['Show %', a.show, t.show_target, pctf], ['Close %', a.close, t.close_target, pctf], ['Sales', a.agreements, okG(t.sales_target) ? t.sales_target * a.entries : null, v => numf(v, v % 1 ? 1 : 0)],
+      ['Util.', a.util, t.util_target, pctf], ...(payOk(sid) ? [['Labor %', a.labor, t.labor_max, pctf, 1]] : [])];
+    const m = L.filter(([, v, g]) => v !== null && v !== undefined && okG(g)).map(([n, v, g, f, lower]) => ({ n, v, g, f, gap: lower ? (v - g) / g : (g - v) / g })).filter(x => x.gap > .02).sort((a, b) => b.gap - a.gap)[0];
+    return m ? { tag: `${m.n} ${m.f(m.v)} vs ${m.f(+m.g)}`, cls: 'miss' } : { tag: '✓ On track', cls: 'ok' };
+  };
+  const score = dlReview(st.map(l => { const a = cur[l.id], p = prv[l.id], rk = DL.rows.some(r => r.studio_id === l.id && r.day >= R.from && r.day <= R.to && r.revenue !== null && r.revenue !== undefined), bm = a.entries ? bigMiss(a, tgtOf(l.id), l.id, rk) : null;
+    return { l, a, tt: tgtOf(l.id), days: a.entries, revKnown: rk, miss: !a.entries, tag: bm ? bm.tag : '', tagTitle: 'Biggest miss vs goal', tagCls: bm ? bm.cls : '',
       sub: p.revenue && ch(a.revenue, p.revenue) ? ch(a.revenue, p.revenue) + ' revenue' : '' }; }), R.from, R.to, 'period');
-  // Capacity & retention
-  const cap = `<div class="table-wrap"><table class="mt ovt dlt"><thead><tr><th>Studio</th><th>Open days</th><th>Avg active members</th><th>Attrition</th><th>Freezes</th><th>Stretches</th><th>Available slots</th><th>Utilization</th><th>Revenue / member</th></tr></thead><tbody>` +
-    has.map(l => { const a = cur[l.id], t = tgtOf(l.id); return `<tr><td><b>${esc(l.name)}</b></td><td>${a.open}</td><td>${numf(a.avgActive)}</td><td class="${tone(a.attrition, t.attrition_max, true)}">${pctf(a.attrition)}</td><td>${a.freezes}</td><td>${a.stretches_completed}</td><td>${numf(a.slots_available)}</td><td class="${tone(a.util, t.util_target)}">${pctf(a.util)}</td><td>${money(a.rpm)}</td></tr>`; }).join('') + '</tbody></table></div>';
   // Notes and actions logged during the period
   const notes = DL.rows.filter(r => r.day >= R.from && r.day <= R.to && (r.notes || r.action)).sort((a, b) => a.day < b.day ? 1 : -1);
   const nlist = notes.length ? `<ul class="dlnotes">${notes.map(r => `<li><b>${esc(studio(r.studio_id))}</b> <span class="muted">${fmt(r.day)}</span>${r.notes ? `<div>${esc(r.notes)}</div>` : ''}${r.action ? `<div class="dlact">Action: ${esc(r.action)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="muted" style="margin:0">No notes or manager actions logged in this period.</p>';
@@ -266,9 +272,23 @@ function drawWeekly() {
       <button class="quiet" data-dlstep="-1" aria-label="Earlier">‹</button><b class="dlrange">${R.label}</b><button class="quiet" data-dlstep="1" aria-label="Later" ${R.to >= dAdd(todayStr(), -1) ? 'disabled' : ''}>›</button>
       <span class="dltools">${dlMonthly() && canPage('performance') ? '<button class="quiet sm" data-dlsheet title="Your uploaded monthly sheets, corporate scorecard numbers and network ranks">Monthly sheet view</button>' : ''}${ME.role === 'owner' ? '<button class="quiet sm" id="dlTargets">Targets</button>' : ''}</span></div>` +
     `<section class="scsec"><h3>Region snapshot <span class="muted" style="font-weight:400;font-size:.85rem">vs ${R.plabel}</span></h3>${snap}</section>` +
-    `<section class="scsec"><h3>Studio scorecard</h3><p class="lead" style="margin:-.3rem 0 .7rem;font-size:.88rem">Same layout as Daily. Count goals are the per-day goal times the days each studio entered numbers; the revenue goal is the monthly goal spread over the days in this period. Green hit the goal, red missed it (hover a number for its goal). The tag under each studio is its priority: revenue gap first, then labor, booking, retention.</p>${score}</section>` +
-    `<section class="scsec"><h3>Capacity & retention</h3>${has.length ? cap : '<p class="muted">No entries for this period.</p>'}</section>` +
+    `<section class="scsec"><h3>Studio scorecard <details class="dlinfo"><summary aria-label="How this table works">ⓘ</summary><div>Green hit the goal, red missed it; hover a number to see its goal. Count goals are the daily goal times the days each studio has numbers for; revenue and NMG goals are the monthly goal spread over the days (a whole month uses it as is). Contacts/day, Lead→demo, Show %, Close % and Util. are compared to the goal as is. The tag under each studio is its biggest miss vs goal. Click a studio to see it day by day.</div></details></h3>${score}</section>` +
     `<section class="scsec"><h3>Notes & manager actions</h3>${nlist}</section>`;
+}
+
+// Click a studio on Weekly/Monthly: its numbers day by day for the period on screen
+function dlDays(sid) {
+  const R = dlRange(), days = []; for (let d = R.from; d <= R.to; d = dAdd(d, 1)) days.push(d);
+  const C = [['revenue', 'Revenue', money], ['contacts', 'Contacts', numf], ['leads', 'Leads', numf], ['demos_booked', 'Booked', numf], ['demos_held', 'Held', numf], ['agreements', 'Sales', numf], ['reactivations', 'React.', numf], ['cancellations', 'Cancels', numf], ['staff_util', 'Util.', pctf]];
+  const v = (r, k) => !r || r[k] === null || r[k] === undefined || r[k] === '' ? null : +r[k];
+  const a = agg(sid, R.from, R.to), tot = { revenue: a.revenue, contacts: a.contacts, leads: a.leads, demos_booked: a.demos_booked, demos_held: a.demos_held, agreements: a.agreements, reactivations: a.reactivations, cancellations: a.cancellations, staff_util: a.staff_util };
+  $('dlgBody').innerHTML = `<h2>${esc(studio(sid))}</h2><p class="lead" style="margin:.2rem 0 .8rem">${esc(R.label)} \u2022 day by day</p>
+    <div class="table-wrap dldays"><table class="mt"><thead><tr><th>Day</th>${C.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>` +
+    days.slice().reverse().map(d => { const r = rowOf(sid, d), closed = r && r.open_day === false;
+      return `<tr class="${closed ? 'muted' : ''}"><td>${dLong(d)}${closed ? ' <small>closed</small>' : ''}</td>${C.map(([k, , f]) => { const x = v(r, k); return `<td>${x === null ? '–' : f(x)}</td>`; }).join('')}</tr>`; }).join('') +
+    `</tbody><tfoot><tr class="dltot"><td><b>Total</b></td>${C.map(([k, , f]) => `<td><b>${tot[k] === null || tot[k] === undefined ? '–' : f(tot[k])}</b></td>`).join('')}</tr></tfoot></table></div>
+    <div class="acts"><button class="quiet" data-act="close">Close</button></div>`;
+  $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal();
 }
 
 // ----- targets (owner) -----
@@ -353,6 +373,7 @@ document.addEventListener('click', e => {
   const op = at('[data-dlopen] [data-v]'); if (op) { op.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === op)); return; }
   const cp = at('[data-dlcopy]'); if (cp) { const txt = $('dlmsg-' + cp.dataset.dlcopy).textContent; (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast('Message copied'), () => { const r = document.createRange(); r.selectNodeContents($('dlmsg-' + cp.dataset.dlcopy)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Selected. Press Ctrl+C to copy'); }); return; }
   if (at('[data-dlsheet]')) { REP.sub = 'score'; REP.sheet = true; PF.tab = 'score'; history.replaceState(null, '', '#performance'); $('repDpr').hidden = true; $('repPerf').hidden = false; updateRepTabs(); loadPerf(); return; }
+  const dys = at('[data-dldays]'); if (dys) { dlDays(dys.dataset.dldays); return; }
   const pr = at('[data-dlper]'); if (pr) { DL.period = pr.dataset.dlper; loadDpr(); return; }
   const sp = at('[data-dlstep]'); if (sp) { const s = +sp.dataset.dlstep, a = dlAnc(), P = dlPer();
     const nx = P === 'week' ? dAdd(a, 7 * s) : P === 'mtd' ? (s < 0 ? ymd(new Date(+a.slice(0, 4), +a.slice(5, 7) - 1, 0)) : ymd(new Date(+a.slice(0, 4), +a.slice(5, 7), 1 + 0)).slice(0, 8) + '28') : dAdd(a, 30 * s);
