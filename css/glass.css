@@ -895,3 +895,7 @@ a.htask { text-decoration:none; color:inherit; }
 .tocount { margin:0 0 .7rem; font-size:.88rem; }
 .todel { color:#8f2a1a; }
 @media (max-width:600px) { .tofilters input { margin-left:0; max-width:none; } }
+
+/* Compare: time frame picker */
+.cmphead { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin:1.5rem 0 .5rem; }
+.cmphead select { width:auto; }
