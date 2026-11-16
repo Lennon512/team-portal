@@ -108,7 +108,8 @@ function drawRepTabs() {
 $('repTabs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   REP.sub = b.dataset.t;
-  if (REP.sub === 'monthly' && !canPage('dpr')) REP.sub = 'score';   // no daily numbers access: the monthly sheet view
+  if (REP.sub === 'monthly' && !canPage('dpr')) REP.sub = 'score';
+  REP.sheet = false;   // no daily numbers access: the monthly sheet view
   const dl = REP.sub === 'dpr' || REP.sub === 'weekly' || REP.sub === 'monthly' || REP.sub === 'enter';
   if (!dl) PF.tab = REP.sub;
   location.hash = REP.sub === 'enter' ? '#enter' : dl ? '#dpr' : '#performance';

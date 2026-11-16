@@ -345,7 +345,7 @@ document.addEventListener('click', e => {
   if (at('.tk-daylbl') && $('dlDate')) { try { $('dlDate').showPicker(); } catch (_) {} }
   const op = at('[data-dlopen] [data-v]'); if (op) { op.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === op)); return; }
   const cp = at('[data-dlcopy]'); if (cp) { const txt = $('dlmsg-' + cp.dataset.dlcopy).textContent; (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast('Message copied'), () => { const r = document.createRange(); r.selectNodeContents($('dlmsg-' + cp.dataset.dlcopy)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Selected. Press Ctrl+C to copy'); }); return; }
-  if (at('[data-dlsheet]')) { REP.sub = 'score'; PF.tab = 'score'; history.replaceState(null, '', '#performance'); $('repDpr').hidden = true; $('repPerf').hidden = false; updateRepTabs(); loadPerf(); return; }
+  if (at('[data-dlsheet]')) { REP.sub = 'score'; REP.sheet = true; PF.tab = 'score'; history.replaceState(null, '', '#performance'); $('repDpr').hidden = true; $('repPerf').hidden = false; updateRepTabs(); loadPerf(); return; }
   const pr = at('[data-dlper]'); if (pr) { DL.period = pr.dataset.dlper; loadDpr(); return; }
   const sp = at('[data-dlstep]'); if (sp) { const s = +sp.dataset.dlstep, a = dlAnc(), P = dlPer();
     const nx = P === 'week' ? dAdd(a, 7 * s) : P === 'mtd' ? (s < 0 ? ymd(new Date(+a.slice(0, 4), +a.slice(5, 7) - 1, 0)) : ymd(new Date(+a.slice(0, 4), +a.slice(5, 7), 1 + 0)).slice(0, 8) + '28') : dAdd(a, 30 * s);
