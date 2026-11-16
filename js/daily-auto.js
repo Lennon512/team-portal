@@ -2,10 +2,9 @@
 // When ClubReady reports are imported on the Members page (by hand or by the morning bot), count
 // each day's leads, contacts, demos, sales, cancels and stretches and save them to the Daily log,
 // so the Daily, Weekly, Month-to-date and Last-30-days reviews fill themselves in.
-// Only the numbers ClubReady can answer are written. Revenue, refunds, payroll, reactivations and
-// available slots stay as managers typed them. A column is only touched when its report came with the upload.
+// Only the numbers ClubReady can answer are written. Payroll and available slots stay as managers typed them. A column is only touched when its report came with the upload.
 const AUTO_DAYS = 45;   // how far back each import refreshes (covers this week, this month and the last 30 days)
-const AUTO_DL = new Set(['revenue', 'refunds', 'leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'renewals', 'new_eft', 'cancellations', 'freezes', 'active_members', 'stretches_completed', 'staff_util']);
+const AUTO_DL = new Set(['revenue', 'refunds', 'leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'reactivations', 'demo_sales', 'new_eft', 'cancellations', 'freezes', 'active_members', 'stretches_completed', 'staff_util']);
 
 function buildDailyAuto() {
   const { leads, contacts, bookings, agreements, cancels, invoices } = imp.data;
@@ -13,6 +12,7 @@ function buildDailyAuto() {
   const days = {}; for (let d = first; d <= last; d = dAdd(d, 1)) days[d] = {};
   const cols = new Set(), add = (d, k, n = 1) => { if (inRange(d)) days[d][k] = (days[d][k] || 0) + n; };
   const want = (...ks) => ks.forEach(k => cols.add(k));
+  const heldOn = {};   // person -> day their demo was held (for Close %)
 
   // Leads: one per person, on the day they were added
   if (leads) { want('leads'); const seen = new Set(); leads.forEach(r => { const id = +r['User ID']; if (!id || seen.has(id)) return; seen.add(id); add(toDay(r['Date Added']), 'leads'); }); }
@@ -33,18 +33,23 @@ function buildDailyAuto() {
       const isLead = new Set(leads.map(r => +r['User ID']).filter(Boolean)), by = {};
       B.forEach(b => { if (isLead.has(b.id)) (by[b.id] = by[b.id] || []).push(b); });
       Object.values(by).forEach(L => { L.sort((a, b) => a.t - b.t);
-        for (const b of L) { if (dropped(b)) continue; add(b.day, 'demos_booked'); if (done(b)) { add(b.day, 'demos_held'); break; } } });
+        for (const b of L) { if (dropped(b)) continue; add(b.day, 'demos_booked'); if (done(b)) { add(b.day, 'demos_held'); heldOn[b.id] = b.day; break; } } });
     }
   }
 
-  // Agreements (add-ons don't count as a sale). Someone with previous agreements is a renewal; nobody before is a new sale.
+  // Agreements (add-ons don't count). The Agreements Log's last column, Previous Agreements, decides:
+  // 0 previous = a new sale (Sales); more than 0 = a reactivation (React.).
+  // Close %: a new sale from someone whose demo was held that same day (counted once per person per day).
   if (agreements) {
     want('agreements', 'new_eft');
     const pk = agreements.length ? Object.keys(agreements[0]).find(k => /prev/i.test(k) && /agree/i.test(k)) : null;
-    if (pk) want('renewals');
-    agreements.forEach(r => { if (!+r['User ID']) return; const item = String(r['Description'] || '').split('\n')[0]; if (/add-on/i.test(item)) return;
-      const t = toDT(r['Date']); if (!t) return;
-      add(ymd(t), pk && (parseFloat(r[pk]) || 0) > 0 ? 'renewals' : 'agreements'); add(ymd(t), 'new_eft', +r['New EFT'] || 0); });
+    if (pk) want('reactivations');
+    if (bookings && leads) want('demo_sales');
+    const ds = new Set();
+    agreements.forEach(r => { const id = +r['User ID']; if (!id) return; const item = String(r['Description'] || '').split('\n')[0]; if (/add-on/i.test(item)) return;
+      const t = toDT(r['Date']); if (!t) return; const d = ymd(t), prev = pk ? (parseFloat(r[pk]) || 0) : 0;
+      add(d, prev > 0 ? 'reactivations' : 'agreements'); add(d, 'new_eft', +r['New EFT'] || 0);
+      if (!prev && heldOn[id] === d && !ds.has(id + '|' + d)) { ds.add(id + '|' + d); add(d, 'demo_sales'); } });
   }
 
   // Cancellations: people whose membership is now cancelled, on the day they cancelled (plan changes don't count).
@@ -81,8 +86,8 @@ async function saveDailyAuto() {
   const groups = [rows.filter(r => 'active_members' in r), rows.filter(r => !('active_members' in r))].filter(g => g.length);
   for (const g of groups) for (let i = 0; i < g.length; i += 200) {
     let { error } = await db.from('daily_log').upsert(g.slice(i, i + 200), { onConflict: 'studio_id,day' });
-    // Before sql/daily_auto.sql has been run there is no renewals column: save everything else and count renewals as sales
-    if (error && /renewals/.test(error.message)) ({ error } = await db.from('daily_log').upsert(g.slice(i, i + 200).map(({ renewals, ...r }) => ({ ...r, agreements: r.agreements + (renewals || 0) })), { onConflict: 'studio_id,day' }));
+    // Before sql/daily_demo_sales.sql has been run there is no demo_sales column: save everything else
+    if (error && /demo_sales/.test(error.message)) ({ error } = await db.from('daily_log').upsert(g.slice(i, i + 200).map(({ demo_sales, ...r }) => r), { onConflict: 'studio_id,day' }));
     if (error) return error;
   }
   DL.from = ''; DL.to = '';   // the Daily page reloads fresh next time it opens
