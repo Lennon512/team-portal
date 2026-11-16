@@ -130,15 +130,15 @@ function drawDaily() {
     return { l, row, a, tt, auto, focus }; });
   // Every number is green when it hits the goal and red when it misses. "–" means no data (e.g. a % with nothing to divide by); a real zero shows 0 or 0%.
   const dayGoal = mo => mo ? mo * 12 / 365 : null;
-  const COLS = [
+  const COLS = [   // funnel order: revenue, contacts, leads, lead→demo, booked, show %, held, close %, sales, then the rest
     ['revenue', 'Revenue', (a, row) => row.revenue === null || row.revenue === undefined ? null : a.revenue, money, t => dayGoal(+t.revenue_goal)],
-    ['leads', 'Leads', a => a.leads, numf, t => t.leads_target], ['contacts', 'Contacts', a => a.contacts, numf, t => t.contacts_target],
-    ['booked', 'Booked', a => a.demos_booked, numf, t => t.booked_target], ['held', 'Held', a => a.demos_held, numf, t => t.held_target],
-    ['sales', 'Sales', a => a.agreements, numf, t => t.sales_target], ['cancels', 'Cancels', a => a.cancellations, numf, t => t.cancels_max, true],
-    ['react', 'React.', a => a.reactivations, numf, t => t.react_target], ['nmg', 'NMG', a => a.nmg, v => (v > 0 ? '+' : '') + v, null],
-    ['active', 'Active', a => a.avgActive || null, numf, null],
-    ['l2d', 'Lead→demo', a => a.l2d, pctf, t => t.l2d_target, false, 1], ['show', 'Show', a => a.show, pctf, t => t.show_target, false, 1],
-    ['close', 'Close', a => a.close, pctf, t => t.close_target, false, 1], ['util', 'Util.', a => a.util, pctf, t => t.util_target, false, 1]];
+    ['contacts', 'Contacts', a => a.contacts, numf, t => t.contacts_target], ['leads', 'Leads', a => a.leads, numf, t => t.leads_target],
+    ['l2d', 'Lead\u2192demo', a => a.l2d, pctf, t => t.l2d_target, false, 1], ['booked', 'Booked', a => a.demos_booked, numf, t => t.booked_target],
+    ['show', 'Show %', a => a.show, pctf, t => t.show_target, false, 1], ['held', 'Held', a => a.demos_held, numf, t => t.held_target],
+    ['close', 'Close %', a => a.close, pctf, t => t.close_target, false, 1], ['sales', 'Sales', a => a.agreements, numf, t => t.sales_target],
+    ['cancels', 'Cancels', a => a.cancellations, numf, t => t.cancels_max, true], ['react', 'React.', a => a.reactivations, numf, t => t.react_target],
+    ['nmg', 'NMG', a => a.nmg, v => (v > 0 ? '+' : '') + v, null], ['active', 'Active', a => a.avgActive || null, numf, null],
+    ['util', 'Util.', a => a.util, pctf, t => t.util_target, false, 1]];
   if (showLabor) COLS.push(['labor', 'Labor %', (a, row, l) => payOk(l.id) ? a.labor : null, pctf, t => t.labor_max, true, 1]);
   const tone = (v, g, lower) => v === null || v === undefined || g === null || g === undefined || g === '' || isNaN(g) ? '' : (lower ? v <= g : v >= +g) ? 'good' : 'bad';
   const gfmt = (c, g) => g === null || g === undefined || g === '' || isNaN(g) ? '' : c[6] ? pctf(+g) : c[0] === 'revenue' ? money(Math.round(g)) : numf(+g);
