@@ -152,7 +152,7 @@ function pfMineForm() {
       const f = $('mFile').files[0], wb = await readBook(f), r = parseMine(grid(wb.Sheets[wb.SheetNames[0]]));
       if (!r) return upMsg('', 'I could not find the Month and Studio columns in the first rows of this file.');
       const same = (a, b) => (a ?? null) === (b ?? null), ch = { n: 0, c: 0, u: 0 }, todo = [];
-      r.rows.forEach(row => { const ex = PF.rows.find(x => x.studio_id === row.studio_id && x.month === row.month); const state = !ex ? 'n' : RAW.some(([k]) => k in row && !same(ex[k], row[k])) ? 'c' : 'u'; ch[state]++; if (state !== 'u') todo.push(row); });
+      r.rows.forEach(row => { const ex = PF.rows.find(x => !x._corp && x.studio_id === row.studio_id && x.month === row.month); const state = !ex ? 'n' : RAW.some(([k]) => k in row && !same(ex[k], row[k])) ? 'c' : 'u'; ch[state]++; if (state !== 'u') todo.push(row); });
       PF.pend = todo;
       const ms = r.rows.map(x => x.month).sort();
       upMsg(`<p><b>${r.rows.length}</b> studio-months from ${r.rows.length ? mLbl(ms[0]) + ' to ' + mLbl(ms[ms.length - 1]) : 'none'}: <b>${ch.n}</b> new, <b>${ch.c}</b> changed, ${ch.u} unchanged.</p>${r.skipped.length ? `<p class="lead">Skipped ${r.skipped.length} rows with a studio I did not recognize: ${esc([...new Set(r.skipped)].slice(0, 5).join(', '))}</p>` : ''}${r.missing.length ? `<p class="lead">Columns not found (left as they are): ${esc(r.missing.join(', '))}</p>` : ''}`, todo.length ? '' : 'Nothing new to save.');

@@ -907,3 +907,6 @@ a.htask { text-decoration:none; color:inherit; }
 .cmpchart { margin:0; }
 @media (min-width:1100px) { .cmpgrid { grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); } .cmpchart { position:sticky; top:5rem; } }
 @media (max-width:700px) { .cmpbar { grid-template-columns:1fr; } }
+
+/* Monthly: note when numbers come from the corporate scorecard */
+.pfcorp { margin:0 0 1rem; padding:.6rem .9rem; border-radius:10px; background:rgba(255,244,214,.6); font-size:.88rem; }

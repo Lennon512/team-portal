@@ -36,7 +36,12 @@ const pfRows = (m, sid) => PF.rows.filter(r => r.month === m && (!sid || r.studi
 const pfMonths = () => [...new Set(PF.rows.map(r => r.month))].sort();
 function pfVal(rows, K, per) {
   if (!rows.length) return null;
-  if (K.den) { let n = 0, d = 0; rows.forEach(r => { n += r[K.num] || 0; d += r[K.den] || 0; }); return d ? n / d : null; }
+  if (K.den) {
+    let n = 0, d = 0; rows.forEach(r => { if (r[K.num] != null && r[K.den] != null) { n += +r[K.num] || 0; d += +r[K.den] || 0; } });
+    if (d) return n / d;
+    const p = rows.map(r => r._pct && r._pct[K.k]).filter(x => x != null);   // months filled from the corporate scorecard carry its rates
+    return p.length ? p.reduce((a, b) => a + b, 0) / p.length : null;
+  }
   const v = rows.map(r => r[K.k]).filter(x => x !== null && x !== undefined);
   if (!v.length) return null;
   const s = v.reduce((a, b) => a + b, 0);
@@ -48,6 +53,14 @@ async function loadPerf() {
   PF.rows = a.data || []; PF.net = {}; PF.corp = {};
   (b.data || []).forEach(x => (PF.net[x.month] = PF.net[x.month] || {})[x.kpi] = +x.value);
   (c.data || []).forEach(x => { const s = PF.corp[x.studio_id] = PF.corp[x.studio_id] || {}; (s[x.month] = s[x.month] || {})[x.kpi] = x; });
+  // Months without our own monthly sheet are filled from the corporate scorecard for that studio
+  const have = new Set(PF.rows.map(r => r.studio_id + '|' + r.month)), cv = (o, k) => o[k] && o[k].value != null ? +o[k].value : null;
+  Object.entries(PF.corp).forEach(([sid, byM]) => Object.entries(byM).forEach(([m, o]) => {
+    if (have.has(sid + '|' + m)) return;
+    PF.rows.push({ studio_id: sid, month: m, _corp: true, gross_revenue: cv(o, 'revenue'), draft: cv(o, 'eft'), leads: cv(o, 'leads'), demos: cv(o, 'demos'),
+      active_members: cv(o, 'members'), calls_per_day: cv(o, 'contacts'), _pct: { show: cv(o, 'show'), l2d: cv(o, 'l2d') } });
+  }));
+  PF.rows.sort((a, b) => a.month < b.month ? -1 : a.month > b.month ? 1 : 0);
   const own = ME.role === 'owner', sids = [...new Set(PF.rows.map(r => r.studio_id))], mine = pfMonths().reverse(), ms = [...new Set([...mine, ...Object.keys(PF.net), ...Object.values(PF.corp).flatMap(o => Object.keys(o))])].sort().reverse();
   $('pfData').hidden = !own;
   if (!netOk()) { PF.studio = sids[0] || ''; if (PF.tab !== 'projection') PF.tab = 'score'; }
@@ -113,6 +126,8 @@ PF.ovSort = PF.ovSort || 'gross_revenue'; PF.ovDir = PF.ovDir || -1;
 function drawScore() {
   const m = PF.month, sid = PF.studio, prev = mAdd(m, -1), yoy = mAdd(m, -12), ms12 = Array.from({ length: 12 }, (_, i) => mAdd(m, i - 11)), cur = pfRows(m, sid);
   if (!cur.length) { $('pfBody').innerHTML = '<p class="lead">Your own numbers for this month have not been added yet. Use Upload my monthly sheet or Add or edit a month. Corporate’s numbers for this month are on the Master card tab.</p>'; return; }
+  const fromCorp = cur.some(r => r._corp), allCorp = cur.every(r => r._corp);
+  const corpNote = fromCorp ? `<p class="pfcorp">${allCorp ? `Your monthly sheet for ${mLbl(m, 1)} isn\u2019t in yet, so these numbers come from the corporate scorecard.` : `Some studios\u2019 ${mLbl(m, 1)} numbers come from the corporate scorecard because their monthly sheet isn\u2019t in yet.`} The scorecard doesn\u2019t include refunds, demos scheduled, agreements, cash/EFT sales, utilization or cancellations, so those show as Not reported. Upload the monthly sheet to fill them in.</p>` : '';
   const cp = (sid && PF.corp[sid] && PF.corp[sid][m]) || {}, name = sid ? (locs.find(l => l.id === sid) || {}).name : 'All Austin studios';
   const spark = a => { const v = a.filter(x => x !== null); if (v.length < 2) return ''; const lo = Math.min(...v), hi = Math.max(...v); return `<svg viewBox="0 0 100 28" class="spark" preserveAspectRatio="none"><polyline fill="none" stroke="#4a86c5" stroke-width="2" points="${a.map((x, i) => x === null ? '' : (i * 100 / 11).toFixed(1) + ',' + (26 - (x - lo) / ((hi - lo) || 1) * 24).toFixed(1)).filter(Boolean).join(' ')}"/></svg>`; };
   const delta = (K, v, o, lbl) => { if (v === null || o === null || o === undefined) return ''; const ch = K.f === 'pct' ? (v - o) * 100 : (o ? (v - o) / Math.abs(o) * 100 : null); if (ch === null) return ''; return `<span class="kdl"><span class="${Math.abs(ch) < .5 ? '' : ch * (K.dir || 1) > 0 ? 'up' : 'dn'}">${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(0)}${K.f === 'pct' ? ' pts' : '%'}</span> vs ${lbl}</span>`; };
@@ -134,7 +149,7 @@ function drawScore() {
   // Headline strip
   const g = kOf('gross_revenue'), gv = val(g, m);
   const head = `<div class="schead"><div><span class="kn">${esc(name)} • ${mLbl(m, 1)}</span><b>${fv(gv, 'usd')}</b><span class="schd">gross revenue ${delta(g, gv, val(g, prev), mLbl(prev))} ${delta(g, gv, val(g, yoy), mLbl(yoy))}</span></div>${sid ? `<div class="schr">${rkBadge(cp.revenue)}</div>` : ''}</div>`;
-  $('pfBody').innerHTML = (sid ? '' : austinOverview(m)) + head +
+  $('pfBody').innerHTML = corpNote + (sid ? '' : austinOverview(m)) + head +
     `<div class="pcard scchart"><h3 id="pfTitle"></h3><div style="position:relative;height:300px"><canvas id="pfChart"></canvas></div><p class="lead" id="pfNote" style="margin:.6rem 0 0;font-size:.85rem"></p></div>` +
     `<p class="lead" style="margin:1.2rem 0 .3rem">Tap any number to chart it above.</p>` +
     `<section class="scsec"><h3>Revenue</h3><div class="kgrid kg3">${SC_GROUPS[0][1].map(k => tile(kOf(k))).join('')}</div></section>` + funnel +
