@@ -143,7 +143,12 @@ function renewCalc(r) {
   const st = !active ? null : cr === 0 ? 'out' : (cr <= RN_LOW || (left !== null && left <= RN_DAYS)) ? 'low' : null;
   return { cr, left, dl, dc: daysAgo(lc(r)), st };
 }
-const renewList = () => mem.rows.filter(r => r.grp === 'package' && !r.frozen).map(r => ({ r, c: renewCalc(r) })).filter(x => x.c.st);
+// Shared memberships: only the person who pays gets an invoice, so leave out anyone sharing a last name with someone who has a membership here
+const lastName = n => String(n || '').trim().split(/\s+/).pop().toLowerCase();
+const renewList = () => {
+  const memLast = new Set(mem.rows.filter(r => r.grp === 'member').map(r => lastName(r.name)).filter(Boolean));
+  return mem.rows.filter(r => r.grp === 'package' && !r.frozen && !memLast.has(lastName(r.name))).map(r => ({ r, c: renewCalc(r) })).filter(x => x.c.st);
+};
 function sumRenew() {
   if (!mem.meta) { $('memSum').innerHTML = ''; return; }
   const L = renewList(), low = L.filter(x => x.c.st === 'low'), out = L.filter(x => x.c.st === 'out');
