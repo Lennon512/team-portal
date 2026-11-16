@@ -134,19 +134,21 @@ function drawMem() {
     : '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>';
 }
 
-// ----- Renewals: no recurring billing and running low on credits, or recently ran out -----
-const RN_LOW = 2, RN_DAYS = 14, RN_OUT = 60;
+// ----- Renewals: no active membership (nothing recurring), active in the last/next 30 days, low on or out of credits -----
+// Active = visited in the last 30 days or booked in the next 30. Low = 2 or fewer credits (0 = out), or about 2 weeks left at their pace.
+const RN_LOW = 2, RN_DAYS = 14, RN_ACTIVE = 30;
 function renewCalc(r) {
   const cr = r.credits || 0, rate = (r.sessions_30d || 0) / 30, left = cr > 0 && rate > 0 ? Math.round(cr / rate) : null, dl = daysAgo(r.last_session);
-  const st = cr === 0 ? (dl !== null && dl <= RN_OUT ? 'out' : null) : (cr <= RN_LOW || (left !== null && left <= RN_DAYS)) ? 'low' : null;
+  const nb = r.next_booking ? -daysAgo(r.next_booking) : null, active = (dl !== null && dl <= RN_ACTIVE) || (nb !== null && nb >= 0 && nb <= RN_ACTIVE);
+  const st = !active ? null : cr === 0 ? 'out' : (cr <= RN_LOW || (left !== null && left <= RN_DAYS)) ? 'low' : null;
   return { cr, left, dl, dc: daysAgo(lc(r)), st };
 }
 const renewList = () => mem.rows.filter(r => r.grp === 'package' && !r.frozen).map(r => ({ r, c: renewCalc(r) })).filter(x => x.c.st);
 function sumRenew() {
   if (!mem.meta) { $('memSum').innerHTML = ''; return; }
   const L = renewList(), low = L.filter(x => x.c.st === 'low'), out = L.filter(x => x.c.st === 'out');
-  $('memSum').innerHTML = tile(L.length, 'Renewal opportunities', 'no recurring billing', 'R|') + tile(low.length, 'Running low', `${RN_LOW} or fewer credits, or about ${RN_DAYS / 7} weeks left`, 'R|low') +
-    tile(out.length, 'Recently ran out', `0 credits, visited in the last ${RN_OUT} days`, 'R|out') + tile(L.filter(x => !x.r.next_booking).length, 'Nothing booked', 'of the list', 'R|nobook');
+  $('memSum').innerHTML = tile(L.length, 'Renewal opportunities', `no recurring billing, active in the last or next ${RN_ACTIVE} days`, 'R|') + tile(low.length, 'Running low', `${RN_LOW} or fewer credits, or about ${RN_DAYS / 7} weeks left`, 'R|low') +
+    tile(out.length, 'Out of credits', `0 credits left`, 'R|out') + tile(L.filter(x => !x.r.next_booking).length, 'Nothing booked', 'of the list', 'R|nobook');
 }
 const leftTxt = c => c.st === 'out' ? '<span class="pill warn">Out of credits</span>' : c.left === null ? '<span class="muted">No recent visits</span>' : c.left <= 7 ? `About ${Math.max(c.left, 1)} day${c.left > 1 ? 's' : ''}` : `About ${Math.round(c.left / 7)} week${Math.round(c.left / 7) > 1 ? 's' : ''}`;
 function drawRenew() {
@@ -161,8 +163,8 @@ function drawRenew() {
   const key = by[mem.rsort] ? mem.rsort : 'credits', dir = mem.rdir || 1;
   list.sort((a, b) => dir * by[key](a, b) || by.credits(a, b));
   const th = (label, k) => `<th data-rsort="${k}" class="${key === k ? 'on' : ''}" title="Sort by ${label.toLowerCase()} (click again to flip)">${label}${key === k ? (dir > 0 ? ' \u25BE' : ' \u25B4') : ''}</th>`;
-  const qt = { low: 'running low', out: 'recently ran out', nobook: 'with nothing booked' }[quick];
-  $('memBody').innerHTML = `<p class="lead mem-lead"><b>${list.length}</b> ${list.length === 1 ? 'person' : 'people'} with no recurring billing who ${quick === 'out' ? 'ran out of credits recently' : quick === 'low' ? 'are running low on credits' : 'are running low on credits or ran out recently'}${quick === 'nobook' ? ', with nothing booked' : ''}. ` +
+  const qt = { low: 'running low', out: 'out of credits', nobook: 'with nothing booked' }[quick];
+  $('memBody').innerHTML = `<p class="lead mem-lead"><b>${list.length}</b> ${list.length === 1 ? 'person' : 'people'} with no recurring billing who came in during the last ${RN_ACTIVE} days or are booked in the next ${RN_ACTIVE}, and ${quick === 'out' ? 'are out of credits' : quick === 'low' ? 'are running low on credits' : 'are low on or out of credits'}${quick === 'nobook' ? ', with nothing booked' : ''}. ` +
       (qt ? '<button class="linkish" data-quick="">Show all</button> ' : '') + 'Good people to offer a membership or a new package. Click someone to add a note or assign them.</p>' +
     (list.length ? `<div class="table-wrap"><table class="mt nb"><thead><tr>${th('Member', 'name')}${th('Credits', 'credits')}${th('Left at their pace', 'left')}${th('Last visit', 'last')}${th('Visits (30 days)', 'visits')}${th('Next booked', 'next')}${th('Last contact', 'contact')}<th>Assigned</th></tr></thead><tbody>` +
       list.map(({ r, c }) => `<tr data-m="${r.club_id}"><td><b>${esc(r.name)}</b>${r.detail && r.detail !== 'No recurring billing' ? `<div class="why">${esc(r.detail)}</div>` : ''}</td>
