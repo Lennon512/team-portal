@@ -886,3 +886,12 @@ a.htask { text-decoration:none; color:inherit; }
 .ann-important .ann-tag { color:#b42318; }
 .ann-soon { opacity:.65; }
 .ann-setup { margin:0 0 1rem; padding:.7rem 1rem; border-radius:10px; background:rgba(255,236,226,.6); }
+
+/* Time off: tabs and the All requests list */
+.totabs { margin:0 0 1.2rem; }
+.tofilters { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:0 0 .6rem; }
+.tofilters select, .tofilters input { width:auto; min-width:0; flex:0 1 auto; }
+.tofilters input { flex:1 1 180px; max-width:260px; margin-left:auto; }
+.tocount { margin:0 0 .7rem; font-size:.88rem; }
+.todel { color:#8f2a1a; }
+@media (max-width:600px) { .tofilters input { margin-left:0; max-width:none; } }
