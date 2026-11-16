@@ -914,3 +914,4 @@ a.htask { text-decoration:none; color:inherit; }
 /* Calendar: meetings */
 .cbar.mt, .up-item.mt .up-dot, .legend .sw.mt { background:#7a4fb3; color:#fff; }
 .mtpill { background:#ece3f7; color:#5b3594; margin:0 0 .3rem; }
+.evrep { margin:-.2rem 0 .6rem; font-size:.88rem; }
