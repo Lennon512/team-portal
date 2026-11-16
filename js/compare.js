@@ -45,13 +45,29 @@ async function drawCompare() {
   };
   let html = `<p class="lead" style="margin:0 0 1rem">Pick any two Stretch Zone locations you\u2019ve uploaded a scorecard for, yours or anyone else\u2019s.</p><div class="dgrid3">${slot('a', 'Location A')}${slot('b', 'Location B')}</div>`;
   if (PF.cmp.a && PF.cmp.b) {
-    const A = PF.cmp.a, B = PF.cmp.b, la = A.rows[A.rows.length - 1], lb = B.rows[B.rows.length - 1];
+    const A = PF.cmp.a, B = PF.cmp.b, per = PF.cmp.per || 'latest';
+    const months = [...new Set([...A.rows.map(r => r.month), ...B.rows.map(r => r.month)])].sort().reverse();
+    // Period: each location's latest month, one month for both, or an average of the last few months
+    const nAvg = /^avg(\d+)$/.test(per) ? +per.slice(3) : 0, win = nAvg ? months.slice(0, nAvg) : [];
+    const pick = loc => per === 'latest' ? loc.rows[loc.rows.length - 1] || null : nAvg ? null : loc.rows.find(r => r.month === per) || null;
+    const val = (loc, k) => {
+      if (!nAvg) { const r = pick(loc); return r ? (r.kpis[k] ?? null) : null; }
+      const v = loc.rows.filter(r => win.includes(r.month)).map(r => r.kpis[k]).filter(x => x !== null && x !== undefined && !isNaN(x));
+      return v.length ? v.reduce((a, b) => a + +b, 0) / v.length : null;
+    };
+    const have = loc => nAvg ? loc.rows.filter(r => win.includes(r.month)).length : pick(loc) ? 1 : 0;
+    const opt = (v, l) => `<option value="${v}" ${per === v ? 'selected' : ''}>${l}</option>`;
+    const perSel = `<select id="cmpPer" aria-label="Time frame" class="cmpper">${opt('latest', 'Most recent month')}${months.length >= 3 ? opt('avg3', 'Average of last 3 months') : ''}${months.length >= 6 ? opt('avg6', 'Average of last 6 months') : ''}${months.length >= 12 ? opt('avg12', 'Average of last 12 months') : ''}<optgroup label="Pick a month">${months.map(m => opt(m, mLbl(m, 1))).join('')}</optgroup></select>`;
+    const la = !nAvg ? pick(A) : null, lb = !nAvg ? pick(B) : null;
     const rows = CORP.map(([k, n, f]) => {
-      const va = la ? (la.kpis[k] ?? null) : null, vb = lb ? (lb.kpis[k] ?? null) : null;
+      const va = val(A, k), vb = val(B, k);
       const better = va !== null && vb !== null && va !== vb ? (CMP_LOWER.has(k) ? (va < vb ? 'a' : 'b') : (va > vb ? 'a' : 'b')) : '';
       return `<tr data-k="${k}" class="cmprow ${PF.cmp.kpi === k ? 'on' : ''}"><td>${n}</td><td class="${better === 'a' ? 'best' : ''}">${fmtNet(va, f)}</td><td class="${better === 'b' ? 'best' : ''}">${fmtNet(vb, f)}</td></tr>`;
     }).join('');
-    html += `<h3 class="sub" style="margin-top:1.5rem">Side by side</h3><p class="lead" style="margin:0 0 .5rem">${la ? esc(A.name) + '\u2019s most recent month on file is ' + mLbl(la.month) : esc(A.name) + ' has no history yet'}, ${lb ? esc(B.name) + '\u2019s is ' + mLbl(lb.month) : esc(B.name) + ' has no history yet'}. The better number for each KPI is highlighted. Click a row to chart it.</p>
+    const note = per === 'latest' ? `${la ? esc(A.name) + '\u2019s most recent month on file is ' + mLbl(la.month) : esc(A.name) + ' has no history yet'}, ${lb ? esc(B.name) + '\u2019s is ' + mLbl(lb.month) : esc(B.name) + ' has no history yet'}${la && lb && la.month !== lb.month ? ' (different months, pick a month to line them up)' : ''}.`
+      : nAvg ? `Average of ${mLbl(win[win.length - 1])} \u2013 ${mLbl(win[0])}: ${esc(A.name)} has ${have(A)} of those months on file, ${esc(B.name)} has ${have(B)}.`
+      : `${mLbl(per, 1)}.${!have(A) ? ' ' + esc(A.name) + ' has no scorecard for that month.' : ''}${!have(B) ? ' ' + esc(B.name) + ' has no scorecard for that month.' : ''}`;
+    html += `<div class="cmphead"><h3 class="sub" style="margin:0">Side by side</h3>${perSel}</div><p class="lead" style="margin:0 0 .5rem">${note} The better number for each KPI is highlighted. Click a row to chart it.</p>
       <div class="table-wrap"><table class="mt"><thead><tr><th>KPI</th><th>${esc(A.name)}</th><th>${esc(B.name)}</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="pcard" style="margin-top:1rem"><h3 id="cmpTitle"></h3><div style="position:relative;height:320px"><canvas id="cmpChart"></canvas></div></div>`;
   }
@@ -73,3 +89,5 @@ function drawCmpChart() {
       plugins: { legend: { labels: { color: '#16202b' } }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmtNet(c.parsed.y, f) } } },
       scales: { x: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(228,224,214,1)' } }, y: { ticks: { color: '#6b7280', callback: v => fmtNet(v, f) }, grid: { color: 'rgba(228,224,214,1)' } } } } });
 }
+
+$('pfBody').addEventListener('change', e => { if (e.target.id === 'cmpPer') { PF.cmp.per = e.target.value; drawCompare(); } });
