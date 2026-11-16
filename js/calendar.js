@@ -133,7 +133,7 @@ function drawUpcoming() {
 
 function showEv(id) {
   const ev = events.find(x => x.id === id); if (!ev) return;
-  const when = fmt(ev.event_date) + (ev.ends_on ? ' \u2013 ' + fmt(ev.ends_on) : '') + (ev.time_label ? ' \u2022 ' + ev.time_label : '');
+  const when = fmt(ev.event_date) + (ev.ends_on ? ' \u2013 ' + fmt(ev.ends_on) : '') + (ev.time_label ? ' \u2022 ' + ev.time_label : '') + (ev.series_id ? ' \u2022 \u21BB ' + (ev.repeat_rule || 'Repeats') : '');
   const link = t => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   $('dlgBody').innerHTML = `${isMeeting(ev) ? '<span class="pill mtpill">Meeting</span>' : ''}<h2>${esc(isMeeting(ev) ? bareTitle(ev.title) : ev.title)}</h2><p class="lead" style="margin:.25rem 0 1rem">${esc(when)} \u2022 ${esc(ev.location_id ? studio(ev.location_id) : 'All of Austin')}</p>
     <p style="white-space:pre-wrap">${link(ev.notes || '')}</p>
@@ -149,6 +149,27 @@ function gcalLink(ev) {
   return 'https://calendar.google.com/calendar/render?' + q.toString();
 }
 
+// ----- repeating events: saved as one row per date, sharing a series_id -----
+const ord = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+const WDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], NTH = ['1st', '2nd', '3rd', '4th', '5th'];
+const repOpts = d => { if (!d) return [['w1', 'Every week'], ['w2', 'Every 2 weeks'], ['mn', 'Every month (same weekday)'], ['md', 'Every month (same date)'], ['wd', 'Every weekday (Mon\u2013Fri)']];
+  const x = new Date(d + 'T00:00'), wd = WDAY[x.getDay()], n = Math.floor((x.getDate() - 1) / 7);
+  return [['w1', `Every week on ${wd}`], ['w2', `Every 2 weeks on ${wd}`], ['mn', `Every month on the ${n >= 4 ? 'last' : NTH[n]} ${wd}`], ['md', `Every month on the ${ord(x.getDate())}`], ['wd', 'Every weekday (Mon\u2013Fri)']]; };
+function repDates(start, rule, until) {
+  const out = [], s = new Date(start + 'T00:00'), n = Math.floor((s.getDate() - 1) / 7), wd = s.getDay();
+  for (let i = 0, d = start; d <= until && out.length < 120 && i < 800; i++) {
+    if (rule === 'w1' || rule === 'w2') d = addD(start, i * (rule === 'w1' ? 7 : 14));
+    else if (rule === 'wd') { d = addD(start, i); const k = new Date(d + 'T00:00').getDay(); if (d <= until && (k === 0 || k === 6)) continue; }
+    else { const m = new Date(s.getFullYear(), s.getMonth() + i, 1);
+      const last = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+      if (rule === 'md') d = ymd(new Date(m.getFullYear(), m.getMonth(), Math.min(s.getDate(), last)));   // the 31st becomes the last day in shorter months
+      else { let f = 1 + ((wd - m.getDay() + 7) % 7) + 7 * Math.min(n, 3); if (n >= 4) while (f + 7 <= last) f += 7;   // a 5th weekday repeats as the last one
+        d = ymd(new Date(m.getFullYear(), m.getMonth(), f)); } }
+    if (d <= until) out.push(d);
+  }
+  return out;
+}
+
 function eventForm(ev) {
   ev = ev || {};
   const mt = ev.title ? isMeeting(ev) : (ev.meeting || calTab === 'meet');
@@ -158,12 +179,17 @@ function eventForm(ev) {
     <label>Title <input id="eT" maxlength="100" value="${esc(bareTitle(ev.title))}" placeholder="${mt ? 'Managers meeting' : ''}"></label>
     <label>Date <input id="eD" type="date" value="${esc(ev.event_date)}"></label>
     <label>End date (optional) <input id="eE" type="date" value="${esc(ev.ends_on)}"></label>
+    ${ev.id ? (ev.series_id ? `<p class="muted evrep">\u21BB Repeats${ev.repeat_rule ? ': ' + esc(ev.repeat_rule.toLowerCase()) : ''}</p>` : '')
+      : `<div class="grid2"><label>Repeat <select id="eR"><option value="">Does not repeat</option>${repOpts(ev.event_date).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+      <label id="eUw" hidden>Until <input id="eU" type="date" value="${esc(ev.event_date ? addD(ev.event_date, 91) : '')}"></label></div>`}
     <label id="eCw"${mt ? ' hidden' : ''}>Studio hours <select id="eC"><option value="">Open as usual</option><option value="half" ${ev.title && isHalf(ev) ? 'selected' : ''}>Half day (shorter hours)</option><option value="closed" ${ev.title && isClosed(ev) ? 'selected' : ''}>Closed all day</option></select></label>
     <label><span id="eTmL">${ev.title && isHalf(ev) ? 'Hours that day' : 'Time (optional)'}</span> <input id="eTm" maxlength="30" placeholder="${ev.title && isHalf(ev) ? '9 AM - 1 PM' : mt ? '10:00 AM - 11:00 AM' : '6:00 PM'}" value="${esc(ev.time_label)}"></label>
     ${ME.role === 'owner' ? `<label>Where <select id="eL"><option value="">All of Austin</option>${locs.map(x => `<option value="${x.id}" ${x.id === loc ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}
     <label><span id="eNL">${mt ? 'Agenda, who should come, Zoom or Meet link' : 'Details'}</span> <textarea id="eN" maxlength="1500" rows="4">${esc(ev.notes)}</textarea></label>
     <div id="cErr" role="alert" style="color:var(--danger)"></div>
-    <div class="acts"><button data-act="saveEv" data-id="${ev.id || ''}">Save</button>${ev.id ? `<button class="quiet" data-act="delEv" data-id="${ev.id}">Delete</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div>`;
+    <div class="acts">${ev.series_id ? `<button data-act="saveEv" data-id="${ev.id}">Save this date</button><button data-act="saveEv" data-all="1" data-id="${ev.id}">Save this and later dates</button>
+        <button class="quiet" data-act="delEv" data-id="${ev.id}">Delete this date</button><button class="quiet" data-act="delEv" data-all="1" data-id="${ev.id}">Delete this and later</button>`
+      : `<button data-act="saveEv" data-id="${ev.id || ''}">Save</button>${ev.id ? `<button class="quiet" data-act="delEv" data-id="${ev.id}">Delete</button>` : ''}`}<button class="quiet" data-act="close">Cancel</button></div>`;
   if (!$('dlg').open) $('dlg').showModal();
 }
 
@@ -183,13 +209,31 @@ $('dlgBody').addEventListener('click', async e => {
   const fail = m => { $('cErr').textContent = m; };
   if (a === 'close') $('dlg').close();
   else if (a === 'editEv') eventForm(events.find(x => x.id === id));
-  else if (a === 'delEv') { const { error } = await db.from('events').delete().eq('id', id); if (error) return fail('Could not delete.'); $('dlg').close(); loadCal(); }
+  else if (a === 'delEv') {
+    const ev = events.find(x => x.id === id), all = e.target.dataset.all && ev && ev.series_id;
+    if (all && !confirm(`Delete "${bareTitle(ev.title)}" on ${fmt(ev.event_date)} and every later date in the series?`)) return;
+    const { error } = all ? await db.from('events').delete().eq('series_id', ev.series_id).gte('event_date', ev.event_date) : await db.from('events').delete().eq('id', id);
+    if (error) return fail('Could not delete.'); $('dlg').close(); loadCal(); }
   else if (a === 'saveEv') {
     const t0 = bareTitle($('eT').value.trim()), mtg = $('eK').value === 'meeting', hrs = mtg ? '' : $('eC').value, row = { title: !t0 ? t0 : mtg ? 'Meeting: ' + t0 : hrs === 'closed' ? 'Closed: ' + t0 : hrs === 'half' ? 'Half day: ' + t0 : t0, event_date: $('eD').value, ends_on: $('eE').value || null, time_label: $('eTm').value.trim() || null, notes: $('eN').value.trim() || null,
       location_id: ME.role === 'owner' ? ($('eL').value || null) : ME.location_id };
     if (!row.title || !row.event_date) return fail('Add a title and a date.');
     if (row.ends_on && row.ends_on < row.event_date) return fail('The end date is before the start date.');
-    const { error } = id ? await db.from('events').update(row).eq('id', id) : await db.from('events').insert({ ...row, created_by: ME.id });
+    const ev = id ? events.find(x => x.id === id) : null, all = e.target.dataset.all && ev && ev.series_id, rule = !id && $('eR') ? $('eR').value : '';
+    let error;
+    if (all) {   // this date (with any date change) plus the same title, time, place and details on every later date
+      const { event_date, ends_on, ...rest } = row;
+      ({ error } = await db.from('events').update(row).eq('id', id));
+      if (!error) ({ error } = await db.from('events').update(rest).eq('series_id', ev.series_id).gt('event_date', ev.event_date));
+    } else if (rule) {
+      const until = $('eU').value; if (!until || until < row.event_date) return fail('Pick when the repeating stops.');
+      const ds = repDates(row.event_date, rule, until), len = row.ends_on ? Math.round((new Date(row.ends_on + 'T00:00') - new Date(row.event_date + 'T00:00')) / DAY) : null;
+      if (ds.length < 2) return fail('That only makes one date. Pick a later Until date.');
+      const sid = crypto.randomUUID(), lbl = (repOpts(row.event_date).find(x => x[0] === rule) || [])[1] || null;
+      ({ error } = await db.from('events').insert(ds.map(d => ({ ...row, event_date: d, ends_on: len !== null ? addD(d, len) : null, series_id: sid, repeat_rule: lbl, created_by: ME.id }))));
+      if (error && /series_id|repeat_rule|column/i.test(error.message)) return fail('Repeating events need a one-time setup: run sql/events_repeat.sql in Supabase, then try again.');
+      if (!error) toast(`Added ${ds.length} dates`);
+    } else ({ error } = id ? await db.from('events').update(row).eq('id', id) : await db.from('events').insert({ ...row, created_by: ME.id }));
     if (error) return fail('Could not save. ' + error.message);
     $('dlg').close(); loadCal();
   } else if (a === 'saveOff') {
@@ -246,6 +290,10 @@ function quickAdd(day) {
 $('cal').onclick = e => { const b = e.target.closest('[data-ev]'), o = e.target.closest('[data-off]'), c = e.target.closest('[data-cel]'); if (b) showEv(b.dataset.ev); else if (o) showOff(o.dataset.off); else if (c) showCel(c.dataset.cel); else { const cell = e.target.closest('[data-day]'); if (cell) quickAdd(cell.dataset.day); } };
 
 // Event form: relabel the time box when Half day is picked
+document.addEventListener('change', e => {
+  if (e.target.id === 'eR') { $('eUw').hidden = !e.target.value; if (e.target.value && !$('eU').value && $('eD').value) $('eU').value = addD($('eD').value, 91); return; }
+  if (e.target.id === 'eD' && $('eR')) { const v = $('eR').value; $('eR').innerHTML = '<option value="">Does not repeat</option>' + repOpts(e.target.value).map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`).join(''); if (e.target.value && (!$('eU').value || $('eU').value < e.target.value)) $('eU').value = addD(e.target.value, 91); return; }
+});
 document.addEventListener('change', e => { if (e.target.id !== 'eK') return; const m = e.target.value === 'meeting';
   $('eCw').hidden = m; if (m) $('eC').value = ''; $('eNL').textContent = m ? 'Agenda, who should come, Zoom or Meet link' : 'Details';
   $('eH').textContent = $('eH').textContent.replace(/meeting|event/, m ? 'meeting' : 'event'); $('eTm').placeholder = m ? '10:00 AM - 11:00 AM' : '6:00 PM'; });
