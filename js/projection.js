@@ -172,11 +172,20 @@ function drawMaster() {
   const sortVal = r => sortTab === 'kpis' ? r.kpis[sortKey] : r[sortKey];
   filtered.sort((a, b) => { const av = sortVal(a), bv = sortVal(b); const an = av === null || av === undefined, bn = bv === null || bv === undefined; if (an && bn) return 0; if (an) return 1; if (bn) return -1; const cmp = av < bv ? -1 : av > bv ? 1 : 0; return PF.mDir * cmp; });
   const th = (key, label) => `<th data-sort="${key}" class="${PF.mSort === key ? 'on' : ''}" title="Sort by ${label}">${label}${PF.mSort === key ? (PF.mDir < 0 ? ' \u25BE' : ' \u25B4') : ''}</th>`;
-  const body = filtered.map(r => `<tr class="${yours.has(r.store) ? 'yours' : ''}" data-store="${esc(r.store)}"><td><b>${esc(r.name || r.store)}</b></td><td>${esc(r.franchise || '')}</td><td>${esc(r.tier || '')}</td>` +
-    CORP.map(([k, , f]) => `<td>${fmtNet(r.kpis[k], f)}</td>`).join('') + '</tr>').join('');
-  $('pfBody').innerHTML = `<p class="lead" style="margin:0 0 .75rem">Every Stretch Zone location from the corporate scorecard for ${esc(mLbl(PF.month, 1))} \u2014 <b>${filtered.length}</b> of ${rows.length} locations${q ? ' matching your search' : ''}. Your six studios are highlighted. Click a location to see its own scorecard and trends. Click a column heading to sort.</p>
-    <div class="netbar"><input type="search" id="mFindBox" placeholder="Search by name, franchise, or tier" value="${esc(PF.mFind)}"></div>
-    <div class="table-wrap"><table class="mt"><thead><tr>${th('row->name', 'Location')}${th('row->franchise', 'Franchise')}${th('row->tier', 'Tier')}${CORP.map(([k, n]) => th('kpis->' + k, n)).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+  // Rank (#) in the whole network for the KPI you sorted by (revenue when sorting by name, franchise or tier); 1 = best
+  const LOW = new Set(['attrition', 'at_risk']), NOCOLOR = new Set(['basic']);
+  const rk = sortTab === 'kpis' ? sortKey : 'revenue', rkName = (CORP.find(c => c[0] === rk) || [, 'revenue'])[1];
+  const ranked = rows.filter(r => r.kpis[rk] !== null && r.kpis[rk] !== undefined).sort((a, b) => LOW.has(rk) ? a.kpis[rk] - b.kpis[rk] : b.kpis[rk] - a.kpis[rk]);
+  const rankOf = new Map(); ranked.forEach((r, i) => rankOf.set(r.store, i > 0 && ranked[i - 1].kpis[rk] === r.kpis[rk] ? rankOf.get(ranked[i - 1].store) : i + 1));
+  // Top 25% of the network in green, bottom 25% in red, for each KPI
+  const cut = Object.fromEntries(CORP.map(([k]) => { const v = rows.map(r => r.kpis[k]).filter(x => typeof x === 'number').sort((a, b) => a - b);
+    return [k, v.length >= 8 ? [v[Math.floor(v.length * .25)], v[Math.floor(v.length * .75)]] : null]; }));
+  const tone = (k, v) => { const c = cut[k]; if (!c || NOCOLOR.has(k) || typeof v !== 'number' || c[0] === c[1]) return ''; const hi = v >= c[1], lo = v <= c[0]; return LOW.has(k) ? (lo ? 'good' : hi ? 'bad' : '') : (hi ? 'good' : lo ? 'bad' : ''); };
+  const body = filtered.map(r => `<tr class="${yours.has(r.store) ? 'yours' : ''}" data-store="${esc(r.store)}"><td class="nrk">${rankOf.get(r.store) || '\u2013'}</td><td><b>${esc(r.name || r.store)}</b></td><td>${esc(r.franchise || '')}</td><td>${esc(r.tier || '')}</td>` +
+    CORP.map(([k, , f]) => `<td class="${tone(k, r.kpis[k])}">${fmtNet(r.kpis[k], f)}</td>`).join('') + '</tr>').join('');
+  $('pfBody').innerHTML = `<div class="netbar"><input type="search" id="mFindBox" placeholder="Search by name, franchise, or tier" value="${esc(PF.mFind)}">
+      <p class="muted netnote"><b>${filtered.length}</b> of ${rows.length} locations \u2022 ${esc(mLbl(PF.month, 1))} \u2022 # = rank by ${esc(rkName.toLowerCase())} \u2022 green top 25%, red bottom 25% \u2022 click a heading to sort, a location for its trends</p></div>
+    <div class="table-wrap netwrap"><table class="mt nett"><thead><tr><th class="nrk" title="Rank in the network by ${esc(rkName)}">#</th>${th('row->name', 'Location')}${th('row->franchise', 'Franchise')}${th('row->tier', 'Tier')}${CORP.map(([k, n]) => th('kpis->' + k, n)).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 
@@ -220,11 +229,11 @@ $('pfBody').onclick = e => {
   const kt = e.target.closest('.kt, .fstep, .frate, .fnote [data-k]');
   if (kt) { PF.kpi = kt.dataset.k; document.querySelectorAll('.kt, .fstep, .frate').forEach(x => x.classList.toggle('on', x.dataset.k === PF.kpi)); drawChart(); $('pfChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   const th = e.target.closest('th[data-sort]');
-  if (th) { const key = th.dataset.sort; PF.mDir = PF.mSort === key ? -PF.mDir : -1; PF.mSort = key; drawMaster(); return; }
+  if (th) { const key = th.dataset.sort; PF.mDir = PF.mSort === key ? -PF.mDir : key.startsWith('row->') || /attrition|at_risk/.test(key) ? 1 : -1; PF.mSort = key; drawMaster(); return; }   // names A-Z first, lower-is-better KPIs best first
   const row = e.target.closest('tr[data-store]');
   if (row) { const rows = PF.netAll[PF.month] || [], r = rows.find(x => x.store === row.dataset.store); loadNetStore(row.dataset.store, r); }
 };
-$('pfBody').oninput = e => { if (e.target.id === 'mFindBox') { PF.mFind = e.target.value; drawMaster(); } else if (e.target.classList.contains('cmpsearch')) { const side = e.target.dataset.side; PF.cmp.find[side] = e.target.value; $('cmpList_' + side).innerHTML = cmpResultsHtml(side); } };
+$('pfBody').oninput = e => { if (e.target.id === 'mFindBox') { PF.mFind = e.target.value; drawMaster(); const f = $('mFindBox'); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } } else if (e.target.classList.contains('cmpsearch')) { const side = e.target.dataset.side; PF.cmp.find[side] = e.target.value; $('cmpList_' + side).innerHTML = cmpResultsHtml(side); } };
 $('pfBody').addEventListener('change', e => { if (e.target.classList.contains('cmpsel') && e.target.value) selectCmpSlot(e.target.dataset.side, e.target.value); });
 $('dlgBody').addEventListener('click', e => { if (e.target.dataset.act === 'pfSave') pfSave(); });
 $('dlgBody').addEventListener('change', e => { if (e.target.id === 'pStudio' || e.target.id === 'pMonth') { const m = $('pMonth').value; if (m) pfForm($('pStudio').value, m + '-01'); } });

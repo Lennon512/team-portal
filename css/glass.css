@@ -933,3 +933,17 @@ a.htask { text-decoration:none; color:inherit; }
 .dlinfo > div { position:absolute; z-index:20; left:0; top:1.6rem; width:min(460px, 80vw); padding:.75rem .9rem; border-radius:12px; background:rgba(255,255,255,.97); box-shadow:0 10px 30px rgba(40,30,20,.18); font-size:.85rem; line-height:1.45; color:var(--ink); }
 .dldays { max-height:60vh; overflow:auto; }
 .dldays thead th { position:sticky; top:0; background:rgba(246,243,238,.97); z-index:2; }
+
+/* All Stretch Zone: compact, rank, percentile colors, header stays visible */
+.netbar .netnote { margin:0; font-size:.85rem; flex:1 1 320px; }
+.netwrap { max-height:calc(100vh - 200px); overflow:auto; }
+.nett { width:max-content; min-width:100%; }
+.nett th, .nett td { padding:.5rem .65rem; }
+.nett thead th { position:sticky; top:0; z-index:3; background:rgba(246,243,238,.97); }
+.nett .nrk { width:3rem; min-width:3rem; max-width:3rem; text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; position:sticky; left:0; z-index:2; background:rgba(244,241,236,.97); }
+.nett td:nth-child(2), .nett th:nth-child(2) { position:sticky; left:3rem; z-index:2; background:rgba(244,241,236,.97); max-width:13rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nett thead th.nrk, .nett thead th:nth-child(2) { z-index:5; }
+.nett tr.yours td.nrk, .nett tr.yours td:nth-child(2) { background:rgba(250,232,190,.97); }
+.nett td.good { background:rgba(31,157,106,.14); color:#0b5c3f; font-weight:600; } .nett td.bad { background:rgba(208,83,60,.13); color:#8f2a1a; font-weight:600; }
+.netwrap, .dlwrap { padding-top:0; }
+.nett thead th, .dlwrap thead th { background:#f3efe9; box-shadow:0 1px 0 rgba(38,30,20,.12); }
