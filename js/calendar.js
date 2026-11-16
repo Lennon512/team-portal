@@ -57,7 +57,7 @@ function calItems(from, to) {
   const sf = x => !calStudio || x.location_id === calStudio, ov = (s, e) => s <= to && e >= from, out = [];
   if (calTab === 'all' || calTab === 'events' || calTab === 'meet') {
     events.filter(x => ov(x.event_date, x.ends_on || x.event_date) && (!x.location_id || sf(x)) && (calTab === 'all' || (calTab === 'meet') === isMeeting(x))).forEach(x => out.push({ s: x.event_date, e: x.ends_on || x.event_date,
-      t: (x.time_label ? tFmt(x.time_label) + ' ' : '') + (x.location_id && !calStudio ? studio(x.location_id) + ': ' : '') + (isMeeting(x) ? (calTab === 'meet' ? bareTitle(x.title) : 'Meeting: ' + bareTitle(x.title)) : x.title), k: isMeeting(x) ? 'mt' : isClosed(x) ? 'closed' : isHalf(x) ? 'half' : x.location_id ? 'es' : 'ea', id: x.id }));
+      t: (x.time_label ? tFmt(x.time_label) + ' ' : '') + (x.location_id && !calStudio ? studio(x.location_id) + ': ' : '') + (isMeeting(x) ? bareTitle(x.title) : x.title), k: isMeeting(x) ? 'mt' : isClosed(x) ? 'closed' : isHalf(x) ? 'half' : x.location_id ? 'es' : 'ea', id: x.id }));
   }
   if (calTab === 'all' || calTab === 'events') {
     const closedOn = d => events.some(x => isClosed(x) && x.event_date <= d && (x.ends_on || x.event_date) >= d && (!x.location_id || sf(x)));   // you're closed that day: the closure shows, not the holiday too
