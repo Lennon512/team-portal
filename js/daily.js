@@ -125,7 +125,7 @@ function dlReview(items, from, to, period) {
   const C = (k, h, v, f, g, gd, lower, pct) => ({ k, h, v, f, g, gd, lower, pct });
   const COLS = [
     C('revenue', 'Revenue', x => x.revKnown ? x.a.revenue : null, money, x => x.a.goal, t => dayGoal(+t.revenue_goal)),
-    C('contacts', 'Contacts', x => x.a.contacts, numf, x => per('contacts_target', x), t => t.contacts_target),
+    { ...C('contacts', 'Contacts/day', x => x.a.cpd, v => numf(v, v < 10 && v % 1 ? 1 : 0), x => x.tt.contacts_target, t => t.contacts_target), avg: 1 },   // average per open day, not a total
     C('leads', 'Leads', x => x.a.leads, numf, x => per('leads_target', x), t => t.leads_target),
     C('l2d', 'Lead→demo', x => x.a.l2d, pctf, x => x.tt.l2d_target, t => t.l2d_target, false, 1),
     C('booked', 'Booked', x => x.a.demos_booked, numf, x => per('booked_target', x), t => t.booked_target),
@@ -153,7 +153,7 @@ function dlReview(items, from, to, period) {
   const nDays = period === 'day' ? 1 : Math.round((new Date(to + 'T00:00') - new Date(from + 'T00:00')) / DAY) + 1;
   const pLbl = period === 'day' ? 'per day' : dlMonthly() ? (dlRange().to < dlRange().last ? 'month to date' : 'for the month') : DL.period === 'week' ? 'for the week' : DL.period === 'mtd' ? 'month to date' : 'for 30 days';
   const fullMonth = from.slice(8) === '01' && to.slice(0, 7) === from.slice(0, 7) && dAdd(to, 1).slice(8) === '01';
-  const scaleG = (c, g) => !ok(g) || c.pct ? g : c.k === 'revenue' && fullMonth ? +g * 365 / 12 : +g * nDays;
+  const scaleG = (c, g) => !ok(g) || c.pct || c.avg ? g : c.k === 'revenue' && fullMonth ? +g * 365 / 12 : +g * nDays;
   const goalRow = `<tr class="dlgoal"><td><b>Goal</b><small class="nm-sub">per studio, ${pLbl}</small></td>` + COLS.map(c => {
     if (c.k === 'nmg') { const m = [...new Set(st.map(l => tgtOf(l.id).nmg_target).filter(ok))]; return `<td>${m.length === 1 ? '+' + m[0] + '/mo' : m.length ? 'varies' : '–'}</td>`; }
     if (!c.gd) return '<td>–</td>';
@@ -167,7 +167,7 @@ function dlReview(items, from, to, period) {
     if (c.k === 'nmg') return `<td class="${v > 0 ? 'good' : v < 0 ? 'bad' : ''}">${c.f(v)}</td>`;
     // Goals: added up for counts, averaged for percentages, only over studios that have the number
     const gl = c.g ? has.map(x => c.g(x)) : [], all = gl.length && gl.every(ok);
-    const g = !all ? null : c.pct ? gl.reduce((n, x) => n + +x, 0) / gl.length : gl.reduce((n, x) => n + +x, 0);
+    const g = !all ? null : c.pct || c.avg ? gl.reduce((n, x) => n + +x, 0) / gl.length : gl.reduce((n, x) => n + +x, 0);
     return `<td class="${tone(v, g, c.lower)}"${tip(c, g)}>${v === null || v === undefined ? '–' : c.f(v)}${c.k === 'revenue' && ok(g) && v !== null ? `<small class="nm-sub">of ${money(Math.round(g))}</small>` : ''}</td>`; }).join('') + '</tr>';
   return `<div class="table-wrap"><table class="mt ovt dlt"><thead><tr><th>Studio</th>${COLS.map(c => `<th>${c.h}</th>`).join('')}</tr></thead><tbody>` + goalRow +
     items.map(x => !x.miss ? `<tr><td><b>${esc(x.l.name)}</b>${x.closed ? '<small class="nm-sub">Closed</small>' : ''}${x.sub ? `<small class="nm-sub">${x.sub}</small>` : ''}${x.tag ? `<div class="dlfocusline"><span class="dlfocus${x.tagCls ? ' ' + x.tagCls : ''}" title="${esc(x.tagTitle || '')}">${esc(x.tag)}</span></div>` : ''}</td>${COLS.map(c => cell(c, x)).join('')}</tr>`
