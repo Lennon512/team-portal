@@ -393,13 +393,13 @@ function buildRows() {
   });
   const ct = {};
   contacts.forEach(r => { const id = +r['Client User ID'], d = toDay(r['Contact Date']); if (id && d && (!ct[id] || d > ct[id])) ct[id] = d; });
-  const ag = {};
+  const ag = {}, prevK = agreements.length ? Object.keys(agreements[0]).find(k => /prev/i.test(k) && /agree/i.test(k)) : null;
   agreements.forEach(r => {
     const id = +r['User ID']; if (!id) return; nm(id, String(r['Customer'] || '').trim(), '');
     const desc = String(r['Description'] || ''), item = desc.split('\n')[0].trim(), when = toDT(r['Date']);
     const cm = desc.match(/CANCELLED (\d+\/\d+\/\d+ \d+:\d+ [AP]M)/), cd = cm ? toDT(cm[1]) : null;
     (ag[id] = ag[id] || []).push({ item, when, cd, agr: (String(r['Date']).match(/#(\d+)/) || [])[1], cancelled: !!cd, quick: !!(cd && when && cd - when <= DAY), hrs: cd && when ? Math.max(1, Math.round((cd - when) / 36e5)) : 0,
-      pkg: /promotion|single session/i.test(item), addon: /add-on/i.test(item), eft: +r['New EFT'] || 0 });
+      pkg: /promotion|single session/i.test(item), addon: /add-on/i.test(item), eft: +r['New EFT'] || 0, prev: prevK ? (parseFloat(r[prevK]) || 0) : null });
   });
   const rows = [], mk = (id, grp, extra) => { const b = bk[id] || {}; rows.push({ club_id: id, name: names[id] || 'Unknown', grp, credits: credits[id] || 0, last_session: b.last || null, sessions_30d: b.n30 || 0, next_booking: b.next || null, last_contact: ct[id] || null, plan_sessions: null, next_due: null, amount: null, frozen: false, signed_on: null, detail: null, ...extra }); };
   Object.keys(charged).forEach(k => { const c = charged[k]; mk(+k, 'member', { plan_sessions: c.plan ? +c.plan : null, next_due: c.next_due, amount: c.amount }); });
@@ -414,7 +414,7 @@ function buildRows() {
   freeze.forEach(id => { if (!charged[id]) mk(id, 'member', { frozen: true }); });
   const have = new Set(rows.map(r => r.club_id));
   Object.keys(ag).forEach(k => {
-    const id = +k, L = ag[k]; if (have.has(id)) return;
+    const id = +k, L = ag[k].filter(x => x.when && (new Date(asOf + 'T00:00') - x.when) / DAY <= 125); if (have.has(id) || !L.length) return;
     const rec = L.find(x => !x.cancelled && !x.pkg && !x.addon && x.eft > 0);
     if (rec) { mk(id, 'check', { signed_on: ymd(rec.when), detail: 'Signed up with monthly billing, but no invoice is coming due' }); return; }
     const q = L.find(x => x.quick), p = L.find(x => x.pkg);
@@ -430,10 +430,25 @@ function buildRows() {
       if (cr > 0 || recent(b.last)) mk(id, 'package', { detail: 'No recurring billing' });
     });
   }
-  imp.newRows = [];
+  // New members: not someone who had another agreement in the 6 months before this signup.
+  // Counts if an earlier agreement was signed in those 6 months, or a membership was still going (or cancelled) in them.
+  // Someone whose last membership ended more than 6 months ago counts as new again.
+  const SIX = 183 * DAY, mcx = {};
+  { let cur = 0; (imp.data.cancels || []).forEach(x => { if (x['User Id']) cur = +x['User Id']; const t = toDT(x['Change Date']);
+      if (cur && t && /membership/i.test(String(x['Description'] || '')) && /^(invoice )?cancel/i.test(String(x['Change Type'] || '').trim())) (mcx[cur] = mcx[cur] || []).push(t); }); }
+  const notNew = (id, a, L) => {
+    if (a.prev === 0) return false;   // ClubReady says this is their first agreement
+    const from = a.when - SIX;
+    if (L.some(x => x !== a && x.when < a.when && (x.when >= from || (!x.pkg && (!x.cancelled || x.cd >= from))))) return true;
+    return (mcx[id] || []).some(t => t >= from && t < a.when);
+  };
+  imp.newRows = []; imp.notNew = 0;
   Object.keys(ag).forEach(k => {
     const id = +k, L = ag[k].filter(x => x.when && !x.addon && !/single session/i.test(x.item)); if (!L.length) return;
-    const a = L.sort((x, y) => y.when - x.when)[0], it = a.item, pk = /promotion/i.test(it), day = ymd(a.when), b = bk[id] || { dates: [], open: 0 };
+    const a = L.sort((x, y) => y.when - x.when)[0];
+    if ((new Date(asOf + 'T00:00') - a.when) / DAY > 125) return;   // signed too long ago to be on the list anyway
+    if (notNew(id, a, L)) { imp.notNew++; return; }
+    const it = a.item, pk = /promotion/i.test(it), day = ymd(a.when), b = bk[id] || { dates: [], open: 0 };
     const n = (it.match(/(\d+)\s*Sessions?\s*per\s*Month/i) || it.match(/Promotion\s*(\d+)\s*x/i) || [])[1];
     imp.newRows.push({ club_id: id, name: names[id] || 'Unknown', agreement_id: a.agr || null, signed_on: day,
       membership: pk ? n + 'x' + ((it.match(/x\s*(\d+)\s*min/i) || [])[1] || '') + 'min package' : n ? n + 'x Membership' : /basic/i.test(it) ? 'Basic Membership' : it.replace(/^1 x /, ''),
