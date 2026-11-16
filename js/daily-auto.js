@@ -3,7 +3,8 @@
 // each day's leads, contacts, demos, sales, cancels and stretches and save them to the Daily log,
 // so the Daily, Weekly, Month-to-date and Last-30-days reviews fill themselves in.
 // Only the numbers ClubReady can answer are written. Payroll and available slots stay as managers typed them. A column is only touched when its report came with the upload.
-const AUTO_DAYS = 45;   // how far back each import refreshes (covers this week, this month and the last 30 days)
+const AUTO_DAYS = 45;
+const CLOSE_DAYS = 30;   // a new agreement up to this many days after someone's demo counts toward that demo day's Close %   // how far back each import refreshes (covers this week, this month and the last 30 days)
 const AUTO_DL = new Set(['revenue', 'refunds', 'leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'reactivations', 'demo_sales', 'new_eft', 'cancellations', 'freezes', 'active_members', 'stretches_completed', 'staff_util']);
 
 function buildDailyAuto() {
@@ -39,7 +40,8 @@ function buildDailyAuto() {
 
   // Agreements (add-ons don't count). The Agreements Log's last column, Previous Agreements, decides:
   // 0 previous = a new sale (Sales); more than 0 = a reactivation (React.).
-  // Close %: a new sale from someone whose demo was held that same day (counted once per person per day).
+  // Close %: a new sale within CLOSE_DAYS of someone's demo counts as a close, credited to their demo day
+  // (so a day's close % = of the demos held that day, how many bought within 30 days). Once per person.
   if (agreements) {
     want('agreements', 'new_eft');
     const pk = agreements.length ? Object.keys(agreements[0]).find(k => /prev/i.test(k) && /agree/i.test(k)) : null;
@@ -49,7 +51,8 @@ function buildDailyAuto() {
     agreements.forEach(r => { const id = +r['User ID']; if (!id) return; const item = String(r['Description'] || '').split('\n')[0]; if (/add-on/i.test(item)) return;
       const t = toDT(r['Date']); if (!t) return; const d = ymd(t), prev = pk ? (parseFloat(r[pk]) || 0) : 0;
       add(d, prev > 0 ? 'reactivations' : 'agreements'); add(d, 'new_eft', +r['New EFT'] || 0);
-      if (!prev && heldOn[id] === d && !ds.has(id + '|' + d)) { ds.add(id + '|' + d); add(d, 'demo_sales'); } });
+      const h = heldOn[id], gap = h ? (new Date(d + 'T00:00') - new Date(h + 'T00:00')) / DAY : -1;
+      if (!prev && h && gap >= 0 && gap <= CLOSE_DAYS && !ds.has(id)) { ds.add(id); add(h, 'demo_sales'); } });
   }
 
   // Cancellations: people whose membership is now cancelled, on the day they cancelled (plan changes don't count).

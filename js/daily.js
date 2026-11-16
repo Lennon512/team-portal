@@ -49,7 +49,7 @@ function agg(sid, from, to) {
   const o = Object.fromEntries(DL_NUM.map(k => [k, S(k)]));
   const act = rs.filter(r => +r.active_members > 0), days = Math.round((new Date(to + 'T00:00') - new Date(from + 'T00:00')) / DAY) + 1;
   o.entries = rs.length; o.payroll = payroll; o.open = rs.filter(r => r.open_day !== false && (r.contacts || r.leads || r.revenue || r.demos_held)).length;
-  // Close % = people who had their demo and bought a new agreement the same day ÷ demos held.
+  // Close % = demos held that bought a new agreement within 30 days (credited to the demo day) ÷ demos held.
   // Days from before that was tracked (demo_sales empty) fall back to all new sales that day.
   o.demo_sales = rs.reduce((n, r) => n + (r.demo_sales !== null && r.demo_sales !== undefined ? +r.demo_sales : +r.agreements || 0), 0);
   o.l2d = o.leads ? o.demos_booked / o.leads : null; o.show = o.demos_booked ? o.demos_held / o.demos_booked : null; o.close = o.demos_held ? o.demo_sales / o.demos_held : null;
