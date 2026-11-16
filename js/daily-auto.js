@@ -4,7 +4,8 @@
 // so the Daily, Weekly, Month-to-date and Last-30-days reviews fill themselves in.
 // Only the numbers ClubReady can answer are written. Payroll and available slots stay as managers typed them. A column is only touched when its report came with the upload.
 const AUTO_DAYS = 45;
-// Demos are ClubReady's "Stretching Assessment" bookings. Close % counts a new sale (no previous agreements) on the day
+// Demos are ClubReady's "Stretching Assessment" bookings (older ones are "Stretching Consultation"; follow-up visits don't count).
+const isDemo = d => /assessment|consultation/i.test(String(d || '')) && !/follow/i.test(String(d || '')); Close % counts a new sale (no previous agreements) on the day
 // they bought, from anyone who has had a completed assessment before or on that day (e.g. demo in September, bought in November).   // how far back each import refreshes (covers this week, this month and the last 30 days)
 const AUTO_DL = new Set(['revenue', 'refunds', 'leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'reactivations', 'demo_sales', 'new_eft', 'cancellations', 'freezes', 'active_members', 'stretches_completed', 'staff_util']);
 
@@ -27,11 +28,11 @@ function buildDailyAuto() {
     const seen = new Map();
     bookings.forEach(r => { const id = +r['User ID'], t = toDT(r['Booking Date']); if (!id || !t) return;
       const key = r['Booking ID'] ? 'b' + r['Booking ID'] : id + '|' + t.getTime() + '|' + (r['Booking Start'] || '');
-      seen.set(key, { id, t, day: ymd(t), st: String(r['Current Status'] || ''), demo: /assessment/i.test(String(r['Booking Detail'] || '')) }); });
+      seen.set(key, { id, t, day: ymd(t), st: String(r['Current Status'] || ''), demo: isDemo(r['Booking Detail']) }); });
     const B = [...seen.values()], done = b => /^completed/i.test(b.st), dropped = b => /cancel/i.test(b.st) && !/late/i.test(b.st);
     // Stretches completed: every finished session that day
     want('stretches_completed'); B.forEach(b => { if (done(b)) add(b.day, 'stretches_completed'); });
-    // Demos: Stretching Assessment bookings. Booked = not cancelled, on the day of the assessment; Held = completed.
+    // Demos: Stretching Assessment / Consultation bookings. Booked = not cancelled, on the day of the assessment; Held = completed.
     want('demos_booked', 'demos_held');
     B.forEach(b => { if (!b.demo || dropped(b)) return; add(b.day, 'demos_booked'); if (done(b)) { add(b.day, 'demos_held'); (asmt[b.id] = asmt[b.id] || []).push(b.day); } });
   }
