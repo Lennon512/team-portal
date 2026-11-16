@@ -10,7 +10,8 @@ const DLF = [
   ['Members', [['cancellations', 'Cancellations'], ['freezes', 'Freezes'], ['reactivations', 'Reactivations'], ['active_members', 'Active members', '', 'invoices in the next 30 days']]],
   ['Schedule', [['slots_available', 'Available stretch slots'], ['stretches_completed', 'Completed stretches'], ['staff_util', 'Staff utilization', '', '1 = 100%']]]];
 const DL_NUM = DLF.flatMap(g => g[1].map(f => f[0])).filter(k => k !== 'payroll' && k !== 'staff_util');
-const DEF_T = { revenue_goal: null, labor_max: .4, l2d_target: .5, show_target: .8, close_target: .4, attrition_max: .1, contacts_target: 50, util_target: .65, nmg_target: 6 };
+const DEF_T = { revenue_goal: null, labor_max: .4, l2d_target: .5, show_target: .8, close_target: .4, attrition_max: .1, contacts_target: 50, util_target: .65, nmg_target: 6,
+  leads_target: null, booked_target: null, held_target: null, sales_target: null, cancels_max: null, react_target: null };   // daily goals (set in Targets)
 const FOCUSES = ["Complete yesterday's data", 'Lead follow-up & booking', 'Confirmations & show rate', 'Consult execution & closing', 'Member retention', 'Outbound activity', 'Schedule fill & rebooking', 'Protect momentum'];
 
 const dAdd = (d, n) => { const x = new Date(d + 'T00:00'); x.setDate(x.getDate() + n); return ymd(x); };
@@ -21,14 +22,16 @@ const numf = (v, d = 0) => v === null || v === undefined || !isFinite(v) ? '–'
 const tgtOf = sid => ({ ...DEF_T, ...(DL.tgt[sid] || {}) });
 const canWrite = sid => ME.role === 'owner' || (ME.role === 'manager' && ME.location_id === sid);
 const payOk = sid => ME.role === 'owner' || (ME.role === 'manager' && ME.location_id === sid);
-const dlStudios = () => locs;
+const dlStudios = () => locs.filter(l => !(DL.tclosed && DL.tclosed.has(l.id)));   // temporarily closed studios are left out
 const monday = d => { const x = new Date(d + 'T00:00'); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return ymd(x); };
 
 // ----- data -----
 async function dlFetch(from, to) {
   if (DL.from && from >= DL.from && to <= DL.to) return;
   const f = DL.from && DL.from < from ? DL.from : from, t = DL.to && DL.to > to ? DL.to : to;
-  const [a, b, c] = await Promise.all([db.from('daily_log').select('*').gte('day', f).lte('day', t).limit(5000), db.from('daily_payroll').select('*').gte('day', f).lte('day', t).limit(5000), db.from('studio_targets').select('*')]);
+  const [a, b, c, si] = await Promise.all([db.from('daily_log').select('*').gte('day', f).lte('day', t).limit(5000), db.from('daily_payroll').select('*').gte('day', f).lte('day', t).limit(5000), db.from('studio_targets').select('*'),
+    db.from('studio_info').select('location_id,temp_closed').eq('temp_closed', true)]);
+  DL.tclosed = new Set(si.error ? [] : (si.data || []).map(x => x.location_id));
   if (a.error) { DL.missing = /does not exist|relation|schema cache/i.test(a.error.message); DL.err = a.error.message; DL.rows = []; return; }
   DL.missing = false; DL.err = ''; DL.rows = a.data || []; DL.pay = b.error ? [] : (b.data || []); DL.from = f; DL.to = t;
   DL.tgt = {}; (c.data || []).forEach(x => DL.tgt[x.studio_id] = x);
@@ -40,8 +43,9 @@ const payOf = (sid, d) => { const p = DL.pay.find(r => r.studio_id === sid && r.
 
 // Totals and rates for one studio over a date range (same formulas as the workbook)
 function agg(sid, from, to) {
-  const rs = DL.rows.filter(r => (!sid || r.studio_id === sid) && r.day >= from && r.day <= to), S = k => rs.reduce((n, r) => n + (+r[k] || 0), 0);
-  const ps = DL.pay.filter(r => (!sid || r.studio_id === sid) && r.day >= from && r.day <= to), payroll = ps.length ? ps.reduce((n, r) => n + (+r.payroll || 0), 0) : null;
+  const ids = Array.isArray(sid) ? new Set(sid) : null, inS = id => ids ? ids.has(id) : (!sid || id === sid);   // sid can be one studio, a list, or none (all)
+  const rs = DL.rows.filter(r => inS(r.studio_id) && r.day >= from && r.day <= to), S = k => rs.reduce((n, r) => n + (+r[k] || 0), 0);
+  const ps = DL.pay.filter(r => inS(r.studio_id) && r.day >= from && r.day <= to), payroll = ps.length ? ps.reduce((n, r) => n + (+r.payroll || 0), 0) : null;
   const o = Object.fromEntries(DL_NUM.map(k => [k, S(k)]));
   const act = rs.filter(r => +r.active_members > 0), days = Math.round((new Date(to + 'T00:00') - new Date(from + 'T00:00')) / DAY) + 1;
   o.entries = rs.length; o.payroll = payroll; o.open = rs.filter(r => r.open_day !== false && (r.contacts || r.leads || r.revenue || r.demos_held)).length;
@@ -52,7 +56,7 @@ function agg(sid, from, to) {
   o.staff_util = su.length ? su.reduce((n, v) => n + v, 0) / su.length : null;   // ClubReady's Staff Utilization, averaged over the days
   o.util = o.staff_util !== null ? o.staff_util : o.slots_available ? o.stretches_completed / o.slots_available : null;
   o.labor = payroll !== null && o.revenue ? payroll / o.revenue : null; o.cpd = o.open ? o.contacts / o.open : null; o.rpm = o.avgActive ? o.revenue / o.avgActive : null;
-  const goals = sid ? [tgtOf(sid)] : dlStudios().map(l => tgtOf(l.id));
+  const goals = ids ? [...ids].map(tgtOf) : sid ? [tgtOf(sid)] : dlStudios().map(l => tgtOf(l.id));
   const g = goals.reduce((n, t) => n + (+t.revenue_goal || 0), 0); o.goal = g ? g * 12 / 365 * days : null; o.gap = o.goal !== null ? o.revenue - o.goal : null; o.days = days;
   return o;
 }
@@ -124,11 +128,42 @@ function drawDaily() {
   const st = dlStudios(), showLabor = st.some(l => payOk(l.id));
   const rv = st.map(l => { const row = rowOf(l.id, d), a = row ? agg(l.id, d, d) : null, tt = tgtOf(l.id), auto = autoFocus(row, tt), focus = (row && row.focus_override) || auto;
     return { l, row, a, tt, auto, focus }; });
-  const cls = (v, target, lower) => v === null || target === null || target === undefined ? '' : (lower ? v > target : v < target) ? 'bad' : 'good';
-  const table = `<div class="table-wrap"><table class="mt ovt dlt"><thead><tr><th>Studio</th><th>Revenue</th><th>Leads</th><th>Contacts</th><th>Booked</th><th>Held</th><th>Sales</th><th>Cancels</th><th>React.</th><th>NMG</th><th>Active</th><th>Lead→demo</th><th>Show</th><th>Close</th><th>Util.</th>${showLabor ? '<th>Labor %</th>' : ''}<th>#1 focus</th></tr></thead><tbody>` +
-    rv.map(({ l, row, a, tt, focus }) => row ? `<tr><td><b>${esc(l.name)}</b>${row.open_day === false ? '<small class="nm-sub">Closed</small>' : ''}</td><td>${row.revenue === null || row.revenue === undefined ? (canWrite(l.id) && row.open_day !== false ? `<button class="linkish" data-dlstudio="${l.id}">Add</button>` : '–') : money(a.revenue)}</td><td>${a.leads}</td><td class="${cls(a.contacts, tt.contacts_target)}">${a.contacts}</td><td>${a.demos_booked}</td><td>${a.demos_held}</td><td>${a.agreements}</td><td>${a.cancellations}</td><td>${a.reactivations}</td><td class="${a.nmg < 0 ? 'bad' : a.nmg > 0 ? 'good' : ''}">${a.nmg > 0 ? '+' : ''}${a.nmg}</td><td>${a.avgActive ? numf(a.avgActive) : '–'}</td>
-      <td class="${a.leads >= 5 ? cls(a.l2d, tt.l2d_target) : ''}">${pctf(a.l2d)}</td><td class="${a.demos_booked >= 2 ? cls(a.show, tt.show_target) : ''}">${pctf(a.show)}</td><td class="${a.demos_held >= 2 ? cls(a.close, tt.close_target) : ''}">${pctf(a.close)}</td><td class="${a.util ? cls(a.util, tt.util_target) : ''}">${pctf(a.util)}</td>${showLabor ? `<td class="${payOk(l.id) ? cls(a.labor, tt.labor_max, true) : ''}">${payOk(l.id) ? pctf(a.labor) : '<span class="muted">–</span>'}</td>` : ''}<td><span class="dlfocus">${esc(focus)}</span></td></tr>`
-      : `<tr class="dlmiss"><td><b>${esc(l.name)}</b></td><td colspan="${showLabor ? 15 : 14}"><span class="muted">Not entered yet</span>${canWrite(l.id) ? ` <button class="linkish" data-dlstudio="${l.id}">Enter now</button>` : ''}</td><td><span class="dlfocus miss">${esc(FOCUSES[0])}</span></td></tr>`).join('') + '</tbody></table></div>';
+  // Every number is green when it hits the goal and red when it misses. "–" means no data (e.g. a % with nothing to divide by); a real zero shows 0 or 0%.
+  const dayGoal = mo => mo ? mo * 12 / 365 : null;
+  const COLS = [
+    ['revenue', 'Revenue', (a, row) => row.revenue === null || row.revenue === undefined ? null : a.revenue, money, t => dayGoal(+t.revenue_goal)],
+    ['leads', 'Leads', a => a.leads, numf, t => t.leads_target], ['contacts', 'Contacts', a => a.contacts, numf, t => t.contacts_target],
+    ['booked', 'Booked', a => a.demos_booked, numf, t => t.booked_target], ['held', 'Held', a => a.demos_held, numf, t => t.held_target],
+    ['sales', 'Sales', a => a.agreements, numf, t => t.sales_target], ['cancels', 'Cancels', a => a.cancellations, numf, t => t.cancels_max, true],
+    ['react', 'React.', a => a.reactivations, numf, t => t.react_target], ['nmg', 'NMG', a => a.nmg, v => (v > 0 ? '+' : '') + v, null],
+    ['active', 'Active', a => a.avgActive || null, numf, null],
+    ['l2d', 'Lead→demo', a => a.l2d, pctf, t => t.l2d_target, false, 1], ['show', 'Show', a => a.show, pctf, t => t.show_target, false, 1],
+    ['close', 'Close', a => a.close, pctf, t => t.close_target, false, 1], ['util', 'Util.', a => a.util, pctf, t => t.util_target, false, 1]];
+  if (showLabor) COLS.push(['labor', 'Labor %', (a, row, l) => payOk(l.id) ? a.labor : null, pctf, t => t.labor_max, true, 1]);
+  const tone = (v, g, lower) => v === null || v === undefined || g === null || g === undefined || g === '' || isNaN(g) ? '' : (lower ? v <= g : v >= +g) ? 'good' : 'bad';
+  const gfmt = (c, g) => g === null || g === undefined || g === '' || isNaN(g) ? '' : c[6] ? pctf(+g) : c[0] === 'revenue' ? money(Math.round(g)) : numf(+g);
+  const cell = (c, a, row, l, tt) => { const v = c[2](a, row, l), g = c[4] ? c[4](tt) : null, closed = row.open_day === false;
+    const k = c[0] === 'nmg' ? (v > 0 ? 'good' : v < 0 ? 'bad' : '') : closed ? '' : tone(v, g, c[5]);
+    if (c[0] === 'revenue' && v === null) return `<td>${canWrite(l.id) && !closed ? `<button class="linkish" data-dlstudio="${l.id}">Add</button>` : '–'}</td>`;
+    return `<td class="${k}"${g !== null && g !== undefined && g !== '' ? ` title="Goal ${c[5] ? 'at most ' : ''}${gfmt(c, g)}"` : ''}>${v === null || v === undefined ? '–' : c[3](v)}</td>`; };
+  // Goal row: the goal when every studio has the same one, otherwise "varies" (hover to see each)
+  const goalRow = `<tr class="dlgoal"><td><b>Goal</b><small class="nm-sub">per studio, per day</small></td>` + COLS.map(c => {
+    if (c[0] === 'nmg') { const m = [...new Set(st.map(l => tgtOf(l.id).nmg_target).filter(x => x !== null && x !== undefined))]; return `<td>${m.length === 1 ? '+' + m[0] + '/mo' : m.length ? 'varies' : '–'}</td>`; }
+    if (!c[4]) return '<td>–</td>';
+    const gs = st.map(l => [l.name, c[4](tgtOf(l.id))]).filter(([, g]) => g !== null && g !== undefined && g !== '' && !isNaN(g)), uniq = [...new Set(gs.map(([, g]) => gfmt(c, g)))];
+    return `<td${uniq.length > 1 ? ` title="${esc(gs.map(([n, g]) => n + ': ' + gfmt(c, g)).join(', '))}"` : ''}>${!gs.length ? '–' : uniq.length === 1 ? (c[5] ? '≤ ' : '') + uniq[0] : 'varies'}</td>`; }).join('') + '</tr>';
+  // Total row: counts added up, percentages worked out from the totals; goals are the studios' goals added up (counts) or averaged (percentages)
+  const inn = rv.filter(x => x.row), ids = inn.map(x => x.l.id), T = ids.length ? agg(ids, d, d) : null;
+  const totRow = !T ? '' : `<tr class="dltot"><td><b>Austin total</b><small class="nm-sub">${inn.length} studio${inn.length === 1 ? '' : 's'}</small></td>` + COLS.map(c => {
+    let v = c[0] === 'active' ? inn.reduce((n, x) => n + (x.a.avgActive || 0), 0) || null : c[0] === 'revenue' ? (inn.some(x => x.row.revenue !== null && x.row.revenue !== undefined) ? T.revenue : null) : c[0] === 'labor' ? T.labor : c[2](T, {}, { id: '' });
+    if (c[0] === 'nmg') return `<td class="${v > 0 ? 'good' : v < 0 ? 'bad' : ''}">${c[3](v)}</td>`;
+    const gl = c[4] ? inn.map(x => c[4](x.tt)) : [], ok = gl.length && gl.every(g => g !== null && g !== undefined && g !== '' && !isNaN(g));
+    const g = !ok ? null : c[6] ? gl.reduce((n, x) => n + +x, 0) / gl.length : gl.reduce((n, x) => n + +x, 0);
+    return `<td class="${tone(v, g, c[5])}"${g !== null ? ` title="Goal ${c[5] ? 'at most ' : ''}${gfmt(c, g)}"` : ''}>${v === null || v === undefined ? '–' : c[3](v)}</td>`; }).join('') + '</tr>';
+  const table = `<div class="table-wrap"><table class="mt ovt dlt"><thead><tr><th>Studio</th>${COLS.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>` + goalRow +
+    rv.map(({ l, row, a, tt, focus }) => row ? `<tr><td><b>${esc(l.name)}</b>${row.open_day === false ? '<small class="nm-sub">Closed</small>' : ''}<div class="dlfocusline"><span class="dlfocus" title="Today's #1 focus">${esc(focus)}</span></div></td>${COLS.map(c => cell(c, a, row, l, tt)).join('')}</tr>`
+      : `<tr class="dlmiss"><td><b>${esc(l.name)}</b><div class="dlfocusline"><span class="dlfocus miss">${esc(FOCUSES[0])}</span></div></td><td colspan="${COLS.length}"><span class="muted">Not entered yet</span>${canWrite(l.id) ? ` <button class="linkish" data-dlstudio="${l.id}">Enter now</button>` : ''}</td></tr>`).join('') +
+    `</tbody><tfoot>${totRow}</tfoot></table></div>`;
   const done = rv.filter(x => entered(x.row)).length;
   $('dlBody').innerHTML = `<div class="dlnav"><button class="quiet" data-dlday="-1" aria-label="Previous day">‹</button><label class="tk-daylbl"><b>${d === yest ? 'Yesterday' : d === todayStr() ? 'Today' : ''} <small>${dLong(d)}</small></b><input type="date" id="dlDate" value="${d}" max="${todayStr()}"></label><button class="quiet" data-dlday="1" aria-label="Next day" ${d >= todayStr() ? 'disabled' : ''}>›</button>${d !== yest ? '<button class="quiet sm" data-dlday="y">Back to yesterday</button>' : ''}
       ${ME.role === 'owner' && REP.sub === 'enter' ? '<span class="dltools"><button class="quiet sm" id="dlTargets">Targets</button><button class="quiet sm" id="dlImport">Import from spreadsheet</button></span>' : ''}</div>` +
@@ -209,8 +244,8 @@ function drawWeekly() {
 function dlTargetsForm() {
   const f = (sid, k, pct) => { const v = tgtOf(sid)[k]; return `<input type="number" step="any" min="0" data-tg="${k}" data-sid="${sid}" value="${v === null || v === undefined ? '' : pct ? Math.round(v * 100) : v}">`; };
   $('dlgBody').innerHTML = `<h2>Studio targets</h2><p class="lead" style="margin:.25rem 0 1rem">Used for goals, colors, focus picks and priority flags. Percentages are whole numbers (40 = 40%).</p>
-    <div class="table-wrap"><table class="mt dltg"><thead><tr><th>Studio</th><th>Monthly revenue goal $</th><th>Labor max %</th><th>Lead→demo %</th><th>Show %</th><th>Close %</th><th>Attrition max %</th><th>Contacts / day</th><th>Utilization %</th><th>Monthly NMG</th></tr></thead><tbody>` +
-    dlStudios().map(l => `<tr><td><b>${esc(l.name)}</b></td><td>${f(l.id, 'revenue_goal')}</td><td>${f(l.id, 'labor_max', 1)}</td><td>${f(l.id, 'l2d_target', 1)}</td><td>${f(l.id, 'show_target', 1)}</td><td>${f(l.id, 'close_target', 1)}</td><td>${f(l.id, 'attrition_max', 1)}</td><td>${f(l.id, 'contacts_target')}</td><td>${f(l.id, 'util_target', 1)}</td><td>${f(l.id, 'nmg_target')}</td></tr>`).join('') +
+    <div class="table-wrap"><table class="mt dltg"><thead><tr><th>Studio</th><th>Monthly revenue goal $</th><th>Labor max %</th><th>Lead→demo %</th><th>Show %</th><th>Close %</th><th>Attrition max %</th><th>Contacts / day</th><th>Utilization %</th><th>Monthly NMG</th><th>Leads / day</th><th>Booked / day</th><th>Held / day</th><th>Sales / day</th><th>Cancels max / day</th><th>React. / day</th></tr></thead><tbody>` +
+    dlStudios().map(l => `<tr><td><b>${esc(l.name)}</b></td><td>${f(l.id, 'revenue_goal')}</td><td>${f(l.id, 'labor_max', 1)}</td><td>${f(l.id, 'l2d_target', 1)}</td><td>${f(l.id, 'show_target', 1)}</td><td>${f(l.id, 'close_target', 1)}</td><td>${f(l.id, 'attrition_max', 1)}</td><td>${f(l.id, 'contacts_target')}</td><td>${f(l.id, 'util_target', 1)}</td><td>${f(l.id, 'nmg_target')}</td>${['leads_target', 'booked_target', 'held_target', 'sales_target', 'cancels_max', 'react_target'].map(k => `<td>${f(l.id, k)}</td>`).join('')}</tr>`).join('') +
     `</tbody></table></div><div id="tgErr" class="err" role="alert"></div><div class="acts"><button data-act="tgSave">Save targets</button><button class="quiet" data-act="close">Cancel</button></div>`;
   $('dlg').classList.add('dlwide'); $('dlg').showModal();
 }
@@ -218,7 +253,7 @@ async function dlTargetsSave() {
   const P = new Set(['labor_max', 'l2d_target', 'show_target', 'close_target', 'attrition_max', 'util_target']), by = {};
   document.querySelectorAll('[data-tg]').forEach(el => { const s = el.dataset.sid, k = el.dataset.tg, v = numOrNull(el.value); (by[s] = by[s] || { studio_id: s, updated_at: new Date().toISOString() })[k] = v === null ? null : P.has(k) ? v / 100 : v; });
   const { error } = await db.from('studio_targets').upsert(Object.values(by), { onConflict: 'studio_id' });
-  if (error) { $('tgErr').textContent = 'Could not save. ' + error.message; return; }
+  if (error) { $('tgErr').textContent = /leads_target|booked_target|held_target|sales_target|cancels_max|react_target/.test(error.message) ? 'The new daily goals need a one-time database update first: run sql/daily_goals.sql in Supabase.' : 'Could not save. ' + error.message; return; }
   Object.values(by).forEach(x => DL.tgt[x.studio_id] = { ...(DL.tgt[x.studio_id] || {}), ...x });
   $('dlg').close(); toast('Targets saved'); REP.sub === 'weekly' ? drawWeekly() : drawDaily();
 }

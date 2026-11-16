@@ -851,3 +851,10 @@ a.htask { text-decoration:none; color:inherit; }
 .lbpos .chkline { margin:0; }
 .acts a.btnlink { display:inline-flex; align-items:center; padding:.6rem 1.1rem; border-radius:999px; background:rgba(255,255,255,.42); border:1px solid rgba(255,255,255,.7); color:var(--ink); text-decoration:none; font-weight:500; }
 @media (max-width: 640px) { .lbbar #lbFind { width:100%; margin-left:0; } }
+/* Daily review: goal row, focus under the studio name, totals */
+.dlt tr.dlgoal td { background:rgba(38,30,20,.05); color:var(--muted); font-size:.82rem; font-weight:600; }
+.dlt tr.dlgoal td:first-child b { color:var(--ink); }
+.dlfocusline { margin-top:.3rem; }
+.dlt td:first-child { white-space:normal; min-width:11rem; }
+.dlt tfoot tr.dltot td { border-top:2px solid rgba(38,30,20,.18); }
+.dlt td[title] { cursor:help; }
