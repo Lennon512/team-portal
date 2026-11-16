@@ -86,19 +86,20 @@ function drawPerf() {
 // decides Austin scorecard vs the network Mastercard, same as before.
 const REP = { sub: 'dpr' };
 function updateRepTabs() {
-  document.querySelectorAll('#repTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === REP.sub));
+  document.querySelectorAll('#repTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === REP.sub || (b.dataset.t === 'monthly' && REP.sub === 'score')));
   document.querySelector('#repTabs [data-t="dpr"]').hidden = !canPage('dpr');
   document.querySelector('#repTabs [data-t="weekly"]').hidden = !canPage('dpr');
   document.querySelector('#repTabs [data-t="enter"]').hidden = !canPage('dpr') || !(ME.role === 'owner' || (ME.role === 'manager' && ME.location_id));
   const perfOk = canPage('performance');
-  document.querySelector('#repTabs [data-t="score"]').hidden = !perfOk;
+  document.querySelector('#repTabs [data-t="monthly"]').hidden = !perfOk && !canPage('dpr');
   document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || !netOk();
   document.querySelector('#repTabs [data-t="compare"]').hidden = !perfOk || !netOk();
   document.querySelector('#repTabs [data-t="projection"]').hidden = !perfOk;
 }
 function drawRepTabs() {
-  const dl = () => REP.sub === 'dpr' || REP.sub === 'weekly' || REP.sub === 'enter';
+  const dl = () => REP.sub === 'dpr' || REP.sub === 'weekly' || REP.sub === 'monthly' || REP.sub === 'enter';
   if (dl() && !canPage('dpr') && canPage('performance')) REP.sub = 'score';
+  if (REP.sub === 'score' && !canPage('performance') && canPage('dpr')) REP.sub = 'monthly';
   if (!dl() && !canPage('performance') && canPage('dpr')) REP.sub = 'dpr';
   $('repDpr').hidden = !dl(); $('repPerf').hidden = dl();
   updateRepTabs();
@@ -107,7 +108,8 @@ function drawRepTabs() {
 $('repTabs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   REP.sub = b.dataset.t;
-  const dl = REP.sub === 'dpr' || REP.sub === 'weekly' || REP.sub === 'enter';
+  if (REP.sub === 'monthly' && !canPage('dpr')) REP.sub = 'score';   // no daily numbers access: the monthly sheet view
+  const dl = REP.sub === 'dpr' || REP.sub === 'weekly' || REP.sub === 'monthly' || REP.sub === 'enter';
   if (!dl) PF.tab = REP.sub;
   location.hash = REP.sub === 'enter' ? '#enter' : dl ? '#dpr' : '#performance';
   $('repDpr').hidden = !dl; $('repPerf').hidden = dl;
