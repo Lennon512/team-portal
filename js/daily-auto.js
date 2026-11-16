@@ -4,7 +4,8 @@
 // so the Daily, Weekly, Month-to-date and Last-30-days reviews fill themselves in.
 // Only the numbers ClubReady can answer are written. Payroll and available slots stay as managers typed them. A column is only touched when its report came with the upload.
 const AUTO_DAYS = 45;
-const CLOSE_DAYS = 30;   // a new agreement up to this many days after someone's demo counts toward that demo day's Close %   // how far back each import refreshes (covers this week, this month and the last 30 days)
+// Demos are ClubReady's "Stretching Assessment" bookings. Close % counts a new sale (no previous agreements) on the day
+// they bought, from anyone who has had a completed assessment before or on that day (e.g. demo in September, bought in November).   // how far back each import refreshes (covers this week, this month and the last 30 days)
 const AUTO_DL = new Set(['revenue', 'refunds', 'leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'reactivations', 'demo_sales', 'new_eft', 'cancellations', 'freezes', 'active_members', 'stretches_completed', 'staff_util']);
 
 function buildDailyAuto() {
@@ -13,7 +14,7 @@ function buildDailyAuto() {
   const days = {}; for (let d = first; d <= last; d = dAdd(d, 1)) days[d] = {};
   const cols = new Set(), add = (d, k, n = 1) => { if (inRange(d)) days[d][k] = (days[d][k] || 0) + n; };
   const want = (...ks) => ks.forEach(k => cols.add(k));
-  const heldOn = {};   // person -> day their demo was held (for Close %)
+  const asmt = {};   // person -> days of their completed Stretching Assessments (demos)
 
   // Leads: one per person, on the day they were added
   if (leads) { want('leads'); const seen = new Set(); leads.forEach(r => { const id = +r['User ID']; if (!id || seen.has(id)) return; seen.add(id); add(toDay(r['Date Added']), 'leads'); }); }
@@ -22,37 +23,32 @@ function buildDailyAuto() {
   if (contacts) { want('contacts'); contacts.forEach(r => add(toDay(r['Contact Date']), 'contacts')); }
 
   if (bookings) {
-    // The log can list the same session more than once (booked, moved, completed), so keep one row per person and start time
+    // The log lists each booking once per event (booked, moved, completed), so keep one row per Booking ID
     const seen = new Map();
-    bookings.forEach(r => { const id = +r['User ID'], t = toDT(r['Booking Date']); if (!id || !t) return; seen.set(id + '|' + t.getTime(), { id, t, day: ymd(t), st: String(r['Current Status'] || '') }); });
+    bookings.forEach(r => { const id = +r['User ID'], t = toDT(r['Booking Date']); if (!id || !t) return;
+      const key = r['Booking ID'] ? 'b' + r['Booking ID'] : id + '|' + t.getTime() + '|' + (r['Booking Start'] || '');
+      seen.set(key, { id, t, day: ymd(t), st: String(r['Current Status'] || ''), demo: /assessment/i.test(String(r['Booking Detail'] || '')) }); });
     const B = [...seen.values()], done = b => /^completed/i.test(b.st), dropped = b => /cancel/i.test(b.st) && !/late/i.test(b.st);
     // Stretches completed: every finished session that day
     want('stretches_completed'); B.forEach(b => { if (done(b)) add(b.day, 'stretches_completed'); });
-    // Demos: a lead's sessions up to and including their first completed one (later visits are not demos)
-    if (leads) {
-      want('demos_booked', 'demos_held');
-      const isLead = new Set(leads.map(r => +r['User ID']).filter(Boolean)), by = {};
-      B.forEach(b => { if (isLead.has(b.id)) (by[b.id] = by[b.id] || []).push(b); });
-      Object.values(by).forEach(L => { L.sort((a, b) => a.t - b.t);
-        for (const b of L) { if (dropped(b)) continue; add(b.day, 'demos_booked'); if (done(b)) { add(b.day, 'demos_held'); heldOn[b.id] = b.day; break; } } });
-    }
+    // Demos: Stretching Assessment bookings. Booked = not cancelled, on the day of the assessment; Held = completed.
+    want('demos_booked', 'demos_held');
+    B.forEach(b => { if (!b.demo || dropped(b)) return; add(b.day, 'demos_booked'); if (done(b)) { add(b.day, 'demos_held'); (asmt[b.id] = asmt[b.id] || []).push(b.day); } });
   }
 
   // Agreements (add-ons don't count). The Agreements Log's last column, Previous Agreements, decides:
   // 0 previous = a new sale (Sales); more than 0 = a reactivation (React.).
-  // Close %: a new sale within CLOSE_DAYS of someone's demo counts as a close, credited to their demo day
-  // (so a day's close % = of the demos held that day, how many bought within 30 days). Once per person.
+  // Close %: a new sale from someone who has had a completed assessment on or before the day they bought, counted on the day they bought.
   if (agreements) {
     want('agreements', 'new_eft');
     const pk = agreements.length ? Object.keys(agreements[0]).find(k => /prev/i.test(k) && /agree/i.test(k)) : null;
     if (pk) want('reactivations');
-    if (bookings && leads) want('demo_sales');
+    if (bookings) want('demo_sales');
     const ds = new Set();
     agreements.forEach(r => { const id = +r['User ID']; if (!id) return; const item = String(r['Description'] || '').split('\n')[0]; if (/add-on/i.test(item)) return;
       const t = toDT(r['Date']); if (!t) return; const d = ymd(t), prev = pk ? (parseFloat(r[pk]) || 0) : 0;
       add(d, prev > 0 ? 'reactivations' : 'agreements'); add(d, 'new_eft', +r['New EFT'] || 0);
-      const h = heldOn[id], gap = h ? (new Date(d + 'T00:00') - new Date(h + 'T00:00')) / DAY : -1;
-      if (!prev && h && gap >= 0 && gap <= CLOSE_DAYS && !ds.has(id)) { ds.add(id); add(h, 'demo_sales'); } });
+      if (!prev && (asmt[id] || []).some(a => a <= d) && !ds.has(id)) { ds.add(id); add(d, 'demo_sales'); } });
   }
 
   // Cancellations: people whose membership is now cancelled, on the day they cancelled (plan changes don't count).
