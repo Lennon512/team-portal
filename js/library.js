@@ -8,7 +8,7 @@ async function loadLibrary() {
   const [r, p, pp] = await Promise.all([db.from('library_resources').select('*').order('title'), db.from('positions').select('id,name').order('name'),
     db.from('profile_positions').select('position_id').eq('user_id', ME.id)]);
   LB.missing = !!r.error && /library_resources/.test(r.error.message || '');
-  LB.rows = r.data || []; LB.pos = p.data || []; LB.myPos = new Set((pp.data || []).map(x => x.position_id));
+  LB.rows = r.data || []; LB.thumbs = {}; LB.pos = p.data || []; LB.myPos = new Set((pp.data || []).map(x => x.position_id));
   drawLibrary();
 }
 
@@ -34,6 +34,19 @@ function lbFormat(t) {
   }).join('');
 }
 
+const lbImg = r => r.kind === 'file' && /\.(png|jpe?g|gif|webp)$/i.test(r.file_name || ''), lbPdf = r => r.kind === 'file' && /\.pdf$/i.test(r.file_name || '');
+const lbNew = r => r.created_at && (Date.now() - new Date(r.created_at)) / 864e5 <= 7;
+// Thumbnails for images: the files are private, so fetch short-lived links in one go, then redraw
+async function lbThumbs() {
+  LB.thumbs = LB.thumbs || {};
+  const need = LB.rows.filter(r => lbImg(r) && r.file_path && !(r.id in LB.thumbs));
+  if (!need.length) return;
+  need.forEach(r => LB.thumbs[r.id] = null);
+  const { data } = await db.storage.from('library').createSignedUrls(need.map(r => r.file_path), 3600);
+  (data || []).forEach((x, i) => { if (x && x.signedUrl) LB.thumbs[need[i].id] = x.signedUrl; });
+  drawLibrary();
+}
+
 function drawLibrary() {
   const own = ME.role === 'owner';
   $('lbAdd').hidden = !own || LB.missing;
@@ -46,8 +59,8 @@ function drawLibrary() {
   const list = LB.rows.filter(r => hit(r) && (!LB.cat || r.category === LB.cat) && (!LB.mine || lbForMe(r)) && (!LB.kind || r.kind === LB.kind));
   const card = r => { const [kl, ki] = LB_KINDS[r.kind] || LB_KINDS.link, forMe = lbForMe(r) && r.positions && r.positions.length;
     return `<div class="lbcard${r.pinned ? ' pin' : ''}" data-lb="${r.id}" tabindex="0" role="button" aria-label="Open ${esc(r.title)}">
-      <div class="lbic" aria-hidden="true">${ki}</div>
-      <div class="lbtxt"><b>${esc(r.title)}</b>${r.description ? `<span>${esc(r.description)}</span>` : ''}
+      ${LB.thumbs && LB.thumbs[r.id] ? `<div class="lbthumb" aria-hidden="true"><img src="${esc(LB.thumbs[r.id])}" alt="" loading="lazy"></div>` : `<div class="lbic" aria-hidden="true">${ki}</div>`}
+      <div class="lbtxt"><b>${esc(r.title)}${lbNew(r) ? ' <span class="lbnew">New</span>' : ''}</b>${r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<span>${esc(r.description)}</span>` : ''}
         <div class="lbchips"><span class="lbchip k">${kl}${r.kind === 'file' && r.file_name ? ' • ' + esc(r.file_name.split('.').pop().toUpperCase()) : ''}</span>${forMe ? '<span class="lbchip me">For your role</span>' : ''}${(r.positions || []).length && !forMe ? (r.positions || []).map(id => `<span class="lbchip">${esc(lbPosName(id))}</span>`).join('') : ''}${(r.tags || []).map(t => `<span class="lbchip t">#${esc(t)}</span>`).join('')}</div></div>
       ${own ? `<button type="button" class="mg-ic lbedit" data-lbedit="${r.id}" aria-label="Edit ${esc(r.title)}">✎</button>` : ''}</div>`; };
   const pinned = list.filter(r => r.pinned), byCat = cats.map(c => [c, list.filter(r => r.category === c && !r.pinned)]).filter(([, L]) => L.length);
@@ -61,6 +74,7 @@ function drawLibrary() {
       : (pinned.length ? `<section class="lbsec"><h3>📌 Start here</h3><div class="lbgrid">${pinned.map(card).join('')}</div></section>` : '') +
         byCat.map(([c, L]) => `<section class="lbsec"><h3>${esc(c)} <span class="hcount">${L.length}</span></h3><div class="lbgrid">${L.map(card).join('')}</div></section>`).join(''));
   const f = $('lbFind'); if (f && LB.focus) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); LB.focus = false; }
+  lbThumbs();
 }
 
 async function lbOpen(id) {
@@ -72,6 +86,14 @@ async function lbOpen(id) {
   if (r.kind === 'video' && lbEmbed(r.url)) {
     $('dlgBody').innerHTML = `<h2>${esc(r.title)}</h2>${r.description ? `<p class="lead" style="margin:.2rem 0 .8rem">${esc(r.description)}</p>` : ''}<div class="lbvid"><iframe src="${esc(lbEmbed(r.url))}" title="${esc(r.title)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>
       <div class="acts"><a class="btnlink" href="${esc(r.url)}" target="_blank" rel="noopener">Open in a new tab</a><button class="quiet" data-act="close">Close</button></div>`;
+    $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal(); return;
+  }
+  if ((lbImg(r) || lbPdf(r)) && r.file_path) {   // images and PDFs open right here
+    const { data, error } = await db.storage.from('library').createSignedUrl(r.file_path, 3600);
+    if (error || !data) { alert('Could not open that file. ' + (error ? error.message : '')); return; }
+    const u = esc(data.signedUrl), desc = r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<p class="lead" style="margin:.2rem 0 .8rem">${esc(r.description)}</p>` : '';
+    $('dlgBody').innerHTML = `<h2>${esc(r.title)}</h2>${desc}${lbImg(r) ? `<div class="lbview"><img src="${u}" alt="${esc(r.title)}"></div>` : `<div class="lbview pdf"><iframe src="${u}" title="${esc(r.title)}"></iframe></div>`}
+      <div class="acts"><a class="btnlink" href="${u}" target="_blank" rel="noopener">Open in a new tab</a><a class="btnlink quiet" href="${u}" download="${esc(r.file_name || '')}">Download</a><button class="quiet" data-act="close">Close</button></div>`;
     $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal(); return;
   }
   if (r.kind === 'file' && r.file_path) {
