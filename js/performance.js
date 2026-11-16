@@ -50,7 +50,7 @@ function pfVal(rows, K, per) {
 
 async function loadPerf() {
   const [a, b, c] = await Promise.all([db.from('kpi_monthly').select('*').order('month').limit(2000), db.from('kpi_network').select('*').limit(2000), db.from('kpi_corp_studio').select('*').limit(2000)]);
-  PF.rows = a.data || []; PF.net = {}; PF.corp = {};
+  PF.rows = a.data || []; PF.net = {}; PF.corp = {}; PF.loaded = true;
   (b.data || []).forEach(x => (PF.net[x.month] = PF.net[x.month] || {})[x.kpi] = +x.value);
   (c.data || []).forEach(x => { const s = PF.corp[x.studio_id] = PF.corp[x.studio_id] || {}; (s[x.month] = s[x.month] || {})[x.kpi] = x; });
   // Months without our own monthly sheet are filled from the corporate scorecard for that studio
@@ -115,7 +115,7 @@ $('repTabs').onclick = e => {
   location.hash = REP.sub === 'enter' ? '#enter' : dl ? '#dpr' : '#performance';
   $('repDpr').hidden = !dl; $('repPerf').hidden = dl;
   updateRepTabs();
-  if (dl) loadDpr(); else { PF.netStore = null; drawPerf(); }
+  if (dl) loadDpr(); else { PF.netStore = null; PF.loaded ? drawPerf() : loadPerf(); }   // coming from Daily/Weekly/Monthly the first time: load the months first
 };
 
 // ----- Austin scorecard -----
