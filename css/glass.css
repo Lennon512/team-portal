@@ -915,3 +915,21 @@ a.htask { text-decoration:none; color:inherit; }
 .cbar.mt, .up-item.mt .up-dot, .legend .sw.mt { background:#7a4fb3; color:#fff; }
 .mtpill { background:#ece3f7; color:#5b3594; margin:0 0 .3rem; }
 .evrep { margin:-.2rem 0 .6rem; font-size:.88rem; }
+
+/* Weekly / Monthly polish */
+.dlfocus.ok { background:#d6efe3; color:#0b5c3f; }
+.dlname { padding:0; text-align:left; color:var(--ink); text-decoration:none; }
+.dlname span { color:var(--muted); font-weight:400; }
+.dlname:hover b { text-decoration:underline; }
+/* Header and Goal row stay visible while the table scrolls */
+.dlwrap { max-height:calc(100vh - 170px); overflow:auto; }
+.dlwrap thead th { position:sticky; top:0; z-index:3; background:rgba(246,243,238,.97); }
+.dlwrap tr.dlgoal td { position:sticky; top:var(--dlth, 2.45rem); z-index:2; background:rgba(238,234,228,.97); }
+.dlwrap thead th:first-child { z-index:5; left:0; }
+.dlwrap tr.dlgoal td:first-child { z-index:4; left:0; }
+.dlinfo { display:inline-block; position:relative; font-weight:400; }
+.dlinfo summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.95rem; margin-left:.3rem; }
+.dlinfo summary::-webkit-details-marker { display:none; }
+.dlinfo > div { position:absolute; z-index:20; left:0; top:1.6rem; width:min(460px, 80vw); padding:.75rem .9rem; border-radius:12px; background:rgba(255,255,255,.97); box-shadow:0 10px 30px rgba(40,30,20,.18); font-size:.85rem; line-height:1.45; color:var(--ink); }
+.dldays { max-height:60vh; overflow:auto; }
+.dldays thead th { position:sticky; top:0; background:rgba(246,243,238,.97); z-index:2; }
