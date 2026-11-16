@@ -3,6 +3,7 @@
 let home = {};
 
 async function loadHome() {
+  loadAnnouncements();   // separate so a slow or missing table never holds up the rest
   const now = new Date(), td = todayStr(), mo = ymd(new Date(now.getFullYear(), now.getMonth(), 1)), in14 = ymd(new Date(now.getTime() + 14 * DAY)), in30 = ymd(new Date(now.getTime() + 30 * DAY));
   const lead = ME.role !== 'staff', loc = ME.role === 'owner' ? null : ME.location_id;
   const byLoc = q => loc ? q.eq('studio_id', loc) : q;
@@ -154,3 +155,87 @@ $('myCards').addEventListener('click', async e => {
   if (error) { b.disabled = false; alert('That did not work: ' + error.message); return; }
   toast(b.dataset.hdecide === 'approved' ? 'Approved' : 'Declined'); if (typeof timeOffBadge === 'function') timeOffBadge(); loadHome();
 });
+
+// ---------- Announcements ----------
+// Shown at the top of everyone's homepage. Owners post, edit and remove them.
+const ANN_KINDS = { promo: ['🎁', 'Promotion'], contest: ['🏆', 'Contest'], news: ['📣', 'News'], important: ['⚠️', 'Important'] };
+let ann = { rows: [], missing: false };
+
+async function loadAnnouncements() {
+  const { data, error } = await db.from('announcements').select('*').eq('active', true).order('pinned', { ascending: false }).order('starts_on', { ascending: false });
+  ann.missing = !!error; ann.rows = error ? [] : (data || []);
+  drawAnnouncements();
+}
+
+const annText = t => String(t || '').split(/\n{2,}/).map(block => {
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  const lines = block.split('\n');
+  if (lines.every(l => /^\s*[-•*]\s+/.test(l))) return '<ul>' + lines.map(l => `<li>${inline(l.replace(/^\s*[-•*]\s+/, ''))}</li>`).join('') + '</ul>';
+  return `<p>${lines.map(inline).join('<br>')}</p>`;
+}).join('');
+
+function drawAnnouncements() {
+  const el = $('annCards'); if (!el) return;
+  const own = ME.role === 'owner', td = todayStr();
+  if (ann.missing) { el.innerHTML = own ? '<div class="ann-setup">Announcements need a one-time setup: run <b>sql/announcements.sql</b> in Supabase, then refresh.</div>' : ''; return; }
+  const forMe = r => !r.location_ids || !r.location_ids.length || own || r.location_ids.includes(ME.location_id);
+  const live = ann.rows.filter(r => forMe(r) && r.starts_on <= td && (!r.ends_on || r.ends_on >= td));
+  const later = own ? ann.rows.filter(r => r.starts_on > td) : [];
+  const fmtD = d => new Date(d + 'T00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const card = (r, soon) => {
+    const [ic, lab] = ANN_KINDS[r.kind] || ANN_KINDS.news, left = r.ends_on ? Math.round((new Date(r.ends_on + 'T00:00') - new Date(td + 'T00:00')) / DAY) : null;
+    const when = soon ? `Starts ${fmtD(r.starts_on)}` : left === null ? '' : left === 0 ? 'Ends today' : left === 1 ? 'Ends tomorrow' : `Ends ${fmtD(r.ends_on)}${left <= 7 ? ` • ${left} days left` : ''}`;
+    const who = own && r.location_ids && r.location_ids.length ? r.location_ids.map(studio).join(', ') : '';
+    return `<article class="ann ann-${esc(r.kind)}${soon ? ' ann-soon' : ''}">
+      <div class="ann-top"><span class="ann-tag"><span aria-hidden="true">${ic}</span> ${lab}</span>${r.pinned ? '<span class="ann-pin">Pinned</span>' : ''}${when ? `<span class="ann-when">${when}</span>` : ''}
+        ${own ? `<button class="quiet sm ann-edit" data-annedit="${r.id}" aria-label="Edit announcement">Edit</button>` : ''}</div>
+      <h3>${esc(r.title)}</h3>${r.body ? `<div class="ann-body">${annText(r.body)}</div>` : ''}
+      ${r.link ? `<a class="hlink" href="${esc(r.link)}" target="_blank" rel="noopener">Learn more →</a>` : ''}
+      ${who ? `<p class="muted hsmall">Only for ${esc(who)}</p>` : ''}</article>`;
+  };
+  if (!live.length && !later.length && !own) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="ann-head"><h2>Announcements</h2>${own ? '<button class="sm" data-annedit="">+ Post announcement</button>' : ''}</div>` +
+    (live.length ? `<div class="ann-grid">${live.map(r => card(r)).join('')}</div>` : '<p class="muted" style="margin:0 0 1rem">No announcements right now.</p>') +
+    (later.length ? `<p class="hsub">Scheduled</p><div class="ann-grid">${later.map(r => card(r, true)).join('')}</div>` : '');
+}
+
+function annForm(id) {
+  const r = ann.rows.find(x => x.id === id) || { kind: 'promo', starts_on: todayStr(), location_ids: [] };
+  $('dlgBody').innerHTML = `<h2>${r.id ? 'Edit announcement' : 'Post an announcement'}</h2>
+    <label>Title <input id="anT" maxlength="120" value="${esc(r.title)}" placeholder="Holiday special: 3 intro stretches for $99"></label>
+    <label>Type <select id="anK">${Object.entries(ANN_KINDS).map(([k, [ic, l]]) => `<option value="${k}" ${r.kind === k ? 'selected' : ''}>${ic} ${l}</option>`).join('')}</select></label>
+    <label>Details <small class="muted">(blank line = new paragraph, start lines with "- " for bullets, **bold**)</small><textarea id="anB" rows="6" maxlength="4000">${esc(r.body)}</textarea></label>
+    <label>Link (optional) <input id="anL" type="url" maxlength="500" value="${esc(r.link)}" placeholder="https://"></label>
+    <div class="grid2"><label>Show starting <input id="anS" type="date" value="${esc(r.starts_on)}"></label>
+      <label>Take down after <small class="muted">(optional)</small><input id="anE" type="date" value="${esc(r.ends_on)}"></label></div>
+    <fieldset class="dlgrp"><legend>Which studios <small class="muted" style="text-transform:none;letter-spacing:0">(leave all unticked for everyone)</small></legend>
+      <div class="lbpos">${locs.map(l => `<label class="chkline"><input type="checkbox" data-anloc="${l.id}" ${(r.location_ids || []).includes(l.id) ? 'checked' : ''}> ${esc(l.name)}</label>`).join('')}</div></fieldset>
+    <label class="chkline"><input type="checkbox" id="anPin" ${r.pinned ? 'checked' : ''}> Pin to the top</label>
+    <div class="err" id="anErr" role="alert"></div>
+    <div class="acts"><button data-act="annSave" data-id="${r.id || ''}">${r.id ? 'Save' : 'Post'}</button>${r.id ? `<button class="quiet" data-act="annDel" data-id="${r.id}">Remove</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div>`;
+  $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
+}
+
+async function annSave(id) {
+  const err = m => { $('anErr').textContent = m; }, title = $('anT').value.trim(), link = $('anL').value.trim();
+  if (!title) return err('Add a title.');
+  if (link && !/^https?:\/\//i.test(link)) return err('Links need to start with https://');
+  const row = { title, kind: $('anK').value, body: $('anB').value.trim() || null, link: link || null, starts_on: $('anS').value || todayStr(), ends_on: $('anE').value || null,
+    location_ids: [...document.querySelectorAll('[data-anloc]:checked')].map(x => x.dataset.anloc), pinned: $('anPin').checked, updated_at: new Date().toISOString() };
+  if (row.ends_on && row.ends_on < row.starts_on) return err('The end date is before the start date.');
+  const btn = document.querySelector('[data-act="annSave"]'); btn.disabled = true;
+  const res = id ? await db.from('announcements').update(row).eq('id', id) : await db.from('announcements').insert({ ...row, created_by: ME.id });
+  if (res.error) { btn.disabled = false; return err('Could not save. ' + res.error.message); }
+  $('dlg').close(); toast(id ? 'Saved' : 'Announcement posted'); loadAnnouncements();
+}
+
+async function annDel(id) {
+  const r = ann.rows.find(x => x.id === id); if (!r || !confirm(`Remove "${r.title}"?`)) return;
+  const { error } = await db.from('announcements').delete().eq('id', id);
+  if (error) { alert('Could not remove it. ' + error.message); return; }
+  $('dlg').close(); toast('Removed'); loadAnnouncements();
+}
+
+$('annCards').addEventListener('click', e => { const b = e.target.closest('[data-annedit]'); if (b && ME.role === 'owner') annForm(b.dataset.annedit || null); });
+document.addEventListener('click', e => { const b = e.target.closest('[data-act="annSave"],[data-act="annDel"]'); if (!b || !$('dlg').contains(b)) return;
+  b.dataset.act === 'annSave' ? annSave(b.dataset.id || null) : annDel(b.dataset.id); });
