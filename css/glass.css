@@ -460,7 +460,8 @@ td.due-soon { color:#7d5608; font-weight:500; }
 .hlist { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:.3rem; font-size:.92rem; }
 .hcount { background:var(--dark); color:#fff; border-radius:999px; font-size:.72rem; padding:0 .5rem; line-height:1.3rem; }
 .hsmall { margin:.4rem 0 0; font-size:.85rem; } .warn-t { color:#a5321f; }
-.hmission { margin:1.8rem 0 0; padding-top:1rem; border-top:1px solid var(--line); color:var(--muted); font-size:.9rem; max-width:none; }
+.hmission { margin:.4rem 0 0; color:var(--ink); font-size:.98rem; line-height:1.45; max-width:62em; }
+#homeView #annCards { margin-top:1.6rem; }
 
 /* ---------- Supplies ---------- */
 .splist { display:flex; flex-direction:column; gap:.4rem; }
