@@ -2,7 +2,9 @@
 // Mirrors the team's V4 Regional Report: a Daily Log filled once per studio per day, a morning
 // review with one focus per studio, and weekly / month-to-date / last-30-day reviews.
 const numOrNull = v => { v = String(v).trim(); return v === '' || isNaN(+v) ? null : +v; };
-const DL = { day: '', studio: '', rows: [], pay: [], tgt: {}, from: '', to: '', missing: false, period: 'week', anchor: '', err: '' };
+const DL = { day: '', studio: '', rows: [], pay: [], tgt: {}, from: '', to: '', missing: false, period: 'week', anchor: '', mAnchor: '', err: '' };
+// The Monthly tab is the same review as Weekly, locked to whole calendar months (this month: to date)
+const dlMonthly = () => REP.sub === 'monthly', dlPer = () => dlMonthly() ? 'mtd' : DL.period, dlAnc = () => (dlMonthly() ? DL.mAnchor : DL.anchor) || dAdd(todayStr(), -1);
 // Inputs in the order of the spreadsheet's Daily Log
 const DLF = [
   ['Money', [['revenue', 'Revenue / collections', '$'], ['new_eft', 'New EFT added', '$'], ['refunds', 'Refunds / chargebacks', '$'], ['payroll', 'Payroll', '$']]],
@@ -98,7 +100,7 @@ async function loadDpr() {
   if (!DL.day) DL.day = dAdd(todayStr(), -1);
   if (!DL.studio) DL.studio = ME.role === 'owner' ? ((locs[0] || {}).id || '') : (ME.location_id || '');
   if (!DL.anchor) DL.anchor = DL.day;
-  const weekly = REP.sub === 'weekly', r = weekly ? dlRange() : null;
+  const weekly = REP.sub === 'weekly' || dlMonthly(), r = weekly ? dlRange() : null;
   await dlFetch(weekly ? dAdd(r.pFrom, 0) : dAdd(DL.day, -1), weekly ? r.to : DL.day);
   if (DL.missing) { host.innerHTML = dlSetupCard(); return; }
   if (DL.err) { host.innerHTML = `<p class="err">Could not load the daily log: ${esc(DL.err)}</p>`; return; }
@@ -214,12 +216,12 @@ async function dlSave() {
 
 // ----- WEEKLY / MONTH TO DATE / LAST 30 DAYS -----
 function dlRange() {
-  const a = DL.anchor || dAdd(todayStr(), -1);
-  if (DL.period === 'week') { const from = monday(a), to = dAdd(from, 6); return { from, to, pFrom: dAdd(from, -7), pTo: dAdd(from, -1), label: `Week of ${fmt(from)} – ${fmt(to)}`, plabel: 'prior week' }; }
-  if (DL.period === 'mtd') {
+  const a = dlAnc();
+  if (dlPer() === 'week') { const from = monday(a), to = dAdd(from, 6); return { from, to, pFrom: dAdd(from, -7), pTo: dAdd(from, -1), label: `Week of ${fmt(from)} – ${fmt(to)}`, plabel: 'prior week' }; }
+  if (dlPer() === 'mtd') {
     const from = a.slice(0, 8) + '01', last = ymd(new Date(+a.slice(0, 4), +a.slice(5, 7), 0)), yest = dAdd(todayStr(), -1), to = last < yest ? last : (yest < from ? from : yest);
     const n = Math.round((new Date(to + 'T00:00') - new Date(from + 'T00:00')) / DAY), pFrom = mAdd(from, -1), pEndMax = dAdd(from, -1), pTo = dAdd(pFrom, n) > pEndMax ? pEndMax : dAdd(pFrom, n);
-    return { from, to, pFrom, pTo, last, label: new Date(from + 'T00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + (to < last ? ` to date (through ${fmt(to)})` : ''), plabel: `same days of ${new Date(pFrom + 'T00:00').toLocaleDateString('en-US', { month: 'short' })}` };
+    return { from, to, pFrom, pTo, last, label: new Date(from + 'T00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + (to < last ? ` to date (through ${fmt(to)})` : ''), plabel: to === last ? new Date(pFrom + 'T00:00').toLocaleDateString('en-US', { month: 'long' }) : `same days of ${new Date(pFrom + 'T00:00').toLocaleDateString('en-US', { month: 'short' })}` };
   }
   const to = a, from = dAdd(to, -29); return { from, to, pFrom: dAdd(from, -30), pTo: dAdd(from, -1), label: `Last 30 days • ${fmt(from)} – ${fmt(to)}`, plabel: 'prior 30 days' };
 }
@@ -235,7 +237,7 @@ function drawWeekly() {
     const fv2 = f === 'usd' ? money(v) : f === 'pct' ? pctf(v) : (f === 'signed' && v > 0 ? '+' : '') + numf(v);
     return `<div class="kt dlk"><span class="kn">${label}</span><b>${fv2}</b><span class="kdl">${ch(v, prev, f === 'pct' ? 'pct' : '', lower)}${prev !== null && prev !== undefined ? ` <span class="muted">vs ${f === 'usd' ? money(prev) : f === 'pct' ? pctf(prev) : numf(prev)} ${R.plabel}</span>` : ''}</span>${sub || ''}${s}</div>`; };
   const goalSub = reg.goal ? `<span class="kdl">Goal ${money(reg.goal)} • <span class="${reg.gap >= 0 ? 'up' : 'dn'}">${reg.gap >= 0 ? '+' : '−'}${money(Math.abs(reg.gap))}</span></span>` : '';
-  const pace = DL.period === 'mtd' && R.to < R.last ? (() => { const el = Math.round((new Date(R.to + 'T00:00') - new Date(R.from + 'T00:00')) / DAY) + 1, all = +R.last.slice(8, 10); return v => v / el * all; })() : null;
+  const pace = dlPer() === 'mtd' && R.to < R.last ? (() => { const el = Math.round((new Date(R.to + 'T00:00') - new Date(R.from + 'T00:00')) / DAY) + 1, all = +R.last.slice(8, 10); return v => v / el * all; })() : null;
   const paceSub = pace && reg.revenue ? (() => { const mg = st.reduce((n, l) => n + (+tgtOf(l.id).revenue_goal || 0), 0), p = pace(reg.revenue); return `<span class="kdl">On pace for <b>${money(p)}</b>${mg ? ` vs ${money(mg)} goal` : ''}</span>`; })() : '';
   const snap = `<div class="kgrid kg4">${card('Revenue', reg.revenue, 'usd', rp.revenue, null, false, goalSub + paceSub)}${allPay ? card('Labor %', reg.labor, 'pct', rp.labor, T.labor_max, true, reg.payroll !== null ? `<span class="kdl">Payroll ${money(reg.payroll)}</span>` : '') : ''}${card('Net member growth', reg.nmg, 'signed', rp.nmg, null, false, `<span class="kdl">${reg.agreements} new • ${reg.reactivations} back • ${reg.cancellations} cancelled</span>`)}${card('Leads', reg.leads, '', rp.leads)}${card('Lead → demo', reg.l2d, 'pct', rp.l2d, T.l2d_target)}${card('Show rate', reg.show, 'pct', rp.show, T.show_target)}${card('Close rate', reg.close, 'pct', rp.close, T.close_target)}${card('Utilization', reg.util, 'pct', rp.util, T.util_target)}</div>`;
   // Studio scorecard
@@ -253,9 +255,9 @@ function drawWeekly() {
   const notes = DL.rows.filter(r => r.day >= R.from && r.day <= R.to && (r.notes || r.action)).sort((a, b) => a.day < b.day ? 1 : -1);
   const nlist = notes.length ? `<ul class="dlnotes">${notes.map(r => `<li><b>${esc(studio(r.studio_id))}</b> <span class="muted">${fmt(r.day)}</span>${r.notes ? `<div>${esc(r.notes)}</div>` : ''}${r.action ? `<div class="dlact">Action: ${esc(r.action)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="muted" style="margin:0">No notes or manager actions logged in this period.</p>';
   const seg = (k, l) => `<button type="button" data-dlper="${k}" class="${DL.period === k ? 'on' : ''}">${l}</button>`;
-  $('dlBody').innerHTML = `<div class="dlnav"><span class="tabs toseg">${seg('week', 'Week')}${seg('mtd', 'Month to date')}${seg('30', 'Last 30 days')}</span>
+  $('dlBody').innerHTML = `<div class="dlnav">${dlMonthly() ? '' : `<span class="tabs toseg">${seg('week', 'Week')}${seg('mtd', 'Month to date')}${seg('30', 'Last 30 days')}</span>`}
       <button class="quiet" data-dlstep="-1" aria-label="Earlier">‹</button><b class="dlrange">${R.label}</b><button class="quiet" data-dlstep="1" aria-label="Later" ${R.to >= dAdd(todayStr(), -1) ? 'disabled' : ''}>›</button>
-      ${ME.role === 'owner' ? '<span class="dltools"><button class="quiet sm" id="dlTargets">Targets</button></span>' : ''}</div>` +
+      <span class="dltools">${dlMonthly() && canPage('performance') ? '<button class="quiet sm" data-dlsheet title="Your uploaded monthly sheets, corporate scorecard numbers and network ranks">Monthly sheet view</button>' : ''}${ME.role === 'owner' ? '<button class="quiet sm" id="dlTargets">Targets</button>' : ''}</span></div>` +
     `<section class="scsec"><h3>Region snapshot <span class="muted" style="font-weight:400;font-size:.85rem">vs ${R.plabel}</span></h3>${snap}</section>` +
     `<section class="scsec"><h3>Studio scorecard</h3><p class="lead" style="margin:-.3rem 0 .7rem;font-size:.88rem">Same layout as Daily. Count goals are the per-day goal times the days each studio entered numbers; the revenue goal is the monthly goal spread over the days in this period. Green hit the goal, red missed it (hover a number for its goal). The tag under each studio is its priority: revenue gap first, then labor, booking, retention.</p>${score}</section>` +
     `<section class="scsec"><h3>Capacity & retention</h3>${has.length ? cap : '<p class="muted">No entries for this period.</p>'}</section>` +
@@ -277,7 +279,7 @@ async function dlTargetsSave() {
   const { error } = await db.from('studio_targets').upsert(Object.values(by), { onConflict: 'studio_id' });
   if (error) { $('tgErr').textContent = /leads_target|booked_target|held_target|sales_target|cancels_max|react_target/.test(error.message) ? 'The new daily goals need a one-time database update first: run sql/daily_goals.sql in Supabase.' : 'Could not save. ' + error.message; return; }
   Object.values(by).forEach(x => DL.tgt[x.studio_id] = { ...(DL.tgt[x.studio_id] || {}), ...x });
-  $('dlg').close(); toast('Targets saved'); REP.sub === 'weekly' ? drawWeekly() : drawDaily();
+  $('dlg').close(); toast('Targets saved'); REP.sub === 'weekly' || dlMonthly() ? drawWeekly() : drawDaily();
 }
 
 // ----- import the V4 Regional Report (owner) -----
@@ -343,10 +345,11 @@ document.addEventListener('click', e => {
   if (at('.tk-daylbl') && $('dlDate')) { try { $('dlDate').showPicker(); } catch (_) {} }
   const op = at('[data-dlopen] [data-v]'); if (op) { op.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === op)); return; }
   const cp = at('[data-dlcopy]'); if (cp) { const txt = $('dlmsg-' + cp.dataset.dlcopy).textContent; (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast('Message copied'), () => { const r = document.createRange(); r.selectNodeContents($('dlmsg-' + cp.dataset.dlcopy)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Selected. Press Ctrl+C to copy'); }); return; }
+  if (at('[data-dlsheet]')) { REP.sub = 'score'; PF.tab = 'score'; history.replaceState(null, '', '#performance'); $('repDpr').hidden = true; $('repPerf').hidden = false; updateRepTabs(); loadPerf(); return; }
   const pr = at('[data-dlper]'); if (pr) { DL.period = pr.dataset.dlper; loadDpr(); return; }
-  const sp = at('[data-dlstep]'); if (sp) { const s = +sp.dataset.dlstep, a = DL.anchor || dAdd(todayStr(), -1);
-    DL.anchor = DL.period === 'week' ? dAdd(a, 7 * s) : DL.period === 'mtd' ? (s < 0 ? ymd(new Date(+a.slice(0, 4), +a.slice(5, 7) - 1, 0)) : ymd(new Date(+a.slice(0, 4), +a.slice(5, 7), 1 + 0)).slice(0, 8) + '28') : dAdd(a, 30 * s);
-    if (DL.anchor > dAdd(todayStr(), -1)) DL.anchor = dAdd(todayStr(), -1); loadDpr(); return; }
+  const sp = at('[data-dlstep]'); if (sp) { const s = +sp.dataset.dlstep, a = dlAnc(), P = dlPer();
+    const nx = P === 'week' ? dAdd(a, 7 * s) : P === 'mtd' ? (s < 0 ? ymd(new Date(+a.slice(0, 4), +a.slice(5, 7) - 1, 0)) : ymd(new Date(+a.slice(0, 4), +a.slice(5, 7), 1 + 0)).slice(0, 8) + '28') : dAdd(a, 30 * s);
+    const v = nx > dAdd(todayStr(), -1) ? dAdd(todayStr(), -1) : nx; if (dlMonthly()) DL.mAnchor = v; else DL.anchor = v; loadDpr(); return; }
 });
 document.addEventListener('change', async e => {
   const t = e.target;
