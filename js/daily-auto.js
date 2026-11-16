@@ -5,7 +5,8 @@
 // Only the numbers ClubReady can answer are written. Payroll and available slots stay as managers typed them. A column is only touched when its report came with the upload.
 const AUTO_DAYS = 45;
 // Demos are ClubReady's "Stretching Assessment" bookings (older ones are "Stretching Consultation"; follow-up visits don't count).
-const isDemo = d => /assessment|consultation/i.test(String(d || '')) && !/follow/i.test(String(d || '')); Close % counts a new sale (no previous agreements) on the day
+const isDemo = d => /assessment|consultation/i.test(String(d || '')) && !/follow/i.test(String(d || ''));
+// Close % counts a new sale (no previous agreements) on the day
 // they bought, from anyone who has had a completed assessment before or on that day (e.g. demo in September, bought in November).   // how far back each import refreshes (covers this week, this month and the last 30 days)
 const AUTO_DL = new Set(['revenue', 'refunds', 'leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'reactivations', 'demo_sales', 'new_eft', 'cancellations', 'freezes', 'active_members', 'stretches_completed', 'staff_util']);
 
