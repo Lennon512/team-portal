@@ -910,3 +910,7 @@ a.htask { text-decoration:none; color:inherit; }
 
 /* Monthly: note when numbers come from the corporate scorecard */
 .pfcorp { margin:0 0 1rem; padding:.6rem .9rem; border-radius:10px; background:rgba(255,244,214,.6); font-size:.88rem; }
+
+/* Calendar: meetings */
+.cbar.mt, .up-item.mt .up-dot, .legend .sw.mt { background:#7a4fb3; color:#fff; }
+.mtpill { background:#ece3f7; color:#5b3594; margin:0 0 .3rem; }

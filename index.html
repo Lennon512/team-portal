@@ -10,7 +10,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/@e965/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="css/base.css?v=20261112r">
-<link rel="stylesheet" href="css/glass.css?v=20261116i">
+<link rel="stylesheet" href="css/glass.css?v=20261116j">
 </head>
 <body>
 
@@ -95,7 +95,7 @@
   </main>
   <main id="calView" hidden>
     <h2>Calendar</h2>
-    <div class="tabs" id="calTabs"><button data-t="all">All Austin</button><button data-t="events">Events</button><button data-t="off">Time off</button><button data-t="cel">Celebrations</button></div>
+    <div class="tabs" id="calTabs"><button data-t="all">All Austin</button><button data-t="events">Events</button><button data-t="meet">Meetings</button><button data-t="off">Time off</button><button data-t="cel">Celebrations</button></div>
     <div class="bar">
       <button class="quiet" id="calToday">Today</button><button class="quiet" id="prevM" aria-label="Previous month">&lsaquo;</button>
       <b id="monthLbl"></b>
@@ -106,7 +106,7 @@
     </div>
     <p class="lead" id="calNote" style="margin:0 0 .5rem"></p>
     <div class="cal-layout" id="calLayout"><div class="cal-wrap" id="calGridWrap"><div class="cal" id="cal"></div></div><aside class="cal-up" id="calUp"></aside></div>
-    <p class="legend" id="calLegend"><span><i class="sw ea"></i>Austin event</span><span><i class="sw es"></i>Studio event</span><span><i class="sw off"></i>Time off</span><span><i class="sw pend"></i>Time off, pending</span><span><i class="sw cel"></i>Birthday / anniversary</span><span><i class="sw hol"></i>Holiday</span><span><i class="sw closed"></i>Studio closed</span><span><i class="sw half"></i>Half day</span><span><span class="cov">2 out</span> two or more out at one studio</span></p>
+    <p class="legend" id="calLegend"><span><i class="sw ea"></i>Austin event</span><span><i class="sw es"></i>Studio event</span><span><i class="sw mt"></i>Meeting</span><span><i class="sw off"></i>Time off</span><span><i class="sw pend"></i>Time off, pending</span><span><i class="sw cel"></i>Birthday / anniversary</span><span><i class="sw hol"></i>Holiday</span><span><i class="sw closed"></i>Studio closed</span><span><i class="sw half"></i>Half day</span><span><span class="cov">2 out</span> two or more out at one studio</span></p>
     <div id="offPanel" hidden></div>
   </main>
   <main id="taskView" hidden>
@@ -217,7 +217,7 @@
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
 
 <script src="js/core.js?v=20261116n"></script>
-<script src="js/calendar.js?v=20261112h"></script>
+<script src="js/calendar.js?v=20261116m"></script>
 <script src="js/tasks.js?v=20261112e"></script>
 <script src="js/members.js?v=20261116c"></script>
 <script src="js/leads.js?v=20261112b"></script>
