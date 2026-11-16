@@ -62,7 +62,8 @@ function agg(sid, from, to) {
   o.util = o.staff_util !== null ? o.staff_util : o.slots_available ? o.stretches_completed / o.slots_available : null;
   o.labor = payroll !== null && o.revenue ? payroll / o.revenue : null; o.cpd = o.open ? o.contacts / o.open : null; o.rpm = o.avgActive ? o.revenue / o.avgActive : null;
   const goals = ids ? [...ids].map(tgtOf) : sid ? [tgtOf(sid)] : dlStudios().map(l => tgtOf(l.id));
-  const g = goals.reduce((n, t) => n + (+t.revenue_goal || 0), 0); o.goal = g ? g * 12 / 365 * days : null; o.gap = o.goal !== null ? o.revenue - o.goal : null; o.days = days;
+  const g = goals.reduce((n, t) => n + (+t.revenue_goal || 0), 0); const fullMonth = from.slice(8) === '01' && to.slice(0, 7) === from.slice(0, 7) && dAdd(to, 1).slice(8) === '01';
+  o.goal = g ? (fullMonth ? g : g * 12 / 365 * days) : null;   // a whole calendar month uses the monthly goal as is o.gap = o.goal !== null ? o.revenue - o.goal : null; o.days = days;
   return o;
 }
 
@@ -147,10 +148,16 @@ function dlReview(items, from, to, period) {
     const k = c.k === 'nmg' ? (v > 0 ? 'good' : v < 0 ? 'bad' : '') : x.closed ? '' : tone(v, g, c.lower);
     return `<td class="${k}"${x.closed ? '' : tip(c, g)}>${v === null || v === undefined ? '–' : c.f(v)}</td>`; };
   const st = items.map(x => x.l);
-  const goalRow = `<tr class="dlgoal"><td><b>Goal</b><small class="nm-sub">per studio, per day</small></td>` + COLS.map(c => {
+  // The Goal row matches the period on screen: per day on Daily, the week on Weekly, the month (or month to date) on Monthly.
+  // Counts and revenue are the daily goal times the days in the period; percentages stay the same.
+  const nDays = period === 'day' ? 1 : Math.round((new Date(to + 'T00:00') - new Date(from + 'T00:00')) / DAY) + 1;
+  const pLbl = period === 'day' ? 'per day' : dlMonthly() ? (dlRange().to < dlRange().last ? 'month to date' : 'for the month') : DL.period === 'week' ? 'for the week' : DL.period === 'mtd' ? 'month to date' : 'for 30 days';
+  const fullMonth = from.slice(8) === '01' && to.slice(0, 7) === from.slice(0, 7) && dAdd(to, 1).slice(8) === '01';
+  const scaleG = (c, g) => !ok(g) || c.pct ? g : c.k === 'revenue' && fullMonth ? +g * 365 / 12 : +g * nDays;
+  const goalRow = `<tr class="dlgoal"><td><b>Goal</b><small class="nm-sub">per studio, ${pLbl}</small></td>` + COLS.map(c => {
     if (c.k === 'nmg') { const m = [...new Set(st.map(l => tgtOf(l.id).nmg_target).filter(ok))]; return `<td>${m.length === 1 ? '+' + m[0] + '/mo' : m.length ? 'varies' : '–'}</td>`; }
     if (!c.gd) return '<td>–</td>';
-    const gs = st.map(l => [l.name, c.gd(tgtOf(l.id))]).filter(([, g]) => ok(g)), uniq = [...new Set(gs.map(([, g]) => gfmt(c, g)))];
+    const gs = st.map(l => [l.name, scaleG(c, c.gd(tgtOf(l.id)))]).filter(([, g]) => ok(g)), uniq = [...new Set(gs.map(([, g]) => gfmt(c, g)))];
     return `<td${uniq.length > 1 ? ` title="${esc(gs.map(([n, g]) => n + ': ' + gfmt(c, g)).join(', '))}"` : ''}>${!gs.length ? '–' : uniq.length === 1 ? (c.lower ? '≤ ' : '') + uniq[0] : 'varies'}</td>`; }).join('') + '</tr>';
   const inn = items.filter(x => !x.miss), T = inn.length ? agg(inn.map(x => x.l.id), from, to) : null;
   const totRow = !T ? '' : `<tr class="dltot"><td><b>Austin total</b><small class="nm-sub">${inn.length} studio${inn.length === 1 ? '' : 's'}</small></td>` + COLS.map(c => {
