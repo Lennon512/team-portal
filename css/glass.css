@@ -989,3 +989,4 @@ a.htask { text-decoration:none; color:inherit; }
 .ann-promo { --ann-fade:rgba(250,236,190,.95); } .ann-contest { --ann-fade:rgba(220,232,250,.95); } .ann-news { --ann-fade:rgba(228,234,245,.95); } .ann-important { --ann-fade:rgba(235,235,225,.95); }
 .ann-body::after { display:none; }
 .ann-body.clip { -webkit-mask-image:linear-gradient(#000 70%, transparent); mask-image:linear-gradient(#000 70%, transparent); }
+@media (max-width: 640px) { .who .slackbtn img { width:18px; height:18px; } }
