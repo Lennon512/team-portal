@@ -159,7 +159,7 @@ $('myCards').addEventListener('click', async e => {
 // ---------- Announcements ----------
 // Shown at the top of everyone's homepage. Owners post, edit and remove them.
 const ANN_KINDS = { promo: ['🎁', 'Promotion'], contest: ['🏆', 'Contest'], news: ['📣', 'News'], important: ['⚠️', 'Important'] };
-let ann = { rows: [], missing: false };
+let ann = { rows: [], missing: false, open: new Set() };
 
 async function loadAnnouncements() {
   const { data, error } = await db.from('announcements').select('*').eq('active', true).order('pinned', { ascending: false }).order('starts_on', { ascending: false });
@@ -167,12 +167,27 @@ async function loadAnnouncements() {
   drawAnnouncements();
 }
 
-const annText = t => String(t || '').split(/\n{2,}/).map(block => {
-  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  const lines = block.split('\n');
-  if (lines.every(l => /^\s*[-•*]\s+/.test(l))) return '<ul>' + lines.map(l => `<li>${inline(l.replace(/^\s*[-•*]\s+/, ''))}</li>`).join('') + '</ul>';
-  return `<p>${lines.map(inline).join('<br>')}</p>`;
-}).join('');
+// Light formatting for announcement details: "- " lines become bullets, a short line right above bullets becomes a small heading,
+// **bold**, links; blank lines start a new paragraph
+const annText = t => {
+  const inline = x => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  const isB = l => /^\s*[-•*]\s+/.test(l), L = String(t || '').replace(/\r/g, '').split('\n');
+  let out = '', para = [], list = [];
+  const flushP = () => { if (para.length) out += `<p>${para.map(inline).join('<br>')}</p>`; para = []; };
+  const flushL = () => { if (list.length) out += '<ul>' + list.map(l => `<li>${inline(l)}</li>`).join('') + '</ul>'; list = []; };
+  L.forEach((l, k) => {
+    const s = l.trim();
+    if (!s) { flushP(); flushL(); return; }
+    if (isB(l)) { flushP(); list.push(s.replace(/^[-•*]\s+/, '')); return; }
+    flushL();
+    const next = (L.slice(k + 1).find(x => x.trim()) || '');
+    const head = isB(next) && (s.length <= 45 && !/[.!?,]$/.test(s) || /:$/.test(s)) && !/^\*\*.*\*\*$/.test(s) || /^\*\*[^*]+\*\*:?$/.test(s);
+    if (head) { flushP(); out += `<h4>${inline(s.replace(/^\*\*|\*\*:?$|:$/g, ''))}</h4>`; return; }
+    para.push(s);
+  });
+  flushP(); flushL();
+  return out;
+};
 
 function drawAnnouncements() {
   const el = $('annCards'); if (!el) return;
@@ -189,7 +204,7 @@ function drawAnnouncements() {
     return `<article class="ann ann-${esc(r.kind)}${soon ? ' ann-soon' : ''}">
       <div class="ann-top"><span class="ann-tag"><span aria-hidden="true">${ic}</span> ${lab}</span>${r.pinned ? '<span class="ann-pin">Pinned</span>' : ''}${when ? `<span class="ann-when">${when}</span>` : ''}
         ${own ? `<button class="quiet sm ann-edit" data-annedit="${r.id}" aria-label="Edit announcement">Edit</button>` : ''}</div>
-      <h3>${esc(r.title)}</h3>${r.body ? `<div class="ann-body">${annText(r.body)}</div>` : ''}
+      <h3>${esc(r.title)}</h3>${r.body ? `<div class="ann-body${ann.open.has(r.id) ? ' open' : ''}" data-annbody="${r.id}">${annText(r.body)}</div><button class="linkish ann-more" data-annmore="${r.id}" hidden>${ann.open.has(r.id) ? 'Show less' : 'Show more'}</button>` : ''}
       ${r.link ? `<a class="hlink" href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.link_label || 'Learn more')} →</a>` : ''}
       ${who ? `<p class="muted hsmall">Only for ${esc(who)}</p>` : ''}</article>`;
   };
@@ -197,6 +212,7 @@ function drawAnnouncements() {
   el.innerHTML = `<div class="ann-head"><h2>Announcements</h2>${own ? '<button class="sm" data-annedit="">+ Post announcement</button>' : ''}</div>` +
     (live.length ? `<div class="ann-grid">${live.map(r => card(r)).join('')}</div>` : '<p class="muted" style="margin:0 0 1rem">No announcements right now.</p>') +
     (later.length ? `<p class="hsub">Scheduled</p><div class="ann-grid">${later.map(r => card(r, true)).join('')}</div>` : '');
+  el.querySelectorAll('[data-annbody]').forEach(b => { const btn = el.querySelector(`[data-annmore="${b.dataset.annbody}"]`); const long = b.scrollHeight > b.clientHeight + 4; b.classList.toggle('clip', long && !b.classList.contains('open')); if (btn) btn.hidden = !b.classList.contains('open') && !long; });
 }
 
 function annForm(id) {
@@ -241,6 +257,7 @@ async function annDel(id) {
   $('dlg').close(); toast('Removed'); loadAnnouncements();
 }
 
+$('annCards').addEventListener('click', e => { const m = e.target.closest('[data-annmore]'); if (m) { const id = m.dataset.annmore; ann.open.has(id) ? ann.open.delete(id) : ann.open.add(id); drawAnnouncements(); return; } });
 $('annCards').addEventListener('click', e => { const b = e.target.closest('[data-annedit]'); if (b && ME.role === 'owner') annForm(b.dataset.annedit || null); });
 document.addEventListener('click', e => { const b = e.target.closest('[data-act="annSave"],[data-act="annDel"]'); if (!b || !$('dlg').contains(b)) return;
   b.dataset.act === 'annSave' ? annSave(b.dataset.id || null) : annDel(b.dataset.id); });
