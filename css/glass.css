@@ -965,3 +965,12 @@ a.htask { text-decoration:none; color:inherit; }
 .tlead { display:inline-block; margin-left:.3rem; padding:.02rem .45rem; border-radius:999px; background:#dbe5ef; color:#2f5f8f; font-size:.68rem; font-weight:700; vertical-align:middle; }
 .tbadge.anniv { background:#fde4cf; color:#8a4511; }
 .tbadge.bday { background:#fbdcea; color:#8c2d5b; }
+
+/* Tasks month view: checked boxes in dark Stretch Zone blue (also when they can't be changed) */
+.tg input[type=checkbox] { appearance:none; -webkit-appearance:none; width:1.1rem; height:1.1rem; margin:0 auto; border:1.5px solid rgba(38,30,20,.3); border-radius:4px; background:rgba(255,255,255,.75); display:grid; place-items:center; cursor:pointer; }
+.tg input[type=checkbox]::after { content:""; width:.3rem; height:.55rem; border:solid #fff; border-width:0 2px 2px 0; transform:translateY(-1px) rotate(45deg) scale(0); }
+.tg input[type=checkbox]:checked { background:#003a8c; border-color:#003a8c; }
+.tg input[type=checkbox]:checked::after { transform:translateY(-1px) rotate(45deg) scale(1); }
+.tg input[type=checkbox]:disabled { cursor:default; }
+.tg input[type=checkbox]:disabled:not(:checked) { opacity:.45; }
+.tg input[type=checkbox]:focus-visible { outline:2px solid #003a8c; outline-offset:2px; }
