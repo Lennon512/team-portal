@@ -974,3 +974,18 @@ a.htask { text-decoration:none; color:inherit; }
 .tg input[type=checkbox]:disabled { cursor:default; }
 .tg input[type=checkbox]:disabled:not(:checked) { opacity:.45; }
 .tg input[type=checkbox]:focus-visible { outline:2px solid #003a8c; outline-offset:2px; }
+
+/* Announcements: cards keep their own height, long ones fold with Show more, headings and bullets */
+.ann-grid { align-items:start; }
+.ann-body { max-height:15rem; overflow:hidden; position:relative; }
+.ann-body.open { max-height:none; }
+.ann-body:not(.open)::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2.5rem; background:linear-gradient(transparent, var(--ann-fade, rgba(240,240,240,.9))); pointer-events:none; opacity:0; }
+.ann-body.clip::after { opacity:1; }
+.ann-body h4 { margin:.7rem 0 .15rem; font-size:.92rem; font-weight:700; }
+.ann-body h4:first-child { margin-top:.2rem; }
+.ann-body ul { margin:.15rem 0 .4rem; padding-left:1.15rem; }
+.ann-body li { margin:.1rem 0; }
+.ann-more { margin:.3rem 0 .2rem; padding:0; font-size:.88rem; font-weight:600; }
+.ann-promo { --ann-fade:rgba(250,236,190,.95); } .ann-contest { --ann-fade:rgba(220,232,250,.95); } .ann-news { --ann-fade:rgba(228,234,245,.95); } .ann-important { --ann-fade:rgba(235,235,225,.95); }
+.ann-body::after { display:none; }
+.ann-body.clip { -webkit-mask-image:linear-gradient(#000 70%, transparent); mask-image:linear-gradient(#000 70%, transparent); }
