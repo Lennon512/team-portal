@@ -190,7 +190,7 @@ function drawAnnouncements() {
       <div class="ann-top"><span class="ann-tag"><span aria-hidden="true">${ic}</span> ${lab}</span>${r.pinned ? '<span class="ann-pin">Pinned</span>' : ''}${when ? `<span class="ann-when">${when}</span>` : ''}
         ${own ? `<button class="quiet sm ann-edit" data-annedit="${r.id}" aria-label="Edit announcement">Edit</button>` : ''}</div>
       <h3>${esc(r.title)}</h3>${r.body ? `<div class="ann-body">${annText(r.body)}</div>` : ''}
-      ${r.link ? `<a class="hlink" href="${esc(r.link)}" target="_blank" rel="noopener">Learn more →</a>` : ''}
+      ${r.link ? `<a class="hlink" href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.link_label || 'Learn more')} →</a>` : ''}
       ${who ? `<p class="muted hsmall">Only for ${esc(who)}</p>` : ''}</article>`;
   };
   if (!live.length && !later.length && !own) { el.innerHTML = ''; return; }
@@ -205,7 +205,8 @@ function annForm(id) {
     <label>Title <input id="anT" maxlength="120" value="${esc(r.title)}" placeholder="Holiday special: 3 intro stretches for $99"></label>
     <label>Type <select id="anK">${Object.entries(ANN_KINDS).map(([k, [ic, l]]) => `<option value="${k}" ${r.kind === k ? 'selected' : ''}>${ic} ${l}</option>`).join('')}</select></label>
     <label>Details <small class="muted">(blank line = new paragraph, start lines with "- " for bullets, **bold**)</small><textarea id="anB" rows="6" maxlength="4000">${esc(r.body)}</textarea></label>
-    <label>Link (optional) <input id="anL" type="url" maxlength="500" value="${esc(r.link)}" placeholder="https://"></label>
+    <div class="grid2"><label>Link (optional) <input id="anL" type="url" maxlength="500" value="${esc(r.link)}" placeholder="https://"></label>
+      <label>Button text <input id="anLL" maxlength="40" value="${esc(r.link_label)}" placeholder="Learn more"></label></div>
     <div class="grid2"><label>Show starting <input id="anS" type="date" value="${esc(r.starts_on)}"></label>
       <label>Take down after <small class="muted">(optional)</small><input id="anE" type="date" value="${esc(r.ends_on)}"></label></div>
     <fieldset class="dlgrp"><legend>Which studios <small class="muted" style="text-transform:none;letter-spacing:0">(leave all unticked for everyone)</small></legend>
@@ -220,11 +221,15 @@ async function annSave(id) {
   const err = m => { $('anErr').textContent = m; }, title = $('anT').value.trim(), link = $('anL').value.trim();
   if (!title) return err('Add a title.');
   if (link && !/^https?:\/\//i.test(link)) return err('Links need to start with https://');
-  const row = { title, kind: $('anK').value, body: $('anB').value.trim() || null, link: link || null, starts_on: $('anS').value || todayStr(), ends_on: $('anE').value || null,
+  const row = { title, kind: $('anK').value, body: $('anB').value.trim() || null, link: link || null, link_label: ($('anLL').value.trim() || null), starts_on: $('anS').value || todayStr(), ends_on: $('anE').value || null,
     location_ids: [...document.querySelectorAll('[data-anloc]:checked')].map(x => x.dataset.anloc), pinned: $('anPin').checked, updated_at: new Date().toISOString() };
   if (row.ends_on && row.ends_on < row.starts_on) return err('The end date is before the start date.');
   const btn = document.querySelector('[data-act="annSave"]'); btn.disabled = true;
-  const res = id ? await db.from('announcements').update(row).eq('id', id) : await db.from('announcements').insert({ ...row, created_by: ME.id });
+  let res = id ? await db.from('announcements').update(row).eq('id', id) : await db.from('announcements').insert({ ...row, created_by: ME.id });
+  if (res.error && /link_label/.test(res.error.message)) {   // before sql/announcements_link_text.sql is run
+    if (row.link_label) { btn.disabled = false; return err('Custom button text needs a one-time setup: run sql/announcements_link_text.sql in Supabase. (Or clear the Button text box to save now.)'); }
+    delete row.link_label; res = id ? await db.from('announcements').update(row).eq('id', id) : await db.from('announcements').insert({ ...row, created_by: ME.id });
+  }
   if (res.error) { btn.disabled = false; return err('Could not save. ' + res.error.message); }
   $('dlg').close(); toast(id ? 'Saved' : 'Announcement posted'); loadAnnouncements();
 }
