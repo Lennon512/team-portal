@@ -387,9 +387,11 @@ function buildRows() {
   const bk = {};
   bookings.forEach(r => {
     const id = +r['User ID']; if (!id) return; nm(id, r['First Name'], r['Last Name']);
-    const d = toDay(r['Booking Date']), st = String(r['Current Status'] || ''), b = bk[id] = bk[id] || { last: null, n30: 0, next: null, dates: [], open: 0 };
-    if (st.startsWith('Completed') && d <= asOf) { b.dates.push(d); if (!b.last || d > b.last) b.last = d; if ((new Date(asOf + 'T00:00') - new Date(d + 'T00:00')) / DAY < 30) b.n30++; }
-    else if (st.startsWith('Open Booking') && d >= asOf) { b.open++; if (!b.next || d < b.next) b.next = d; }
+    const d = toDay(r['Booking Date']), st = String(r['Current Status'] || ''), b = bk[id] = bk[id] || { last: null, n30: 0, next: null, dates: [], open: 0, sLast: null, sN30: 0, sNext: null };
+    const demo = /assessment|consultation|demo/i.test(String(r['Booking Detail'] || ''));   // demos / consultations aren't paid stretches
+    if (st.startsWith('Completed') && d <= asOf) { b.dates.push(d); if (!b.last || d > b.last) b.last = d; const in30 = (new Date(asOf + 'T00:00') - new Date(d + 'T00:00')) / DAY < 30; if (in30) b.n30++;
+      if (!demo) { if (!b.sLast || d > b.sLast) b.sLast = d; if (in30) b.sN30++; } }
+    else if (st.startsWith('Open Booking') && d >= asOf) { b.open++; if (!b.next || d < b.next) b.next = d; if (!demo && (!b.sNext || d < b.sNext)) b.sNext = d; }
   });
   const ct = {};
   contacts.forEach(r => { const id = +r['Client User ID'], d = toDay(r['Contact Date']); if (id && d && (!ct[id] || d > ct[id])) ct[id] = d; });
@@ -401,7 +403,9 @@ function buildRows() {
     (ag[id] = ag[id] || []).push({ item, when, cd, agr: (String(r['Date']).match(/#(\d+)/) || [])[1], cancelled: !!cd, quick: !!(cd && when && cd - when <= DAY), hrs: cd && when ? Math.max(1, Math.round((cd - when) / 36e5)) : 0,
       pkg: /promotion|single session/i.test(item), addon: /add-on/i.test(item), eft: +r['New EFT'] || 0, prev: prevK ? (parseFloat(r[prevK]) || 0) : null });
   });
-  const rows = [], mk = (id, grp, extra) => { const b = bk[id] || {}; rows.push({ club_id: id, name: names[id] || 'Unknown', grp, credits: credits[id] || 0, last_session: b.last || null, sessions_30d: b.n30 || 0, next_booking: b.next || null, last_contact: ct[id] || null, plan_sessions: null, next_due: null, amount: null, frozen: false, signed_on: null, detail: null, ...extra }); };
+  // Renewals (package group) only look at real stretches, so prospects who only had a demo or consultation aren't on it
+  const stretchOnly = id => { const b = bk[id] || {}; return { last_session: b.sLast || null, sessions_30d: b.sN30 || 0, next_booking: b.sNext || null }; };
+  const rows = [], mk = (id, grp, extra) => { if (grp === 'package') extra = { ...stretchOnly(id), ...extra }; const b = bk[id] || {}; rows.push({ club_id: id, name: names[id] || 'Unknown', grp, credits: credits[id] || 0, last_session: b.last || null, sessions_30d: b.n30 || 0, next_booking: b.next || null, last_contact: ct[id] || null, plan_sessions: null, next_due: null, amount: null, frozen: false, signed_on: null, detail: null, ...extra }); };
   Object.keys(charged).forEach(k => { const c = charged[k]; mk(+k, 'member', { plan_sessions: c.plan ? +c.plan : null, next_due: c.next_due, amount: c.amount }); });
   if (!invoices.length) {
     // No invoice report: members are people ClubReady lists with a membership (Booking Events
@@ -427,7 +431,7 @@ function buildRows() {
     new Set([...Object.keys(credits), ...Object.keys(bk)].map(Number)).forEach(id => {
       if (!id || have2.has(id) || charged[id]) return;
       const cr = credits[id] || 0, b = bk[id] || {};
-      if (cr > 0 || recent(b.last)) mk(id, 'package', { detail: 'No recurring billing' });
+      if (cr > 0 || recent(b.sLast)) mk(id, 'package', { detail: 'No recurring billing' });
     });
   }
   // New members: not someone who had another agreement in the 6 months before this signup.
