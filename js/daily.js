@@ -3,8 +3,8 @@
 // review with one focus per studio, and weekly / month-to-date / last-30-day reviews.
 const numOrNull = v => { v = String(v).trim(); return v === '' || isNaN(+v) ? null : +v; };
 const DL = { day: '', studio: '', rows: [], pay: [], tgt: {}, from: '', to: '', missing: false, period: 'week', anchor: '', mAnchor: '', err: '' };
-// The Monthly tab is the same review as Weekly, locked to whole calendar months (this month: to date)
-const dlMonthly = () => REP.sub === 'monthly', dlPer = () => dlMonthly() ? 'mtd' : DL.period, dlAnc = () => (dlMonthly() ? DL.mAnchor : DL.anchor) || dAdd(todayStr(), -1);
+// The Monthly tab is the same review as Weekly, locked to whole calendar months (this month: to date); Weekly has no month-to-date option
+const dlMonthly = () => REP.sub === 'monthly', dlPer = () => dlMonthly() ? 'mtd' : DL.period === 'mtd' ? 'week' : DL.period, dlAnc = () => (dlMonthly() ? DL.mAnchor : DL.anchor) || dAdd(todayStr(), -1);
 // Inputs in the order of the spreadsheet's Daily Log
 const DLF = [
   ['Money', [['revenue', 'Revenue / collections', '$'], ['new_eft', 'New EFT added', '$'], ['refunds', 'Refunds / chargebacks', '$'], ['payroll', 'Payroll', '$']]],
@@ -154,7 +154,7 @@ function dlReview(items, from, to, period) {
   // The Goal row matches the period on screen: per day on Daily, the week on Weekly, the month (or month to date) on Monthly.
   // Counts and revenue are the daily goal times the days in the period; percentages stay the same.
   const nDays = period === 'day' ? 1 : Math.round((new Date(to + 'T00:00') - new Date(from + 'T00:00')) / DAY) + 1;
-  const pLbl = period === 'day' ? 'per day' : dlMonthly() ? (dlRange().to < dlRange().last ? 'month to date' : 'for the month') : DL.period === 'week' ? 'for the week' : DL.period === 'mtd' ? 'month to date' : 'for 30 days';
+  const pLbl = period === 'day' ? 'per day' : dlMonthly() ? (dlRange().to < dlRange().last ? 'month to date' : 'for the month') : dlPer() === 'week' ? 'for the week' : 'for 30 days';
   const scaleG = (c, g) => !ok(g) || c.pct || c.avg ? g : (c.k === 'revenue' || c.k === 'nmg') && fullMonth ? +g * 365 / 12 : +g * nDays;
   const goalRow = `<tr class="dlgoal"><td><b>Goal</b><small class="nm-sub">per studio, ${pLbl}</small></td>` + COLS.map(c => {
     if (!c.gd) return '<td>–</td>';
@@ -268,7 +268,7 @@ function drawWeekly() {
   const notes = DL.rows.filter(r => r.day >= R.from && r.day <= R.to && (r.notes || r.action)).sort((a, b) => a.day < b.day ? 1 : -1);
   const nlist = notes.length ? `<ul class="dlnotes">${notes.map(r => `<li><b>${esc(studio(r.studio_id))}</b> <span class="muted">${fmt(r.day)}</span>${r.notes ? `<div>${esc(r.notes)}</div>` : ''}${r.action ? `<div class="dlact">Action: ${esc(r.action)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="muted" style="margin:0">No notes or manager actions logged in this period.</p>';
   const seg = (k, l) => `<button type="button" data-dlper="${k}" class="${DL.period === k ? 'on' : ''}">${l}</button>`;
-  $('dlBody').innerHTML = `<div class="dlnav">${dlMonthly() ? '' : `<span class="tabs toseg">${seg('week', 'Week')}${seg('mtd', 'Month to date')}${seg('30', 'Last 30 days')}</span>`}
+  $('dlBody').innerHTML = `<div class="dlnav">${dlMonthly() ? '' : `<span class="tabs toseg">${seg('week', 'Week')}${seg('30', 'Last 30 days')}</span>`}
       <button class="quiet" data-dlstep="-1" aria-label="Earlier">‹</button><b class="dlrange">${R.label}</b><button class="quiet" data-dlstep="1" aria-label="Later" ${R.to >= dAdd(todayStr(), -1) ? 'disabled' : ''}>›</button>
       <span class="dltools">${dlMonthly() && canPage('performance') ? '<button class="quiet sm" data-dlsheet title="Your uploaded monthly sheets, corporate scorecard numbers and network ranks">Monthly sheet view</button>' : ''}${ME.role === 'owner' ? '<button class="quiet sm" id="dlTargets">Targets</button>' : ''}</span></div>` +
     `<section class="scsec"><h3>Region snapshot <span class="muted" style="font-weight:400;font-size:.85rem">vs ${R.plabel}</span></h3>${snap}</section>` +
