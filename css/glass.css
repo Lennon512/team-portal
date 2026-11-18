@@ -997,3 +997,8 @@ a.htask { text-decoration:none; color:inherit; }
 .ov-pill.vac { background:rgba(240,170,60,.22); color:#8a5200; }
 .ov-chip.vac:not(.on) b { color:#9a5b00; }
 .tk-off.vac { background:rgba(255,238,205,.7); }
+
+/* Time off: by person */
+.topeople tbody tr { cursor:pointer; }
+.topeople tbody tr:hover td { background:rgba(255,255,255,.45); }
+.topeople td small { display:block; }
