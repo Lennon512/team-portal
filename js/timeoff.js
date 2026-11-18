@@ -67,7 +67,7 @@ $('dlgBody').addEventListener('click', async e => {
 });
 
 async function loadTimeOff() {
-  const q = sel => db.from('time_off_requests').select(sel).order('start_date', { ascending: false }).limit(500);
+  const q = sel => db.from('time_off_requests').select(sel).order('start_date', { ascending: false }).limit(3000);
   const [r0, o, d] = await Promise.all([q('*, profiles!time_off_requests_user_id_fkey(full_name, email, location_id)'), db.from('time_off_calendar').select('*'), db.from('team_directory').select('id,full_name,location_id')]);
   const r = r0.error ? await q('*') : r0;
   to.reqs = r.data || []; to.offs = o.data || []; to.err = r.error ? r.error.message : '';
