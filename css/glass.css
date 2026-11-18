@@ -1044,3 +1044,24 @@ a.htask { text-decoration:none; color:inherit; }
   #studioBody > h2 { font-size:1.35rem; }
   #studioBody > p.lead { margin-bottom:.7rem !important; font-size:.9rem; }
 }
+
+/* Projection (goal planner) */
+.gptabs { margin:0 0 .6rem; flex-wrap:wrap; }
+.gpnote { margin:0 0 .9rem; font-size:.85rem; }
+.gpgrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; margin:0 0 1rem; }
+@media (max-width:760px) { .gpgrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.gpk { position:relative; padding:.8rem 1rem; border-radius:16px; background:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.8); display:flex; flex-direction:column; gap:.15rem; }
+.gpk span { font-size:.82rem; color:var(--muted); } .gpk b { font-size:1.55rem; line-height:1.15; } .gpk small { font-size:.8rem; color:var(--muted); }
+.gpk em { position:absolute; top:.55rem; right:.7rem; font-style:normal; font-size:.68rem; font-weight:700; padding:.05rem .45rem; border-radius:999px; background:#fff1c7; color:#8a6400; }
+.gpout .gpk { background:rgba(214,229,250,.55); } .gpout .gpk b { color:#003a8c; }
+.gpmath { max-width:560px; margin:0 0 1rem; padding:.6rem 1rem; border-radius:16px; background:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.8); }
+.gpmath > div { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; padding:.45rem 0; border-bottom:1px solid var(--line); }
+.gpmath > div:last-child { border-bottom:0; }
+.gpmath span small { display:block; font-size:.78rem; color:var(--muted); }
+.gpmath b { font-variant-numeric:tabular-nums; }
+.gpmath .gptot b { font-size:1.3rem; color:#003a8c; } .gpmath .gptot span { font-weight:700; }
+.gpgood { padding:.6rem .9rem; border-radius:12px; background:#d6efe3; color:#0b5c3f; }
+.gpwhat { margin:.2rem 0 0; } .gpwhat summary { cursor:pointer; font-weight:600; }
+.gpins { display:flex; flex-wrap:wrap; gap:.6rem 1.2rem; align-items:center; }
+.gpins label { display:flex; align-items:center; gap:.35rem; font-size:.88rem; margin:0; }
+.gpin { width:5.5rem; }
