@@ -95,7 +95,8 @@ function drawTimeOff() {
     return `<div class="toreq pending"><div><b>${esc(toNm(r))}</b> <span class="muted">• ${esc(studio(reqLoc(r)))}</span><div class="todates">${toSpan(r)} <span class="muted">• ${dayDiff(r.start_date, r.end_date) + 1} day${r.end_date !== r.start_date ? 's' : ''}</span>${urgent(r) ? ' <span class="topill denied">Within 2 weeks</span>' : ''}</div><small>${toInfo(r)}</small>${cl.length ? `<small class="up-warn">Also out: ${esc(cl.map(c => c.full_name.split(' ')[0] + ' (' + toSpan(c) + ')').join(', '))}</small>` : ''}</div><div class="toacts"><button class="sm" data-a="approved" data-id="${r.id}">Approve</button><button class="quiet sm" data-a="denied" data-id="${r.id}">Decline</button></div></div>`; };
   const lead = ME.role !== 'staff';
   if (!lead) to.tab = 'req';
-  const tabs = lead ? `<div class="tabs totabs" id="toTabs"><button data-tot="req" class="${to.tab === 'req' ? 'on' : ''}">Request time off${pend.length ? ` <span class="hcount">${pend.length}</span>` : ''}</button><button data-tot="all" class="${to.tab === 'all' ? 'on' : ''}">All requests</button></div>` : '';
+  const tabs = lead ? `<div class="tabs totabs" id="toTabs"><button data-tot="req" class="${to.tab === 'req' ? 'on' : ''}">Request time off${pend.length ? ` <span class="hcount">${pend.length}</span>` : ''}</button><button data-tot="all" class="${to.tab === 'all' ? 'on' : ''}">All requests</button><button data-tot="people" class="${to.tab === 'people' ? 'on' : ''}">By person</button></div>` : '';
+  if (to.tab === 'people') { $('toBody').innerHTML = tabs + (to.err ? `<p class="err">Could not load requests: ${esc(to.err)}</p>` : '') + byPerson(); return; }
   if (to.tab === 'all') { $('toBody').innerHTML = tabs + (to.err ? `<p class="err">Could not load requests: ${esc(to.err)}</p>` : '') + allRequests(sline); return; }
   $('toBody').innerHTML = tabs + (to.err ? `<p class="err">Could not load requests: ${esc(to.err)}</p>` : '') + (to.msg ? `<p class="hclear">✓ ${to.msg}</p>` : '') +
     (pend.length ? `<h3 class="sub">Waiting for your approval <span class="hcount">${pend.length}</span></h3><div class="tolist">${pend.sort((a, b) => a.start_date < b.start_date ? -1 : 1).map(apRow).join('')}</div>` : '') +
@@ -118,6 +119,37 @@ function drawTimeOff() {
     (past.length ? `<details class="tk-donebox mem-done"><summary>Past requests <span>${past.length}</span></summary><div class="tolist">${past.map(myRow).join('')}</div></details>` : '');
   toHint();
 }
+
+// One line per person: time off taken this year, coming up, pending and denied. Click someone for their full history.
+function byPerson() {
+  const td = todayStr(), own = ME.role === 'owner', yrs = [...new Set(to.reqs.map(r => r.start_date.slice(0, 4)))].sort().reverse();
+  if (!to.py || !yrs.includes(to.py)) to.py = td.slice(0, 4);
+  const Y = to.py, ys = Y + '-01-01', ye = Y + '-12-31', q = to.aq.trim().toLowerCase();
+  const daysIn = (r, a, b) => { const s = r.start_date > a ? r.start_date : a, e = r.end_date < b ? r.end_date : b; return e >= s ? dayDiff(s, e) + 1 : 0; };
+  const P = {};
+  to.reqs.filter(r => own || reqLoc(r) === ME.location_id || r.user_id === ME.id).forEach(r => {
+    const p = P[r.user_id] = P[r.user_id] || { id: r.user_id, name: toNm(r), loc: reqLoc(r), taken: 0, part: 0, up: 0, pend: 0, den: 0, n: 0, last: '' };
+    if (r.start_date <= ye && r.end_date >= ys) p.n++;
+    if (!p.last || r.start_date > p.last) p.last = r.start_date;
+    if (r.status === 'pending' && r.end_date >= td) p.pend++;
+    if (r.status === 'denied' && r.start_date <= ye && r.end_date >= ys) p.den++;
+    if (r.status !== 'approved') return;
+    if ((r.shift_type || 'full') === 'partial') { if (r.start_date <= ye && r.end_date >= ys) p.part += daysIn(r, ys, ye); return; }
+    const yest = dAddTo(td, -1); if (yest >= ys) p.taken += daysIn(r, ys, yest < ye ? yest : ye);   // days before today
+    p.up += daysIn(r, td > ys ? td : ys, ye);
+  });
+  const L = Object.values(P).filter(p => (!to.aloc || p.loc === to.aloc) && (!q || p.name.toLowerCase().includes(q))).sort((a, b) => (b.taken + b.up) - (a.taken + a.up) || a.name.localeCompare(b.name));
+  const opt = (v, l, cur) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`;
+  return `<div class="tofilters"><select id="toPy" aria-label="Year">${yrs.map(y => opt(y, y, Y)).join('')}</select>
+      ${own ? `<select id="toAloc" aria-label="Studio">${opt('', 'All studios', to.aloc)}${locs.map(l => opt(l.id, esc(l.name), to.aloc)).join('')}</select>` : ''}
+      <input id="toAq" type="search" placeholder="Find a name" value="${esc(to.aq)}"></div>
+    <p class="muted tocount">Approved days off in ${Y}. Days taken are before today; coming up are today and later. Partial-shift days are counted separately. Click someone to see every request they\u2019ve made.</p>` +
+    (L.length ? `<div class="table-wrap"><table class="mt topeople"><thead><tr><th>Person</th><th>Days taken</th><th>Coming up</th><th>Partial days</th><th>Pending</th><th>Denied</th><th>Requests</th><th>Latest</th></tr></thead><tbody>` +
+      L.map(p => `<tr data-pid="${p.id}" tabindex="0" title="See ${esc(p.name)}\u2019s requests"><td><b>${esc(p.name)}</b><small class="nm-sub">${esc(studio(p.loc))}</small></td><td>${p.taken || '–'}</td><td>${p.up || '–'}</td><td>${p.part || '–'}</td>
+        <td>${p.pend ? `<span class="topill pending">${p.pend}</span>` : '–'}</td><td>${p.den || '–'}</td><td>${p.n}</td><td>${p.last ? fmt(p.last) : '–'}</td></tr>`).join('') + '</tbody></table></div>'
+    : '<p class="lead" style="margin:0">No time off requests match.</p>');
+}
+const dAddTo = (d, n) => { const x = new Date(d + 'T00:00'); x.setDate(x.getDate() + n); return ymd(x); };
 
 // Every request in one place (owners: all studios, managers: their studio), with filters
 function allRequests(sline) {
@@ -174,7 +206,7 @@ async function sendTo() {
   to.f = { s: '', e: '', shift: 'full', from: '', till: '', cv: 'no', co: 'no', cn: '', n: '' }; loadTimeOff();
 }
 
-$('toBody').addEventListener('change', e => { const m = { toAw: 'aw', toAst: 'ast', toAloc: 'aloc' }[e.target.id]; if (m) { to[m] = e.target.value; drawTimeOff(); } });
+$('toBody').addEventListener('change', e => { const m = { toAw: 'aw', toAst: 'ast', toAloc: 'aloc', toPy: 'py' }[e.target.id]; if (m) { to[m] = e.target.value; drawTimeOff(); } });
 $('toBody').oninput = e => {
   if (e.target.id === 'toAq') { to.aq = e.target.value; drawTimeOff(); const f = $('toAq'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); return; }
   const id = e.target.id, F = to.f, map = { tS: 's', tE: 'e', tFrom: 'from', tTill: 'till', tCn: 'cn', tN: 'n' };
@@ -183,6 +215,7 @@ $('toBody').oninput = e => {
 $('toBody').onclick = async e => {
   const t = e.target;
   if (t.id === 'tSend') return sendTo();
+  const pr = t.closest('[data-pid]'); if (pr) { const r = to.reqs.find(x => x.user_id === pr.dataset.pid); to.tab = 'all'; to.aw = 'all'; to.ast = ''; to.aq = r ? toNm(r) : ''; drawTimeOff(); return; }
   const tb = t.closest('[data-tot]'); if (tb) { to.tab = tb.dataset.tot; to.msg = ''; drawTimeOff(); return; }
   const q = t.closest('[data-quick]');
   if (q) {
