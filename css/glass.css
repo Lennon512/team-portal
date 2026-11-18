@@ -990,3 +990,10 @@ a.htask { text-decoration:none; color:inherit; }
 .ann-body::after { display:none; }
 .ann-body.clip { -webkit-mask-image:linear-gradient(#000 70%, transparent); mask-image:linear-gradient(#000 70%, transparent); }
 @media (max-width: 640px) { .who .slackbtn img { width:18px; height:18px; } }
+
+/* Tasks: approved time off */
+.tg th.vac, .tg td.vac { background:rgba(240,170,60,.18); }
+.tg th.vac { color:#9a5b00; }
+.ov-pill.vac { background:rgba(240,170,60,.22); color:#8a5200; }
+.ov-chip.vac:not(.on) b { color:#9a5b00; }
+.tk-off.vac { background:rgba(255,238,205,.7); }
