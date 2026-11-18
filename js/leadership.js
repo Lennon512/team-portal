@@ -24,7 +24,7 @@ function hrTenure(d) {
 }
 
 async function loadHr() {
-  if (!hrAllowed()) { $('hrSum').innerHTML = ''; $('hrTools').hidden = true; $('hrTabs').hidden = true; $('hrBody').innerHTML = '<p class="lead">This page is only for people with leadership access. Ask the owner.</p>'; return; }
+  if (!hrAllowed()) { $('hrSum').innerHTML = ''; $('hrTools').hidden = true; $('hrTabs').hidden = true; $('hrBody').innerHTML = '<p class="lead">This page is only for people with Directory access. Ask the owner.</p>'; return; }
   const [s, p, r, d, a] = await Promise.all([db.from('staff').select('*').order('full_name'), db.from('staff_pay').select('*').order('effective_date'), db.from('staff_reviews').select('*').order('review_date'),
     db.from('staff_discipline').select('*').order('incident_date'), db.from('team_directory').select('id,full_name')]);
   hr.missing = !!(s.error && /relation|does not exist|schema cache/i.test(s.error.message));
