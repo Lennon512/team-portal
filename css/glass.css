@@ -1030,3 +1030,17 @@ a.htask { text-decoration:none; color:inherit; }
   .slayout .smap { height:calc(100vh - 9rem); min-height:420px; max-height:640px; margin:0; }
   .slayout .sgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+/* Studio page fits on one screen: map matches the cards' height, tighter cards and heading */
+@media (min-width:1000px) {
+  .slayout { align-items:stretch; }
+  .slayout .smapcol { position:static; display:flex; }
+  .slayout .smap { height:auto; flex:1; min-height:360px; max-height:none; }
+  .slayout .sgrid { gap:.6rem; }
+  .slayout .scard-b { padding:.6rem .85rem .7rem; gap:.12rem; }
+  .slayout .scard-b small { font-size:.8rem; }
+  .slayout .scard .sstats { margin-top:.15rem; }
+  .slayout .scard .stemp { padding:.35rem .7rem; font-size:.85rem; margin:.15rem 0; }
+  #studioBody > h2 { font-size:1.35rem; }
+  #studioBody > p.lead { margin-bottom:.7rem !important; font-size:.9rem; }
+}
