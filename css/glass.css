@@ -1004,3 +1004,18 @@ a.htask { text-decoration:none; color:inherit; }
 .topeople td small { display:block; }
 .toreq small.tocr, .tosmall.tocr { display:block; margin-top:.3rem; padding:.3rem .55rem; border-radius:8px; background:rgba(214,229,250,.6); color:#1d3f7a; font-size:.8rem; }
 .toreq small.tocr a { color:#0057b8; font-weight:600; }
+
+/* Studio map */
+.smap { height:360px; margin:0 0 1.2rem; border-radius:18px; overflow:hidden; border:1px solid var(--line); box-shadow:0 8px 24px rgba(40,30,20,.08); z-index:0; }
+@media (max-width:640px) { .smap { height:280px; } }
+.spin { position:relative; display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .65rem .3rem .45rem; border-radius:999px; background:#0057b8; color:#fff; font:600 .78rem/1.1 inherit; font-family:inherit; white-space:nowrap; box-shadow:0 4px 12px rgba(0,40,100,.3); transform:translate(0,0); transition:transform .15s; cursor:pointer; }
+.spin::after { content:""; position:absolute; left:11px; bottom:-7px; border:7px solid transparent; border-top-color:#0057b8; border-bottom:0; }
+.spin i { width:.55rem; height:.55rem; border-radius:50%; background:#f5b800; flex:none; }
+.spin.open i { background:#3ddc84; }
+.spin.closed { background:#6b6259; } .spin.closed::after { border-top-color:#6b6259; }
+.leaflet-marker-icon:hover .spin, .leaflet-marker-icon:focus .spin { transform:scale(1.08); }
+.smaptip { padding:0; border:0; background:transparent; box-shadow:none; }
+.smaptip::before { display:none; }
+.smapcard { display:block; width:270px; margin:0; white-space:normal; box-shadow:0 12px 30px rgba(40,30,20,.22); background:rgba(255,255,255,.97); }
+.leaflet-container { font-family:inherit; }
+.spin.closed i { background:#cfc7bd; }

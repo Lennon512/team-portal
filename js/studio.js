@@ -60,10 +60,61 @@ function drawStudioGrid() {
   const can = l => ME.role === 'owner' || (ME.role === 'manager' && ME.location_id === l.id);
   $('studioBody').innerHTML = `<h2 style="margin:0 0 .25rem">Our studios</h2><p class="lead" style="margin:0 0 1rem">Tap a studio for its hours, contact info, team and what’s happening this week.</p>` +
     (empty.length && locs.some(can) ? `<div class="tnudge"><span><b>${empty.length} studio${empty.length === 1 ? ' has' : 's have'} no info yet.</b> Add the address, phone and hours so the team can find them.</span></div>` : '') +
-    `<div class="sgrid">${locs.map(l => { const i = sd.all[l.id] || {}, n = people.filter(p => p.location_id === l.id).length, st = openStatus(parseHours(i.hours));
-      const out = teamX.offs.filter(o => o.location_id === l.id && o.start_date <= td && o.end_date >= td).length, need = sd.allReq.filter(r => r.studio_id === l.id).length;
-      return `<a class="scard${i.temp_closed ? ' tclosed' : ''}" href="#studio/${l.id}"><div class="scard-b"><b>${esc(l.name)}</b>${i.temp_closed ? tempBanner(i) : st ? `<span class="sopen ${st.open ? 'yes' : ''}">${esc(st.t)}</span>` : ''}${i.address || !i.temp_closed ? `<small>${esc(i.address || 'No info yet')}</small>` : ''}
-        <div class="sstats"><span>${n} on the team</span>${out ? `<span class="tbadge out">${out} out today</span>` : ''}${need ? `<span class="tbadge tsoon">${need} supply request${need === 1 ? '' : 's'}</span>` : ''}</div></div></a>`; }).join('')}</div>`;
+    `<div class="smap" id="studioMap" aria-label="Map of our studios"></div><div class="sgrid">${locs.map(l => `<a class="scard${(sd.all[l.id] || {}).temp_closed ? ' tclosed' : ''}" href="#studio/${l.id}">${studioCardBody(l)}</a>`).join('')}</div>`;
+  drawStudioMap();
+}
+
+// The inside of a studio card (used on the grid and in the map's hover card)
+function studioCardBody(l) {
+  const td = todayStr(), i = sd.all[l.id] || {}, n = people.filter(p => p.location_id === l.id).length, st = openStatus(parseHours(i.hours));
+  const out = teamX.offs.filter(o => o.location_id === l.id && o.start_date <= td && o.end_date >= td).length, need = sd.allReq.filter(r => r.studio_id === l.id).length;
+  return `<div class="scard-b"><b>${esc(l.name)}</b>${i.temp_closed ? tempBanner(i) : st ? `<span class="sopen ${st.open ? 'yes' : ''}">${esc(st.t)}</span>` : ''}${i.address || !i.temp_closed ? `<small>${esc(i.address || 'No info yet')}</small>` : ''}
+        <div class="sstats"><span>${n} on the team</span>${out ? `<span class="tbadge out">${out} out today</span>` : ''}${need ? `<span class="tbadge tsoon">${need} supply request${need === 1 ? '' : 's'}</span>` : ''}</div></div>`;
+}
+
+// ----- Map of the studios -----
+// Rough spots by studio name, used until the address has been looked up (then the exact spot is remembered on this device)
+const SPOTS = { georgetown: [30.6327, -97.6780], lakeway: [30.3630, -97.9800], 'round rock': [30.5083, -97.6789], westlake: [30.2850, -97.8020], 'william cannon': [30.1980, -97.8400], 'four ?points': [30.4040, -97.8530] };
+let leafletP = null;
+const loadLeaflet = () => leafletP || (leafletP = new Promise((ok, bad) => {
+  if (window.L) return ok();
+  const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(c);
+  const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; sc.onload = ok; sc.onerror = () => { leafletP = null; bad(); }; document.head.appendChild(sc);
+}));
+const spotKey = a => 'szspot:' + a.toLowerCase();
+function spotFor(l) {
+  const i = sd.all[l.id] || {};
+  if (i.address) { try { const c = JSON.parse(localStorage.getItem(spotKey(i.address)) || 'null'); if (c) return c; } catch (e) {} }
+  const k = Object.keys(SPOTS).find(k => new RegExp(k, 'i').test(l.name)); return k ? SPOTS[k] : null;
+}
+async function lookUpSpots(map, marks) {   // exact spots from the addresses (OpenStreetMap), once per address per device
+  for (const l of locs) {
+    const i = sd.all[l.id] || {}; if (!i.address) continue;
+    try { if (localStorage.getItem(spotKey(i.address))) continue; } catch (e) { continue; }
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(i.address)).then(x => x.json());
+      if (r && r[0]) { const c = [+r[0].lat, +r[0].lon]; try { localStorage.setItem(spotKey(i.address), JSON.stringify(c)); } catch (e) {} if (marks[l.id]) marks[l.id].setLatLng(c); }
+    } catch (e) {}
+    await new Promise(ok => setTimeout(ok, 1100));   // be polite to the free lookup service
+  }
+}
+async function drawStudioMap() {
+  const el = $('studioMap'); if (!el) return;
+  try { await loadLeaflet(); } catch (e) { el.remove(); return; }   // map can't load: just show the cards
+  if (!document.body.contains(el)) return;
+  const map = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 18, subdomains: 'abcd', attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }).addTo(map);
+  const marks = {}, pts = [];
+  locs.forEach(l => {
+    const c = spotFor(l); if (!c) return; const i = sd.all[l.id] || {}, st = openStatus(parseHours(i.hours));
+    const icon = L.divIcon({ className: '', html: `<span class="spin${i.temp_closed ? ' closed' : st && st.open ? ' open' : ''}"><i></i>${esc(l.name)}</span>`, iconSize: null, iconAnchor: [14, 34] });
+    const m = L.marker(c, { icon, riseOnHover: true, keyboard: true, title: l.name }).addTo(map);
+    m.bindTooltip(`<div class="scard smapcard${i.temp_closed ? ' tclosed' : ''}">${studioCardBody(l)}</div>`, { direction: 'top', offset: [0, -30], opacity: 1, className: 'smaptip' });
+    m.on('click', () => { location.hash = '#studio/' + l.id; });
+    marks[l.id] = m; pts.push(c);
+  });
+  if (pts.length) map.fitBounds(pts, { padding: [40, 40], maxZoom: 12 }); else map.setView([30.35, -97.8], 10);
+  lookUpSpots(map, marks);
 }
 
 function drawStudio() {
