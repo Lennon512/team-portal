@@ -6,7 +6,10 @@ let positions = [], templates = [];
 let sched = null;
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const isoDow = d => (new Date(d + 'T00:00').getDay() + 6) % 7 + 1;
-const worksOn = (uid, d) => !sched || !sched[uid] || sched[uid].includes(isoDow(d));
+// Approved time off (full or flexible days; partial days still have tasks). Same rule as the monthly score.
+let vac = {};
+const onVac = (uid, d) => (vac[uid] || []).some(([a, b]) => d >= a && d <= b);
+const worksOn = (uid, d) => !onVac(uid, d) && (!sched || !sched[uid] || sched[uid].includes(isoDow(d)));
 const todayStr = () => ymd(new Date());
 const dim = d => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 const isCur = () => ymd(tk.month).slice(0, 7) === todayStr().slice(0, 7);
@@ -42,6 +45,8 @@ function fitDay() { if (tk.day.slice(0, 7) !== ymd(tk.month).slice(0, 7)) tk.day
 
 async function loadTasks() {
   const [p, t, ws] = await Promise.all([db.from('positions').select('*').order('name'), db.from('task_templates').select('*').eq('active', true).order('sort_order'), db.from('work_schedules').select('user_id,days')]);
+  const vq = await db.from('time_off_requests').select('user_id,start_date,end_date,shift_type').eq('status', 'approved').gte('end_date', ymd(new Date(Date.now() - 400 * DAY)));
+  vac = {}; (vq.data || []).filter(r => (r.shift_type || 'full') !== 'partial').forEach(r => (vac[r.user_id] = vac[r.user_id] || []).push([r.start_date, r.end_date]));
   positions = p.data || []; templates = t.data || [];
   sched = ws.error ? null : Object.fromEntries((ws.data || []).map(x => [x.user_id, x.days || []]));
   if (tk.tab === 'manage' && ME.role !== 'owner') tk.tab = 'mine';
@@ -115,8 +120,8 @@ function renderMine() {
     const day = tk.day, isDone = r => !!doneDate(r, day);
     // Day off (not a usual work day): show nothing, unless they already checked something that day or chose to show tasks
     if (!worksOn(tk.uid, day) && !tk.showOff.has(tk.uid + '|' + day) && !tk.rows.some(r => tk.done.has(r.id + '|' + day))) {
-      const wkd = new Date(day + 'T00:00').toLocaleDateString('en-US', { weekday: 'long' });
-      $('taskBody').innerHTML = `<div class="tk-off">${ro ? `<h3 style="margin:0 0 .4rem">${esc(tk.who)}</h3>` : ''}<b>Day off</b><p>${ro ? esc(tk.who.split(' ')[0]) + ' doesn\u2019t' : 'You don\u2019t'} usually work ${wkd}s, so there are no tasks ${dayWord(day)}.</p>` +
+      const wkd = new Date(day + 'T00:00').toLocaleDateString('en-US', { weekday: 'long' }), tv = onVac(tk.uid, day);
+      $('taskBody').innerHTML = `<div class="tk-off${tv ? ' vac' : ''}">${ro ? `<h3 style="margin:0 0 .4rem">${esc(tk.who)}</h3>` : ''}<b>${tv ? '🌴 Time off' : 'Day off'}</b><p>${tv ? `${ro ? esc(tk.who.split(' ')[0]) + ' is' : 'You\u2019re'} on approved time off ${dayWord(day)}, so there are no tasks and it doesn\u2019t count against the monthly score.` : `${ro ? esc(tk.who.split(' ')[0]) + ' doesn\u2019t' : 'You don\u2019t'} usually work ${wkd}s, so there are no tasks ${dayWord(day)}.`}</p>` +
         (!ro && day <= td ? '<button type="button" class="linkish" data-showoff="1">Picked up a shift? Show tasks anyway</button>' : '') + '</div>';
       return;
     }
@@ -134,9 +139,9 @@ function renderMine() {
     }).join('');
     if (doneRows.length) h += `<details class="tk-donebox" id="tkDoneBox"${tk.doneOpen ? ' open' : ''}><summary>Done ${day === td ? 'today' : dayWord(day)} <span>${doneRows.length}</span></summary>${doneRows.map(item).join('')}</details>`;
   } else {
-    const days = Array.from({ length: n }, (_, i) => i + 1), ds = d => ym + String(d).padStart(2, '0'), offD = d => !worksOn(tk.uid, ds(d));
-    const cls = d => [ds(d) === td ? 'td' : '', offD(d) ? 'off' : ''].filter(Boolean).join(' ');
-    h += `<div class="cal-wrap"><table class="tg"><thead><tr><th class="tt">Task</th>${days.map(d => `<th class="${cls(d)}"${offD(d) ? ' title="Day off"' : ''}>${d}</th>`).join('')}</tr></thead><tbody>` +
+    const days = Array.from({ length: n }, (_, i) => i + 1), ds = d => ym + String(d).padStart(2, '0'), offD = d => !worksOn(tk.uid, ds(d)), vacD = d => onVac(tk.uid, ds(d));
+    const cls = d => [ds(d) === td ? 'td' : '', vacD(d) ? 'vac' : offD(d) ? 'off' : ''].filter(Boolean).join(' ');
+    h += `<div class="cal-wrap"><table class="tg"><thead><tr><th class="tt">Task</th>${days.map(d => `<th class="${cls(d)}"${vacD(d) ? ' title="Approved time off"' : offD(d) ? ' title="Day off"' : ''}>${d}</th>`).join('')}</tr></thead><tbody>` +
       groups.map(g => `<tr class="grp"><td colspan="${n + 1}"><span>${esc(g.name)}</span></td></tr>` + tk.rows.filter(r => r.position_id === g.id).sort(byFreq).map(r => `<tr><td class="tt" title="${esc(r.title)}">${esc(splitTitle(r.title)[0])}${fq(r) !== 'daily' ? ` <span class="tk-freq">${FREQ[fq(r)]}</span>` : ''}</td>${days.map(d => offD(d) && !tk.done.has(r.id + '|' + ds(d)) ? `<td class="${cls(d)}"></td>` : `<td class="${cls(d)}">${isNum(r) ? `<span class="tg-val">${tk.done.has(r.id + '|' + ds(d)) ? (numFmt(tk.vals[r.id + '|' + ds(d)]) || '✓') : ''}</span>` : box(r, ds(d))}</td>`).join('')}</tr>`).join('')).join('') + '</tbody></table></div>';
   }
   $('taskBody').innerHTML = h; paintStats();
@@ -201,14 +206,14 @@ async function loadOverview() {
   (pp.data || []).forEach(x => (pos[x.user_id] = pos[x.user_id] || []).push((positions.find(p => p.id === x.position_id) || {}).name));
   const people = (pe.data || []).filter(u => !tk.studio || u.location_id === tk.studio).map(u => {
     const s = stat[u.id], n = s && s.assigned ? s.assigned : 0, dn = n ? Math.min((dstat[u.id] || {}).done_today || 0, n) : 0;
-    return { u, sets: pos[u.id] || [], n, dn, pct: !n ? null : sc.error ? mtd(s.done_month, s.done_today, n) : s.pct, st: !n ? 'none' : dn >= n ? 'done' : !worksOn(u.id, day) ? 'off' : dn > 0 ? 'prog' : 'zero' };
+    return { u, sets: pos[u.id] || [], n, dn, pct: !n ? null : sc.error ? mtd(s.done_month, s.done_today, n) : s.pct, st: !n ? 'none' : dn >= n ? 'done' : onVac(u.id, day) ? 'vac' : !worksOn(u.id, day) ? 'off' : dn > 0 ? 'prog' : 'zero' };
   }).filter(r => sc.error || stat[r.u.id]);   // the database only returns people this person may see
   tk.ov = people; renderOverview();
 }
 
 function renderOverview() {
   const day = tk.day, past = day !== todayStr(), w = dayWord(day), people = tk.ov || [];
-  const ORDER = { zero: 0, prog: 1, done: 2, off: 3 }, LBL = { zero: past ? 'Not done' : 'Not started', prog: past ? 'Partly done' : 'In progress', done: 'All done', off: past ? 'Not scheduled' : 'Off today' };
+  const ORDER = { zero: 0, prog: 1, done: 2, vac: 3, off: 4 }, LBL = { zero: past ? 'Not done' : 'Not started', prog: past ? 'Partly done' : 'In progress', done: 'All done', vac: '🌴 Time off', off: past ? 'Not scheduled' : 'Off today' };
   const active = people.filter(r => r.st !== 'none').sort((a, b) => ORDER[a.st] - ORDER[b.st] || a.dn / a.n - b.dn / b.n || (a.pct ?? 999) - (b.pct ?? 999) || String(a.u.full_name).localeCompare(b.u.full_name));
   const none = people.filter(r => r.st === 'none');
   const cnt = k => active.filter(r => r.st === k).length;
@@ -218,7 +223,7 @@ function renderOverview() {
   const chip = (k, label, n) => `<button class="ov-chip ${k}${tk.ovFilter === k ? ' on' : ''}" data-ovf="${k}"><b>${n}</b> ${label}</button>`;
   const ini = u => esc((u.full_name || u.email || '?').split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase());
   let h = !active.length ? '<p class="lead">No one has tasks assigned yet.' + (ME.role === 'owner' ? ' Set them up in <button class="linkish" data-gotab="manage">Manage task sets</button>.' : '') + '</p>' :
-    `<div class="ov-chips">${chip('all', 'everyone', active.length)}${chip('zero', LBL.zero.toLowerCase(), cnt('zero'))}${chip('prog', LBL.prog.toLowerCase(), cnt('prog'))}${chip('done', 'all done', cnt('done'))}${cnt('off') ? chip('off', past ? 'not scheduled' : 'off today', cnt('off')) : ''}` +
+    `<div class="ov-chips">${chip('all', 'everyone', active.length)}${chip('zero', LBL.zero.toLowerCase(), cnt('zero'))}${chip('prog', LBL.prog.toLowerCase(), cnt('prog'))}${chip('done', 'all done', cnt('done'))}${cnt('vac') ? chip('vac', 'on time off', cnt('vac')) : ''}${cnt('off') ? chip('off', past ? 'not scheduled' : 'off today', cnt('off')) : ''}` +
     (avg !== null ? `<span class="ov-avg">Team average this month: <b>${avg}%</b></span>` : '') + `</div>
     <p class="lead ov-lead">Who still has tasks left ${w}. Tap a person to open their checklist${past ? ' for that day' : ''}.</p>
     <div class="ov-list">` + shown.map(r => `<button class="ov-row" data-row="${r.u.id}">
