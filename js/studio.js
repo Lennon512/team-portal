@@ -60,7 +60,7 @@ function drawStudioGrid() {
   const can = l => ME.role === 'owner' || (ME.role === 'manager' && ME.location_id === l.id);
   $('studioBody').innerHTML = `<h2 style="margin:0 0 .25rem">Our studios</h2><p class="lead" style="margin:0 0 1rem">Tap a studio for its hours, contact info, team and what’s happening this week.</p>` +
     (empty.length && locs.some(can) ? `<div class="tnudge"><span><b>${empty.length} studio${empty.length === 1 ? ' has' : 's have'} no info yet.</b> Add the address, phone and hours so the team can find them.</span></div>` : '') +
-    `<div class="smap" id="studioMap" aria-label="Map of our studios"></div><div class="sgrid">${locs.map(l => `<a class="scard${(sd.all[l.id] || {}).temp_closed ? ' tclosed' : ''}" href="#studio/${l.id}">${studioCardBody(l)}</a>`).join('')}</div>`;
+    `<div class="slayout"><div class="sgrid">${locs.map(l => `<a class="scard${(sd.all[l.id] || {}).temp_closed ? ' tclosed' : ''}" href="#studio/${l.id}">${studioCardBody(l)}</a>`).join('')}</div><div class="smapcol"><div class="smap" id="studioMap" aria-label="Map of our studios"></div></div></div>`;
   drawStudioMap();
 }
 

@@ -1020,3 +1020,13 @@ a.htask { text-decoration:none; color:inherit; }
 .leaflet-container { font-family:inherit; }
 .spin.closed i { background:#cfc7bd; }
 .smaptiles { filter:saturate(.55) brightness(1.04) contrast(.95); }
+
+/* Studio page: cards on the left, map on the right (stacked on smaller screens, map first) */
+.slayout { display:grid; grid-template-columns:minmax(0,1fr); gap:1.2rem; align-items:start; }
+.slayout .smapcol { order:-1; }
+@media (min-width:1000px) {
+  .slayout { grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); }
+  .slayout .smapcol { order:0; position:sticky; top:5.5rem; }
+  .slayout .smap { height:calc(100vh - 9rem); min-height:420px; max-height:640px; margin:0; }
+  .slayout .sgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
