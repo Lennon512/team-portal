@@ -113,7 +113,8 @@ async function drawStudioMap() {
     m.on('click', () => { location.hash = '#studio/' + l.id; });
     marks[l.id] = m; pts.push(c);
   });
-  if (pts.length) map.fitBounds(pts, { padding: [30, 30], maxZoom: 12 }); else map.setView([30.35, -97.8], 10);
+  const fit = () => { map.invalidateSize(); if (pts.length) map.fitBounds(pts, { padding: [30, 30], maxZoom: 12 }); else map.setView([30.35, -97.8], 10); };
+  fit(); setTimeout(fit, 150);   // the map's height comes from the cards beside it, so measure again once the page settles
   lookUpSpots(map, marks);
 }
 
