@@ -1019,3 +1019,4 @@ a.htask { text-decoration:none; color:inherit; }
 .smapcard { display:block; width:270px; margin:0; white-space:normal; box-shadow:0 12px 30px rgba(40,30,20,.22); background:rgba(255,255,255,.97); }
 .leaflet-container { font-family:inherit; }
 .spin.closed i { background:#cfc7bd; }
+.smaptiles { filter:saturate(.55) brightness(1.04) contrast(.95); }
