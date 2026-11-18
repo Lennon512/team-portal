@@ -78,7 +78,7 @@ function drawPerf() {
   updateRepTabs();
   $('pfStudio').hidden = (PF.tab !== 'score' && PF.tab !== 'projection') || !netOk(); $('pfMonth').hidden = PF.tab === 'compare'; $('pfRange').hidden = PF.tab !== 'score';
   document.querySelector('#repPerf > .bar').hidden = PF.tab === 'compare';   // Compare has its own pickers; Update data lives on the other tabs
-  if (PF.tab === 'score') drawScore(); else if (PF.tab === 'master') loadMaster(); else if (PF.tab === 'projection') { $('pfStudio').hidden = true; $('pfMonth').hidden = true; $('pfData').hidden = true; $('pfBody').innerHTML = '<div class="pcard"><h3>Projection</h3><p class="muted" style="margin:0">Coming soon. We\u2019ll design this together next.</p></div>'; } else drawCompare();
+  if (PF.tab === 'score') drawScore(); else if (PF.tab === 'master') loadMaster(); else if (PF.tab === 'projection') { $('pfStudio').hidden = true; $('pfMonth').hidden = true; $('pfData').hidden = true; loadGoalPlan(); } else drawCompare();
 }
 
 // One combined tab strip in front of both DPR and Performance. REP.sub decides which of the
