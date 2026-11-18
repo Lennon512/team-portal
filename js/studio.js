@@ -103,7 +103,7 @@ async function drawStudioMap() {
   try { await loadLeaflet(); } catch (e) { el.remove(); return; }   // map can't load: just show the cards
   if (!document.body.contains(el)) return;
   const map = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 18, subdomains: 'abcd', attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }).addTo(map);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors', className: 'smaptiles' }).addTo(map);   // free OpenStreetMap tiles (no key needed)
   const marks = {}, pts = [];
   locs.forEach(l => {
     const c = spotFor(l); if (!c) return; const i = sd.all[l.id] || {}, st = openStatus(parseHours(i.hours));
@@ -113,7 +113,7 @@ async function drawStudioMap() {
     m.on('click', () => { location.hash = '#studio/' + l.id; });
     marks[l.id] = m; pts.push(c);
   });
-  if (pts.length) map.fitBounds(pts, { padding: [40, 40], maxZoom: 12 }); else map.setView([30.35, -97.8], 10);
+  if (pts.length) map.fitBounds(pts, { padding: [30, 30], maxZoom: 12 }); else map.setView([30.35, -97.8], 10);
   lookUpSpots(map, marks);
 }
 
