@@ -153,7 +153,7 @@ function toHint() {
   const cl = toClash(ME.location_id, ME.id, s, e), soon = dayDiff(todayStr(), s) <= 14;
   el.innerHTML = `<h4>Your request</h4><p class="todays"><b>${fd(s)}${e !== s ? ' – ' + fd(e) : ''}</b><span>${n} day${n === 1 ? '' : 's'}${F.shift === 'partial' && F.from && F.till ? ' • out ' + t12h(F.from) + ' – ' + t12h(F.till) : F.shift === 'partial' ? ' • part of shift' : F.shift === 'flexible' ? ' • can adjust time' : ''}</span></p>` +
     (soon ? '<p class="towarn"><b>Within 2 weeks.</b> This will be marked as a short-notice request, so give your manager a heads-up too.</p>' : '') +
-    (cl.length ? `<p class="towarn">Also out at your studio then: ${cl.map(o => `<b>${esc(o.full_name.split(' ')[0])}</b> (${toSpan(o)}${o.status === 'pending' ? ', pending' : ''})`).join(', ')}.</p>` : '<p class="took">✓ No one else at your studio is out those days.</p>') +
+    (cl.length ? `<p class="towarn"><b>Scheduling conflict:</b> this request may be denied because someone else at your studio is already out then: ${cl.map(o => `<b>${esc(o.full_name.split(' ')[0])}</b> (${toSpan(o)}${o.status === 'pending' ? ', pending' : ''})`).join(', ')}. You can still send it.</p>` : '<p class="took">✓ No one else at your studio is out those days.</p>') +
     `<p class="tosmall">Coverage: ${F.co === 'yes' ? 'arranged' : F.co === 'other' ? 'other' : 'not yet'}${F.cn ? ' (' + esc(F.cn) + ')' : ''}</p>` + (ap ? `<p class="tosmall">Goes to <b>${esc(ap)}</b> for approval.</p>` : '');
 }
 // Who time off requests go to, shown on the request form
@@ -170,7 +170,7 @@ async function sendTo() {
   $('tSend').disabled = true;
   const { error } = await db.from('time_off_requests').insert(r);
   if (error) { $('tSend').disabled = false; $('tErr').textContent = 'Could not send. ' + error.message; return; }
-  const nl = APV_TXT; to.msg = 'Request sent' + (nl ? ' to ' + esc(nl) : '') + '. Their decision will show under My requests.';
+  const nl = APV_TXT, clash = toClash(ME.location_id, ME.id, F.s, F.e && F.e >= F.s ? F.e : F.s).length; to.msg = 'Request sent' + (nl ? ' to ' + esc(nl) : '') + '. Their decision will show under My requests.' + (clash ? ' Someone else at your studio is already out then, so it may be denied due to a scheduling conflict.' : '');
   to.f = { s: '', e: '', shift: 'full', from: '', till: '', cv: 'no', co: 'no', cn: '', n: '' }; loadTimeOff();
 }
 
