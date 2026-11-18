@@ -90,7 +90,7 @@ function drawTimeOff() {
   const urgent = r => r.status === 'pending' && r.created_at && dayDiff(r.created_at.slice(0, 10), r.start_date) <= 14;
   const pend = ME.role === 'staff' ? [] : to.reqs.filter(r => canDecide(r));
   const mine = to.reqs.filter(r => r.user_id === ME.id), up = mine.filter(r => r.end_date >= td).sort((a, b) => a.start_date < b.start_date ? -1 : 1), past = mine.filter(r => r.end_date < td);
-  const myRow = r => `<div class="toreq ${r.status}"><div><b>${toSpan(r)}</b> <span class="muted">${dayDiff(r.start_date, r.end_date) + 1} day${r.end_date !== r.start_date ? 's' : ''}</span><small>${toInfo(r)}</small><small class="toline">${esc(sline(r))}</small></div><div class="toacts">${toPill(r.status)}${r.end_date >= td ? `<button class="quiet sm" data-a="cancel" data-id="${r.id}">${r.status === 'pending' ? 'Cancel' : 'Delete'}</button>` : ''}</div></div>`;
+  const myRow = r => `<div class="toreq ${r.status}"><div><b>${toSpan(r)}</b> <span class="muted">${dayDiff(r.start_date, r.end_date) + 1} day${r.end_date !== r.start_date ? 's' : ''}</span><small>${toInfo(r)}</small><small class="toline">${esc(sline(r))}</small>${r.status === 'approved' && r.end_date >= td ? `<small class="tocr">\uD83D\uDCC5 Block ${r.start_date === r.end_date ? 'this day' : 'these days'} off in your <a href="https://stretchzone.clubready.com/" target="_blank" rel="noopener">ClubReady</a> schedule so no one can book you.</small>` : ''}</div><div class="toacts">${toPill(r.status)}${r.end_date >= td ? `<button class="quiet sm" data-a="cancel" data-id="${r.id}">${r.status === 'pending' ? 'Cancel' : 'Delete'}</button>` : ''}</div></div>`;
   const apRow = r => { const cl = toClash(reqLoc(r), r.user_id, r.start_date, r.end_date, r.id);
     return `<div class="toreq pending"><div><b>${esc(toNm(r))}</b> <span class="muted">• ${esc(studio(reqLoc(r)))}</span><div class="todates">${toSpan(r)} <span class="muted">• ${dayDiff(r.start_date, r.end_date) + 1} day${r.end_date !== r.start_date ? 's' : ''}</span>${urgent(r) ? ' <span class="topill denied">Within 2 weeks</span>' : ''}</div><small>${toInfo(r)}</small>${cl.length ? `<small class="up-warn">Also out: ${esc(cl.map(c => c.full_name.split(' ')[0] + ' (' + toSpan(c) + ')').join(', '))}</small>` : ''}</div><div class="toacts"><button class="sm" data-a="approved" data-id="${r.id}">Approve</button><button class="quiet sm" data-a="denied" data-id="${r.id}">Decline</button></div></div>`; };
   const lead = ME.role !== 'staff';
@@ -186,6 +186,7 @@ function toHint() {
   el.innerHTML = `<h4>Your request</h4><p class="todays"><b>${fd(s)}${e !== s ? ' – ' + fd(e) : ''}</b><span>${n} day${n === 1 ? '' : 's'}${F.shift === 'partial' && F.from && F.till ? ' • out ' + t12h(F.from) + ' – ' + t12h(F.till) : F.shift === 'partial' ? ' • part of shift' : F.shift === 'flexible' ? ' • can adjust time' : ''}</span></p>` +
     (soon ? '<p class="towarn"><b>Within 2 weeks.</b> This will be marked as a short-notice request, so give your manager a heads-up too.</p>' : '') +
     (cl.length ? `<p class="towarn"><b>Scheduling conflict:</b> this request may be denied because someone else at your studio is already out then: ${cl.map(o => `<b>${esc(o.full_name.split(' ')[0])}</b> (${toSpan(o)}${o.status === 'pending' ? ', pending' : ''})`).join(', ')}. You can still send it.</p>` : '<p class="took">✓ No one else at your studio is out those days.</p>') +
+    '<p class="tosmall tocr">\uD83D\uDCC5 Once it\u2019s approved, block those days off in your ClubReady schedule so no bookings can be made.</p>' +
     `<p class="tosmall">Coverage: ${F.co === 'yes' ? 'arranged' : F.co === 'other' ? 'other' : 'not yet'}${F.cn ? ' (' + esc(F.cn) + ')' : ''}</p>` + (ap ? `<p class="tosmall">Goes to <b>${esc(ap)}</b> for approval.</p>` : '');
 }
 // Who time off requests go to, shown on the request form
@@ -202,7 +203,7 @@ async function sendTo() {
   $('tSend').disabled = true;
   const { error } = await db.from('time_off_requests').insert(r);
   if (error) { $('tSend').disabled = false; $('tErr').textContent = 'Could not send. ' + error.message; return; }
-  const nl = APV_TXT, clash = toClash(ME.location_id, ME.id, F.s, F.e && F.e >= F.s ? F.e : F.s).length; to.msg = 'Request sent' + (nl ? ' to ' + esc(nl) : '') + '. Their decision will show under My requests.' + (clash ? ' Someone else at your studio is already out then, so it may be denied due to a scheduling conflict.' : '');
+  const nl = APV_TXT, clash = toClash(ME.location_id, ME.id, F.s, F.e && F.e >= F.s ? F.e : F.s).length; to.msg = 'Request sent' + (nl ? ' to ' + esc(nl) : '') + '. Their decision will show under My requests. Once it\u2019s approved, block those days off in your ClubReady schedule.' + (clash ? ' Someone else at your studio is already out then, so it may be denied due to a scheduling conflict.' : '');
   to.f = { s: '', e: '', shift: 'full', from: '', till: '', cv: 'no', co: 'no', cn: '', n: '' }; loadTimeOff();
 }
 
