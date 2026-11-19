@@ -8,7 +8,7 @@ const AUTO_DAYS = 45;
 const isDemo = d => /assessment|consultation/i.test(String(d || '')) && !/follow/i.test(String(d || ''));
 // Close % counts a new sale (no previous agreements) on the day
 // they bought, from anyone who has had a completed assessment before or on that day (e.g. demo in September, bought in November).   // how far back each import refreshes (covers this week, this month and the last 30 days)
-const AUTO_DL = new Set(['revenue', 'refunds', 'leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'reactivations', 'demo_sales', 'new_eft', 'cancellations', 'freezes', 'active_members', 'stretches_completed', 'staff_util']);
+const AUTO_DL = new Set(['revenue', 'refunds', 'leads', 'contacts', 'demos_booked', 'demos_held', 'agreements', 'reactivations', 'demo_sales', 'new_eft', 'agreement_amount', 'cancellations', 'freezes', 'active_members', 'stretches_completed', 'staff_util']);
 
 function buildDailyAuto() {
   const { leads, contacts, bookings, agreements, cancels, invoices } = imp.data;
@@ -43,11 +43,15 @@ function buildDailyAuto() {
     want('agreements', 'new_eft');
     const pk = agreements.length ? Object.keys(agreements[0]).find(k => /prev/i.test(k) && /agree/i.test(k)) : null;
     if (pk) want('reactivations');
+    // The sale amount of each agreement (the Invoice column, same one payroll uses for commission), for Average sale
+    const ak = agreements.length ? (Object.keys(agreements[0]).find(k => /^invoice$/i.test(k.trim())) || Object.keys(agreements[0]).find(k => /total|amount/i.test(k) && !/prev|#|id|eft/i.test(k))) : null;
+    if (ak) want('agreement_amount');
     if (bookings) want('demo_sales');
     const ds = new Set();
     agreements.forEach(r => { const id = +r['User ID']; if (!id) return; const item = String(r['Description'] || '').split('\n')[0]; if (/add-on/i.test(item)) return;
       const t = toDT(r['Date']); if (!t) return; const d = ymd(t), prev = pk ? (parseFloat(r[pk]) || 0) : 0;
       add(d, prev > 0 ? 'reactivations' : 'agreements'); add(d, 'new_eft', +r['New EFT'] || 0);
+      if (ak) add(d, 'agreement_amount', parseFloat(String(r[ak] ?? '').replace(/[$,]/g, '')) || 0);
       if (!prev && (asmt[id] || []).some(a => a <= d) && !ds.has(id)) { ds.add(id); add(d, 'demo_sales'); } });
   }
 
@@ -74,7 +78,7 @@ function buildDailyAuto() {
   const now = new Date().toISOString();
   return Object.entries(days).map(([day, v]) => {
     const row = { studio_id: mem.studio, day, updated_by: ME.id, updated_at: now };
-    cols.forEach(k => { row[k] = k === 'active_members' ? (v[k] ?? null) : k === 'new_eft' ? Math.round((v[k] || 0) * 100) / 100 : (v[k] || 0); });
+    cols.forEach(k => { row[k] = k === 'active_members' ? (v[k] ?? null) : k === 'new_eft' || k === 'agreement_amount' ? Math.round((v[k] || 0) * 100) / 100 : (v[k] || 0); });
     return row;
   }).map(r => { if ('active_members' in r && r.active_members === null) delete r.active_members; return r; });
 }
@@ -84,9 +88,11 @@ async function saveDailyAuto() {
   const rows = buildDailyAuto(); if (!rows.length) return null;
   const groups = [rows.filter(r => 'active_members' in r), rows.filter(r => !('active_members' in r))].filter(g => g.length);
   for (const g of groups) for (let i = 0; i < g.length; i += 200) {
-    let { error } = await db.from('daily_log').upsert(g.slice(i, i + 200), { onConflict: 'studio_id,day' });
-    // Before sql/daily_demo_sales.sql has been run there is no demo_sales column: save everything else
-    if (error && /demo_sales/.test(error.message)) ({ error } = await db.from('daily_log').upsert(g.slice(i, i + 200).map(({ demo_sales, ...r }) => r), { onConflict: 'studio_id,day' }));
+    // Columns added by later SQL files (sql/daily_demo_sales.sql, sql/daily_agreement_amount.sql): if one hasn't been run yet, save everything else
+    let batch = g.slice(i, i + 200), { error } = await db.from('daily_log').upsert(batch, { onConflict: 'studio_id,day' });
+    for (const k of ['demo_sales', 'agreement_amount']) if (error && error.message.includes(k)) {
+      batch = batch.map(({ [k]: _, ...r }) => r); ({ error } = await db.from('daily_log').upsert(batch, { onConflict: 'studio_id,day' }));
+    }
     if (error) return error;
   }
   DL.from = ''; DL.to = '';   // the Daily page reloads fresh next time it opens

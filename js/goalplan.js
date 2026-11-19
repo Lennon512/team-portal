@@ -35,12 +35,15 @@ function gpBase() {
   const D = GP.data, S = k => D.rows.reduce((n, r) => n + (+r[k] || 0), 0);
   const rev = S('revenue'), ref = S('refunds'), leads = S('leads'), booked = S('demos_booked'), held = S('demos_held'), dsales = S('demo_sales'), newS = S('agreements'), back = S('reactivations');
   const sales = newS + back;
+  // Average sale from the Agreements Log: total sale amount ÷ number of agreements (new + back), add-ons left out.
+  // Until every day this month has that total saved (sql/daily_agreement_amount.sql + the next import), fall back to revenue ÷ sales.
+  const fromLog = D.rows.length > 0 && D.rows.every(r => r.agreement_amount !== null && r.agreement_amount !== undefined), agrAmt = fromLog ? S('agreement_amount') : null;
   // Open days left, today through the end of the month (days the studio's hours say it's closed don't count)
   const H = typeof parseHours === 'function' ? parseHours(D.hours) : null;
   let left = 0, closedDays = 0; for (let x = D.td; x <= D.me; x = gpAdd(x, 1)) { const h = H && H[SDAYS[new Date(x + 'T00:00').getDay()]]; if (h && h.closed) closedDays++; else left++; }
   return { rev, ref, net: rev - ref, leads, booked, held, dsales, newS, back, sales, days: D.rows.length,
     goal: +D.tgt.revenue_goal || 0, inv: D.inv.reduce((n, r) => n + (+r.amount || 0), 0), invN: D.inv.length, left, closedDays,
-    l2d: leads ? booked / leads : null, show: booked ? held / booked : null, close: held ? dsales / held : null, avg: sales ? rev / sales : null };
+    l2d: leads ? booked / leads : null, show: booked ? held / booked : null, close: held ? dsales / held : null, agrAmt, fromLog, avg: sales ? (fromLog ? agrAmt : rev) / sales : null };
 }
 
 function drawGoalPlan() {
@@ -65,7 +68,7 @@ function drawGoalPlan() {
       ${kc('Lead → demo', gpPct(b.l2d), `${b.booked} booked from ${b.leads} leads`)}
       ${kc('Show %', gpPct(b.show), `${b.held} of ${b.booked} booked showed`)}
       ${kc('Close %', gpPct(b.close), `${b.dsales} sold from ${b.held} demos`)}
-      ${kc('Average sale', b.avg ? gpMoney(b.avg) : '–', `${gpMoney(b.rev)} ÷ ${b.sales} sale${b.sales === 1 ? '' : 's'} (${b.newS} new, ${b.back} back)`)}
+      ${kc('Average sale', b.avg ? gpMoney(b.avg) : '–', `${gpMoney(b.fromLog ? b.agrAmt : b.rev)} ${b.fromLog ? 'in agreements' : 'revenue'} ÷ ${b.sales} agreement${b.sales === 1 ? '' : 's'} (${b.newS} new, ${b.back} back)`)}
     </div></section>` +
     `<section class="scsec"><h3>What it takes to hit the goal</h3>` + (!ok ? '<p class="lead">Set a monthly revenue goal for this studio (Daily tab → <b>Targets</b>) to see the math.</p>' : `
       <div class="gpmath">
@@ -88,7 +91,7 @@ function drawGoalPlan() {
         <div class="gpins"><label>Average sale $${inp('avg', avg)}</label><label>Close ${inp('close', close, 1)}</label><label>Show ${inp('show', show, 1)}</label><label>Lead → demo ${inp('l2d', l2d, 1)}</label>
           ${Object.keys(O).length ? '<button class="quiet sm" id="gpReset">Back to this month’s real numbers</button>' : ''}</div>
       </details>`) + '</section>' +
-    `<p class="muted gpnote">Revenue is ClubReady Gross Sales; average sale is that revenue divided by new agreements plus reactivations. Invoices are from the latest Members &amp; prospects upload (frozen memberships left out).</p>`;
+    `<p class="muted gpnote">Revenue is ClubReady Gross Sales; average sale is the Agreements Log's total sale amount divided by the number of agreements (new plus reactivations, add-ons left out)${b.fromLog ? '' : ' (this month\u2019s agreement totals aren\u2019t in yet, so for now it\u2019s revenue divided by agreements)'}. Invoices are from the latest Members &amp; prospects upload (frozen memberships left out).</p>`;
 }
 
 $('pfBody').addEventListener('click', e => {
