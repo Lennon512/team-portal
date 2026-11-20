@@ -1186,3 +1186,12 @@ dialog.lbwide { max-width:1000px; width:calc(100% - 2rem); max-height:92vh; }
 .lbctl .lbview { margin:0; } .lbctl .lbview button { padding:.28rem .6rem; font-size:.9rem; }
 .lbbar1 #lbFind { width:190px; margin:0; padding:.42rem .8rem; font-size:.88rem; }
 @media (max-width:640px) { .lbbar1 #lbFind { width:100%; } .lbctl { width:100%; } }
+
+/* Library cards: actions as a footer pinned to the bottom, lined up across a row */
+.lbcard:has(> .lbacts) { display:grid; grid-template-columns:auto minmax(0, 1fr); grid-template-rows:1fr auto; column-gap:.8rem; align-items:start; }
+.lbcard > .lbacts { grid-column:1 / -1; margin:.8rem -1rem -.9rem; padding:.5rem .6rem .5rem 1rem; border-top:1px solid rgba(38,30,20,.08); border-radius:0 0 16px 16px; background:rgba(255,255,255,.28); }
+.lbcard > .lbacts .lbmeta { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lbfbtn { padding:.3rem .75rem; font-size:.78rem; font-weight:600; background:transparent; color:var(--ink); border:1px solid transparent; border-radius:8px; box-shadow:none; }
+.lbfbtn:hover { background:rgba(255,255,255,.75); border-color:rgba(38,30,20,.1); }
+.lbfbtn:focus-visible { outline:2px solid var(--dark); outline-offset:1px; }
+.lbrowacts .lbfbtn { background:rgba(255,255,255,.45); }
