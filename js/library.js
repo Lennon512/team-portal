@@ -44,7 +44,10 @@ function lbFormat(t) {
   }).join('');
 }
 
-const lbImg = r => r.kind === 'file' && /\.(png|jpe?g|gif|webp)$/i.test(r.file_name || ''), lbPdf = r => r.kind === 'file' && /\.pdf$/i.test(r.file_name || '');
+const lbImg = r => !!r.file_path && /\.(png|jpe?g|gif|webp)$/i.test(r.file_name || ''), lbPdf = r => !!r.file_path && /\.pdf$/i.test(r.file_name || '');
+// A resource can hold any mix of a file, a link / video and written page text
+const lbParts = r => [...(r.url && lbEmbed(r.url) ? ['video'] : r.url ? ['link'] : []), ...(r.file_path ? ['file'] : []), ...(r.body && String(r.body).trim() ? ['page'] : [])];
+const lbKindOf = (url, file, body) => url && lbEmbed(url) ? 'video' : file ? 'file' : url ? 'link' : 'page';
 const lbNew = r => r.created_at && (Date.now() - new Date(r.created_at)) / 864e5 <= 7;
 // Thumbnails for images: the files are private, so fetch short-lived links in one go, then redraw
 async function lbThumbs() {
@@ -79,12 +82,12 @@ function drawLibrary() {
   if (LB.tab === 'assign' && (own || lbLead())) return lbDrawAssigned();
   const q = LB.q.trim().toLowerCase(), cats = [...new Set([...LB_CATS.filter(c => LB.rows.some(r => r.category === c)), ...LB.rows.map(r => r.category)])];
   const hit = r => !q || [r.title, r.description, r.category, r.body, r.file_name, ...(r.tags || []), ...(r.positions || []).map(lbPosName)].some(x => String(x || '').toLowerCase().includes(q));
-  const list = LB.rows.filter(r => hit(r) && (!LB.cat || r.category === LB.cat) && (!LB.mine || lbForMe(r)) && (!LB.kind || r.kind === LB.kind));
+  const list = LB.rows.filter(r => hit(r) && (!LB.cat || r.category === LB.cat) && (!LB.mine || lbForMe(r)) && (!LB.kind || r.kind === LB.kind || lbParts(r).includes(LB.kind)));
   const card = r => { const [kl, ki] = LB_KINDS[r.kind] || LB_KINDS.link, forMe = lbForMe(r) && r.positions && r.positions.length;
     return `<div class="lbcard${r.pinned ? ' pin' : ''}" data-lb="${r.id}" tabindex="0" role="button" aria-label="Open ${esc(r.title)}">
       ${LB.thumbs && LB.thumbs[r.id] ? `<div class="lbthumb" aria-hidden="true"><img src="${esc(LB.thumbs[r.id])}" alt="" loading="lazy"></div>` : `<div class="lbic" aria-hidden="true">${ki}</div>`}
       <div class="lbtxt"><b>${esc(r.title)}${lbNew(r) ? ' <span class="lbnew">New</span>' : ''}</b>${r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<span class="lbdesc">${esc(r.description)}</span>` : ''}
-        <div class="lbchips"><span class="lbchip k">${kl}${r.kind === 'file' && r.file_name ? ' • ' + esc(r.file_name.split('.').pop().toUpperCase()) : ''}</span>${forMe ? '<span class="lbchip me">For your role</span>' : ''}${(r.positions || []).length && !forMe ? (r.positions || []).map(id => `<span class="lbchip">${esc(lbPosName(id))}</span>`).join('') : ''}${r.needs_signoff ? '<span class="lbchip">Needs sign-off</span>' : ''}${(r.tags || []).map(t => `<span class="lbchip t">#${esc(t)}</span>`).join('')}</div>
+        <div class="lbchips">${(lbParts(r).length ? lbParts(r) : [r.kind]).map(k => `<span class="lbchip k">${(LB_KINDS[k] || LB_KINDS.link)[0]}${k === 'file' && r.file_name ? ' • ' + esc(r.file_name.split('.').pop().toUpperCase()) : ''}</span>`).join('')}${forMe ? '<span class="lbchip me">For your role</span>' : ''}${(r.positions || []).length && !forMe ? (r.positions || []).map(id => `<span class="lbchip">${esc(lbPosName(id))}</span>`).join('') : ''}${r.needs_signoff ? '<span class="lbchip">Needs sign-off</span>' : ''}${(r.tags || []).map(t => `<span class="lbchip t">#${esc(t)}</span>`).join('')}</div>
         ${own ? `<div class="lbacts"><span class="lbmeta">${lbAsgLine(r.id)}</span><button type="button" class="quiet lbasgbtn" data-lbasg="${r.id}" aria-label="Assign ${esc(r.title)}" title="Assign to people">Assign</button><button type="button" class="mg-ic" data-lbedit="${r.id}" aria-label="Edit ${esc(r.title)}" title="Edit">✎</button></div>` : ''}</div></div>`; };
   const pinned = list.filter(r => r.pinned), byCat = cats.map(c => [c, list.filter(r => r.category === c && !r.pinned)]).filter(([, L]) => L.length);
   $('lbBody').innerHTML = `<div class="lbbar">
@@ -102,52 +105,54 @@ function drawLibrary() {
 
 async function lbOpen(id) {
   const r = LB.rows.find(x => x.id === id); if (!r) return;
-  if (r.kind === 'page') {
-    $('dlgBody').innerHTML = `<h2>${esc(r.title)}</h2>${r.description ? `<p class="lead" style="margin:.2rem 0 1rem">${esc(r.description)}</p>` : ''}<div class="lbpage">${lbFormat(r.body)}</div><div class="acts"><button class="quiet" data-act="close">Close</button></div>`;
-    $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal(); return;
-  }
-  if (r.kind === 'video' && lbEmbed(r.url)) {
-    $('dlgBody').innerHTML = `<h2>${esc(r.title)}</h2>${r.description ? `<p class="lead" style="margin:.2rem 0 .8rem">${esc(r.description)}</p>` : ''}<div class="lbvid"><iframe src="${esc(lbEmbed(r.url))}" title="${esc(r.title)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>
-      <div class="acts"><a class="btnlink" href="${esc(r.url)}" target="_blank" rel="noopener">Open in a new tab</a><button class="quiet" data-act="close">Close</button></div>`;
-    $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal(); return;
-  }
-  if ((lbImg(r) || lbPdf(r)) && r.file_path) {   // images and PDFs open right here
-    const { data, error } = await db.storage.from('library').createSignedUrl(r.file_path, 3600);
-    if (error || !data) { alert('Could not open that file. ' + (error ? error.message : '')); return; }
-    const u = esc(data.signedUrl), desc = r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<p class="lead" style="margin:.2rem 0 .8rem">${esc(r.description)}</p>` : '';
-    $('dlgBody').innerHTML = `<h2>${esc(r.title)}</h2>${desc}${lbImg(r) ? `<div class="lbview"><img src="${u}" alt="${esc(r.title)}"></div>` : `<div class="lbview pdf"><iframe src="${u}" title="${esc(r.title)}"></iframe></div>`}
-      <div class="acts"><a class="btnlink" href="${u}" target="_blank" rel="noopener">Open in a new tab</a><a class="btnlink quiet" href="${u}" download="${esc(r.file_name || '')}">Download</a><button class="quiet" data-act="close">Close</button></div>`;
-    $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal(); return;
-  }
-  if (r.kind === 'file' && r.file_path) {   // every other file opens in the portal too, instead of downloading
+  const parts = lbParts(r);
+  if (parts.length === 1 && parts[0] === 'link') { window.open(r.url, '_blank', 'noopener'); return; }   // just a website link: open it
+  if (!parts.length) return;
+  // Build one panel per part; with more than one, show them as tabs
+  const panels = [], acts = [];
+  if (parts.includes('video')) { panels.push(['Video', `<div class="lbvid"><iframe src="${esc(lbEmbed(r.url))}" title="${esc(r.title)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`]); acts.push(`<a class="btnlink quiet" href="${esc(r.url)}" target="_blank" rel="noopener">Open video in a new tab</a>`); }
+  if (parts.includes('page')) panels.push([parts.length > 1 ? 'Page' : 'Page', `<div class="lbpage">${lbFormat(r.body)}</div>`]);
+  if (parts.includes('file')) {
     const { data, error } = await db.storage.from('library').createSignedUrl(r.file_path, 3600);
     if (error || !data) { alert('Could not open that file. ' + (error ? error.message : '')); return; }
     const dl = await db.storage.from('library').createSignedUrl(r.file_path, 3600, { download: r.file_name || true }).catch(() => ({}));
     const url = data.signedUrl, u = esc(url), du = esc((dl && dl.data && dl.data.signedUrl) || url), ext = String(r.file_name || r.file_path).split('.').pop().toLowerCase();
-    const desc = r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<p class="lead" style="margin:.2rem 0 .8rem">${esc(r.description)}</p>` : '';
     let view = '';
-    if (['doc', 'docx', 'ppt', 'pptx', 'pps', 'ppsx', 'xls', 'xlsx'].includes(ext))   // Word / PowerPoint / Excel: Microsoft's free online viewer
-      view = `<div class="lbview pdf"><iframe src="https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}" title="${esc(r.title)}"></iframe></div><p class="muted" style="font-size:.78rem;margin:-.4rem 0 .6rem">If it doesn't show after a few seconds, use Open in a new tab or Download.</p>`;
+    if (lbImg(r)) view = `<div class="lbview"><img src="${u}" alt="${esc(r.title)}"></div>`;
+    else if (lbPdf(r)) view = `<div class="lbview pdf"><iframe src="${u}" title="${esc(r.title)}"></iframe></div>`;
+    else if (['doc', 'docx', 'ppt', 'pptx', 'pps', 'ppsx', 'xls', 'xlsx'].includes(ext))   // Word / PowerPoint / Excel: Microsoft's free online viewer
+      view = `<div class="lbview pdf"><iframe src="https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}" title="${esc(r.title)}"></iframe></div><p class="muted" style="font-size:.78rem;margin:-.4rem 0 .6rem">If it doesn't show after a few seconds, use Open file in a new tab or Download.</p>`;
     else if (['mp4', 'mov', 'm4v', 'webm', 'ogv'].includes(ext)) view = `<div class="lbview"><video src="${u}" controls playsinline preload="metadata"></video></div>`;
     else if (['mp3', 'm4a', 'wav', 'aac', 'ogg'].includes(ext)) view = `<div class="lbview lbaud"><audio src="${u}" controls preload="metadata"></audio></div>`;
     else if (['txt', 'csv', 'md'].includes(ext)) { const t = await fetch(url).then(x => x.text()).catch(() => null); if (t !== null) view = `<div class="lbview lbtext"><pre>${esc(t.slice(0, 200000))}</pre></div>`; }
     if (!view) view = `<div class="pcard" style="margin:0 0 .8rem"><p style="margin:0">This kind of file (<b>.${esc(ext)}</b>) can't be shown inside the portal. Open it in a new tab or download it.</p></div>`;
-    $('dlgBody').innerHTML = `<h2>${esc(r.title)}</h2>${desc}${view}
-      <div class="acts"><a class="btnlink" href="${u}" target="_blank" rel="noopener">Open in a new tab</a><a class="btnlink quiet" href="${du}" download="${esc(r.file_name || '')}">Download</a><button class="quiet" data-act="close">Close</button></div>`;
-    $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal(); return;
+    panels.push([esc(r.file_name || 'File'), view]);
+    acts.push(`<a class="btnlink quiet" href="${u}" target="_blank" rel="noopener">Open file in a new tab</a><a class="btnlink quiet" href="${du}" download="${esc(r.file_name || '')}">Download</a>`);
   }
-  if (r.url) window.open(r.url, '_blank', 'noopener');
+  if (parts.includes('link')) panels.push(['Link', `<div class="pcard lblinkcard"><p style="margin:0 0 .6rem">${esc(r.url)}</p><a class="btnlink" href="${esc(r.url)}" target="_blank" rel="noopener">Open link ↗</a></div>`]);
+  const desc = r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<p class="lead" style="margin:.2rem 0 .8rem">${esc(r.description)}</p>` : '';
+  $('dlgBody').innerHTML = `<h2>${esc(r.title)}</h2>${desc}` +
+    (panels.length > 1 ? `<div class="tabs lbdtabs" role="tablist">${panels.map(([l], k) => `<button type="button" role="tab" data-lbpanel="${k}" class="${k ? '' : 'on'}" aria-selected="${!k}">${l}</button>`).join('')}</div>` : '') +
+    panels.map(([, h], k) => `<div class="lbpanel" data-panel="${k}" ${k ? 'hidden' : ''}>${h}</div>`).join('') +
+    `<div class="acts">${acts.join('')}<button class="quiet" data-act="close">Close</button></div>`;
+  $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal();
 }
+document.addEventListener('click', e => { const b = e.target.closest('[data-lbpanel]'); if (!b || !$('dlg').contains(b)) return;
+  document.querySelectorAll('[data-lbpanel]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', x === b); });
+  document.querySelectorAll('.lbpanel').forEach(x => x.hidden = x.dataset.panel !== b.dataset.lbpanel);
+  document.querySelectorAll('.lbpanel[hidden] video, .lbpanel[hidden] audio').forEach(v => v.pause());
+});
 
 function lbForm(id) {
   const r = LB.rows.find(x => x.id === id) || { kind: 'file', category: LB.cat || 'General', positions: [], tags: [] };
   const cats = [...new Set([...LB_CATS, ...LB.rows.map(x => x.category)])];
   $('dlgBody').innerHTML = `<div class="lbform"><h2>${r.id ? 'Edit resource' : 'Add resource'}</h2>
     <label>Title <input id="lbT" maxlength="120" value="${esc(r.title)}" placeholder="Front desk opening checklist"></label>
-    <label>Type <select id="lbK">${[['file', 'Upload a file (PDF, doc, slides, image, short video)'], ['link', 'Link (Google Drive, website...)'], ['video', 'Video link (YouTube, Loom, Vimeo, Drive)'], ['page', 'Write a page (script, SOP, checklist)']].map(([k, l]) => `<option value="${k}" ${r.kind === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    <div data-lbk="file"><label>File ${r.file_name ? `<small class="muted">(now: ${esc(r.file_name)}; choose a new one to replace it)</small>` : '<small class="muted">(up to 50 MB; for longer videos, use a video link)</small>'}<input id="lbF" type="file"></label></div>
-    <div data-lbk="link video"><label>Link <input id="lbU" type="url" maxlength="500" value="${esc(r.url)}" placeholder="https://"></label></div>
-    <div data-lbk="page"><label>Page text <small class="muted">(blank line = new paragraph, start lines with "- " for bullets, **bold**)</small><textarea id="lbB" rows="10" maxlength="20000">${esc(r.body)}</textarea></label></div>
+    <p class="muted lbhint2">Add any mix of these: for example a script file and a video link.</p>
+    <div class="lbpart"><label>📄 File <small class="muted">${r.file_name ? `(now: ${esc(r.file_name)}; choose a new one to replace it)` : '(PDF, doc, slides, image, short video; up to 50 MB)'}</small><input id="lbF" type="file"></label>
+      ${r.file_name ? '<label class="chkline lbrmf"><input type="checkbox" id="lbFx"> Remove this file</label>' : ''}</div>
+    <div class="lbpart"><label>🔗 Link or video <small class="muted">(YouTube, Loom, Vimeo, Google Drive, a website...)</small><input id="lbU" type="url" maxlength="500" value="${esc(r.url)}" placeholder="https://"></label></div>
+    <div class="lbpart"><label>📝 Written page <small class="muted">(script, SOP, checklist; blank line = new paragraph, "- " for bullets, **bold**)</small><textarea id="lbB" rows="${r.body ? 8 : 3}" maxlength="20000">${esc(r.body)}</textarea></label></div>
     <label>Short description <small class="muted">(optional)</small> <input id="lbD" maxlength="200" value="${esc(r.description)}"></label>
     <div class="grid2"><label>Category <input id="lbC" list="lbCats" maxlength="60" value="${esc(r.category)}"><datalist id="lbCats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></label>
       <label>Tags <small class="muted">(optional)</small> <input id="lbG" maxlength="200" value="${esc((r.tags || []).join(', '))}" placeholder="new hire, pricing"></label></div>
@@ -158,31 +163,29 @@ function lbForm(id) {
       <label class="chkline"><input type="checkbox" id="lbSign" ${r.needs_signoff ? 'checked' : ''}> Needs sign-off from their studio lead</label></fieldset>
     <div class="err" id="lbErr" role="alert"></div>
     <div class="acts"><button data-act="lbSave" data-id="${r.id || ''}">Save</button>${r.id ? `<button class="quiet" data-act="lbDel" data-id="${r.id}">Remove</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div></div>`;
-  lbShowKind();
   $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
 }
-const lbShowKind = () => { const k = $('lbK').value; document.querySelectorAll('[data-lbk]').forEach(el => el.hidden = !el.dataset.lbk.split(' ').includes(k)); };
 
 async function lbSave(id) {
-  const old = LB.rows.find(x => x.id === id), k = $('lbK').value, title = $('lbT').value.trim(), err = m => { $('lbErr').textContent = m; };
+  const old = LB.rows.find(x => x.id === id), title = $('lbT').value.trim(), err = m => { $('lbErr').textContent = m; };
   if (!title) return err('Add a title.');
-  const row = { title, kind: k, description: $('lbD').value.trim() || null, category: $('lbC').value.trim() || 'General',
+  const url = $('lbU').value.trim(), body = $('lbB').value.trim(), f = $('lbF').files[0], dropFile = !!($('lbFx') && $('lbFx').checked);
+  if (url && !/^https?:\/\//i.test(url)) return err('The link needs to start with https://');
+  const keepFile = old && old.file_path && !dropFile && !f;
+  if (!url && !body && !f && !keepFile) return err('Add at least one: a file, a link or video, or page text.');
+  if (f && f.size > 52428800) return err('That file is over 50 MB. Upload it to Google Drive or YouTube and add it as a link instead.');
+  const row = { title, description: $('lbD').value.trim() || null, category: $('lbC').value.trim() || 'General',
     tags: $('lbG').value.split(',').map(s => s.trim().replace(/^#/, '')).filter(Boolean), positions: [...document.querySelectorAll('[data-lbp]:checked')].map(x => x.dataset.lbp),
-    pinned: $('lbPin').checked, needs_signoff: $('lbSign').checked, url: null, body: null, updated_at: new Date().toISOString() };
-  if (k === 'link' || k === 'video') { row.url = $('lbU').value.trim(); if (!/^https?:\/\//i.test(row.url)) return err('Add a link that starts with https://'); }
-  if (k === 'page') { row.body = $('lbB').value.trim(); if (!row.body) return err('Write something on the page.'); }
-  const btn = document.querySelector('[data-act="lbSave"]'); btn.disabled = true; btn.textContent = 'Saving...';
+    pinned: $('lbPin').checked, needs_signoff: $('lbSign').checked, url: url || null, body: body || null, updated_at: new Date().toISOString() };
+  const btn = document.querySelector('[data-act="lbSave"]'); btn.disabled = true; btn.textContent = f ? 'Uploading...' : 'Saving...';
   try {
-    if (k === 'file') {
-      const f = $('lbF').files[0];
-      if (f) {
-        if (f.size > 52428800) throw new Error('That file is over 50 MB. Upload it to Google Drive or YouTube and add it as a link instead.');
-        const path = `${Date.now()}-${f.name.replace(/[^\w.\-]+/g, '_')}`;
-        const up = await db.storage.from('library').upload(path, f, { contentType: f.type || undefined }); if (up.error) throw up.error;
-        if (old && old.file_path) db.storage.from('library').remove([old.file_path]);
-        row.file_path = path; row.file_name = f.name;
-      } else if (!old || !old.file_path) throw new Error('Choose a file to upload.');
-    } else if (old && old.file_path) { db.storage.from('library').remove([old.file_path]); row.file_path = null; row.file_name = null; }
+    if (f) {
+      const path = `${Date.now()}-${f.name.replace(/[^\w.\-]+/g, '_')}`;
+      const up = await db.storage.from('library').upload(path, f, { contentType: f.type || undefined }); if (up.error) throw up.error;
+      if (old && old.file_path) db.storage.from('library').remove([old.file_path]);
+      row.file_path = path; row.file_name = f.name;
+    } else if (old && old.file_path && dropFile) { db.storage.from('library').remove([old.file_path]); row.file_path = null; row.file_name = null; }
+    row.kind = lbKindOf(row.url, f || keepFile, row.body);
     const put = x => id ? db.from('library_resources').update(x).eq('id', id) : db.from('library_resources').insert({ ...x, created_by: ME.id });
     let res = await put(row);
     if (res.error && /needs_signoff/.test(res.error.message || '')) { const { needs_signoff, ...rest } = row; res = await put(rest); }   // sql/library_paths_signoff.sql not run yet
@@ -217,7 +220,6 @@ $('lbBody').addEventListener('input', e => { if (e.target.id === 'lbFind') { LB.
 $('lbBody').addEventListener('change', e => { const t = e.target;
   if (t.id === 'lbAfLoc') { LB.af.loc = t.value; drawLibrary(); return; } if (t.id === 'lbAfSt') { LB.af.st = t.value; drawLibrary(); return; } if (t.id === 'lbAfRes') { LB.af.res = t.value; drawLibrary(); return; }
   if (t.id === 'lbCat') { LB.cat = t.value; drawLibrary(); } else if (t.id === 'lbKind') { LB.kind = t.value; drawLibrary(); } else if (t.id === 'lbMine') { LB.mine = t.checked; drawLibrary(); } });
-document.addEventListener('change', e => { if (e.target.id === 'lbK') lbShowKind(); });
 document.addEventListener('click', e => { const b = e.target.closest('[data-act="lbSave"],[data-act="lbDel"]'); if (!b || !$('dlg').contains(b)) return;
   b.dataset.act === 'lbSave' ? lbSave(b.dataset.id || null) : lbDel(b.dataset.id); });
 

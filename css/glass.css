@@ -1131,3 +1131,10 @@ a.htask { text-decoration:none; color:inherit; }
 @media (max-width:560px) { .lbform .grid2, .lbform .lbpeople { grid-template-columns:1fr; } .lbform .lbquick #laFind { width:100%; margin-left:0; } }
 .lbform label > input:not([type=checkbox]), .lbform label > select, .lbform label > textarea { display:block; width:100%; box-sizing:border-box; }
 .lbform .lbquick select { max-width:190px; }
+
+.lbhint2 { font-size:.8rem; margin:-.3rem 0 .6rem; }
+.lbpart { padding:.6rem .75rem .1rem; margin:0 0 .6rem; border-radius:12px; background:rgba(255,255,255,.35); border:1px solid rgba(38,30,20,.07); }
+.lbform .lbpart label { margin:0 0 .55rem; }
+.lbform .lbrmf { margin-top:-.25rem; font-size:.82rem; }
+.lbdtabs { margin:0 0 .8rem; }
+.lblinkcard p { word-break:break-all; font-size:.88rem; }
