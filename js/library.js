@@ -1,6 +1,6 @@
 // ---------- Library: training and reference resources ----------
 // Everyone can browse; owners add, edit and remove. Files live in the private "library" storage bucket.
-const LB = { rows: [], pos: [], myPos: new Set(), missing: false, q: '', cat: '', mine: false, kind: '', tab: 'lib', asg: [], all: [], people: [], pp: [], asgMissing: false, paths: [], af: { loc: '', st: 'open', res: '' } };
+const LB = { rows: [], pos: [], myPos: new Set(), missing: false, q: '', cat: '', mine: false, kind: '', tab: 'lib', view: (() => { try { return localStorage.getItem('lbView') || 'grid'; } catch (e) { return 'grid'; } })(), asg: [], all: [], people: [], pp: [], asgMissing: false, paths: [], af: { loc: '', st: 'open', res: '' } };
 const LB_KINDS = { file: ['File', '📄'], link: ['Link', '🔗'], video: ['Video', '▶'], page: ['Page', '📝'] };
 const LB_CATS = ['Start here', 'Sales', 'Stretch technique', 'Front desk', 'Member success', 'Policies', 'Opening & closing', 'Marketing', 'General'];
 
@@ -87,21 +87,33 @@ function drawLibrary() {
   const hit = r => !q || [r.title, r.description, r.category, r.body, r.file_name, ...(r.tags || []), ...(r.positions || []).map(lbPosName)].some(x => String(x || '').toLowerCase().includes(q));
   const list = LB.rows.filter(r => hit(r) && (!LB.cat || r.category === LB.cat) && (!LB.mine || lbForMe(r)) && (!LB.kind || r.kind === LB.kind || lbParts(r).includes(LB.kind)));
   const card = r => { const [kl, ki] = LB_KINDS[r.kind] || LB_KINDS.link, forMe = lbForMe(r) && r.positions && r.positions.length;
-    return `<div class="lbcard${r.pinned ? ' pin' : ''}" data-lb="${r.id}" tabindex="0" role="button" aria-label="Open ${esc(r.title)}">
+    return `<div class="lbcard${r.pinned ? ' pin' : ''}" data-lb="${r.id}" tabindex="0" role="button" aria-label="Open ${esc(r.title)}">${r.pinned ? '<span class="lbpinmark" title="Pinned" aria-hidden="true">📌</span>' : ''}
       ${LB.thumbs && LB.thumbs[r.id] ? `<div class="lbthumb" aria-hidden="true"><img src="${esc(LB.thumbs[r.id])}" alt="" loading="lazy"></div>` : `<div class="lbic" aria-hidden="true">${ki}</div>`}
       <div class="lbtxt"><b>${esc(r.title)}${lbNew(r) ? ' <span class="lbnew">New</span>' : ''}</b>${r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<span class="lbdesc">${esc(r.description)}</span>` : ''}
-        <div class="lbchips">${(lbParts(r).length ? lbParts(r) : [r.kind]).map(k => `<span class="lbchip k">${(LB_KINDS[k] || LB_KINDS.link)[0]}${k === 'file' && r.file_name ? ' • ' + esc(r.file_name.split('.').pop().toUpperCase()) : ''}</span>`).join('')}${forMe ? '<span class="lbchip me">For your role</span>' : ''}${(r.positions || []).length && !forMe ? (r.positions || []).map(id => `<span class="lbchip">${esc(lbPosName(id))}</span>`).join('') : ''}${r.needs_signoff ? '<span class="lbchip">Needs sign-off</span>' : ''}${(r.tags || []).map(t => `<span class="lbchip t">#${esc(t)}</span>`).join('')}</div>
+        <div class="lbchips">${!LB.cat ? `<span class="lbchip cat">${esc(r.category)}</span>` : ''}${(lbParts(r).length ? lbParts(r) : [r.kind]).map(k => `<span class="lbchip k">${(LB_KINDS[k] || LB_KINDS.link)[0]}${k === 'file' && r.file_name ? ' • ' + esc(r.file_name.split('.').pop().toUpperCase()) : ''}</span>`).join('')}${forMe ? '<span class="lbchip me">For your role</span>' : ''}${(r.positions || []).length && !forMe ? (r.positions || []).map(id => `<span class="lbchip">${esc(lbPosName(id))}</span>`).join('') : ''}${r.needs_signoff ? '<span class="lbchip">Needs sign-off</span>' : ''}${(r.tags || []).map(t => `<span class="lbchip t">#${esc(t)}</span>`).join('')}</div>
         ${own ? `<div class="lbacts"><span class="lbmeta">${lbAsgLine(r.id)}</span><button type="button" class="quiet lbasgbtn" data-lbasg="${r.id}" aria-label="Assign ${esc(r.title)}" title="Assign to people">Assign</button><button type="button" class="mg-ic" data-lbedit="${r.id}" aria-label="Edit ${esc(r.title)}" title="Edit">✎</button></div>` : ''}</div></div>`; };
-  const pinned = list.filter(r => r.pinned), byCat = cats.map(c => [c, list.filter(r => r.category === c && !r.pinned)]).filter(([, L]) => L.length);
+  const catN = c => LB.rows.filter(r => r.category === c).length;
+  const ordered = list.slice().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || cats.indexOf(a.category) - cats.indexOf(b.category) || a.title.localeCompare(b.title));
+  // List view: one slim row per item
+  const row = r => { const [, ki] = LB_KINDS[r.kind] || LB_KINDS.link, parts = lbParts(r).length ? lbParts(r) : [r.kind], forMe = lbForMe(r) && r.positions && r.positions.length;
+    return `<tr class="lbrow" data-lb="${r.id}" tabindex="0" aria-label="Open ${esc(r.title)}">
+      <td class="lbrowic">${LB.thumbs && LB.thumbs[r.id] ? `<img src="${esc(LB.thumbs[r.id])}" alt="" loading="lazy">` : `<span aria-hidden="true">${ki}</span>`}</td>
+      <td class="lbrowt"><b>${r.pinned ? '📌 ' : ''}${esc(r.title)}${lbNew(r) ? ' <span class="lbnew">New</span>' : ''}</b>${r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<span>${esc(r.description)}</span>` : ''}</td>
+      <td>${esc(r.category)}</td>
+      <td><div class="lbchips">${parts.map(k => `<span class="lbchip k">${(LB_KINDS[k] || LB_KINDS.link)[0]}${k === 'file' && r.file_name ? ' • ' + esc(r.file_name.split('.').pop().toUpperCase()) : ''}</span>`).join('')}${r.needs_signoff ? '<span class="lbchip">Sign-off</span>' : ''}</div></td>
+      <td class="muted">${forMe ? '<span class="lbchip me">Your role</span>' : (r.positions || []).length ? (r.positions || []).map(lbPosName).map(esc).join(', ') : 'Everyone'}</td>
+      ${own ? `<td class="muted lbrowm">${lbAsgLine(r.id)}</td><td><div class="lbrowacts"><button type="button" class="quiet lbasgbtn" data-lbasg="${r.id}">Assign</button><button type="button" class="mg-ic" data-lbedit="${r.id}" aria-label="Edit ${esc(r.title)}" title="Edit">✎</button></div></td>` : ''}</tr>`; };
   $('lbBody').innerHTML = `<div class="lbbar">
-      <select id="lbCat" aria-label="Category"><option value="">All categories (${LB.rows.length})</option>${cats.map(c => `<option ${LB.cat === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
       <select id="lbKind" aria-label="Type"><option value="">All types</option>${Object.entries(LB_KINDS).map(([k, [l]]) => `<option value="${k}" ${LB.kind === k ? 'selected' : ''}>${l}s</option>`).join('')}</select>
       ${LB.myPos.size ? `<label class="mem-mine"><input type="checkbox" id="lbMine" ${LB.mine ? 'checked' : ''}> Just for my role</label>` : ''}
+      <div class="lbview" role="group" aria-label="View"><button type="button" data-lbview="grid" class="${LB.view === 'grid' ? 'on' : ''}" aria-pressed="${LB.view === 'grid'}" title="Grid">▦ Grid</button><button type="button" data-lbview="list" class="${LB.view === 'list' ? 'on' : ''}" aria-pressed="${LB.view === 'list'}" title="List">☰ List</button></div>
       <input id="lbFind" type="search" placeholder="Search the library" aria-label="Search the library" value="${esc(LB.q)}"></div>` +
+    (LB.rows.length ? `<div class="lbcats" role="group" aria-label="Category"><button type="button" data-lbcat="" class="${!LB.cat ? 'on' : ''}">All <span>${LB.rows.length}</span></button>${cats.map(c => `<button type="button" data-lbcat="${esc(c)}" class="${LB.cat === c ? 'on' : ''}">${esc(c)} <span>${catN(c)}</span></button>`).join('')}</div>` : '') +
     (!LB.rows.length ? `<div class="pcard"><h3>Nothing here yet</h3><p>${own ? 'Click <b>Add resource</b> to upload a file, link a video or doc, or write a page (scripts, SOPs, checklists).' : 'Training materials and resources will show up here.'}</p></div>`
-      : !list.length ? '<p class="lead">Nothing matches that search.</p>'
-      : lbPathsSection(q) + (pinned.length ? `<section class="lbsec"><h3>📌 Start here</h3><div class="lbgrid">${pinned.map(card).join('')}</div></section>` : '') +
-        byCat.map(([c, L]) => `<section class="lbsec"><h3>${esc(c)} <span class="hcount">${L.length}</span></h3><div class="lbgrid">${L.map(card).join('')}</div></section>`).join(''));
+      : !list.length ? lbPathsSection(q) + '<p class="lead">Nothing matches that search.</p>'
+      : lbPathsSection(q) + (LB.view === 'list'
+        ? `<div class="table-wrap lblist"><table class="mt"><thead><tr><th></th><th>Title</th><th>Category</th><th>Type</th><th>For</th>${own ? '<th>Assigned</th><th></th>' : ''}</tr></thead><tbody>${ordered.map(row).join('')}</tbody></table></div>`
+        : `<div class="lbgrid">${ordered.map(card).join('')}</div>`));
   const f = $('lbFind'); if (f && LB.focus) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); LB.focus = false; }
   lbThumbs();
 }
@@ -214,6 +226,8 @@ $('lbBody').addEventListener('click', e => {
   const dn = e.target.closest('[data-lbdone]'); if (dn) { e.stopPropagation(); lbDone(dn.dataset.lbdone, dn.dataset.undo === '1'); return; }
   const rm = e.target.closest('[data-lbunasg]'); if (rm) { e.stopPropagation(); lbUnassign(rm.dataset.lbunasg); return; }
   const so = e.target.closest('[data-lbsign]'); if (so) { e.stopPropagation(); lbSignoff(so.dataset.lbsign, so.dataset.undo === '1'); return; }
+  const cb = e.target.closest('[data-lbcat]'); if (cb) { LB.cat = cb.dataset.lbcat; drawLibrary(); return; }
+  const vb = e.target.closest('[data-lbview]'); if (vb) { LB.view = vb.dataset.lbview; try { localStorage.setItem('lbView', LB.view); } catch (err) {} drawLibrary(); return; }
   const pn = e.target.closest('[data-lbpathnew]'); if (pn) { lbPathForm(null); return; }
   const pe = e.target.closest('[data-lbpathedit]'); if (pe) { e.stopPropagation(); lbPathForm(pe.dataset.lbpathedit); return; }
   const pas = e.target.closest('[data-lbpathasg]'); if (pas) { e.stopPropagation(); lbAssignForm('path:' + pas.dataset.lbpathasg); return; }
@@ -252,9 +266,9 @@ function lbPathsSection(q) {
   const L = LB.paths.filter(pa => !q || [pa.title, pa.description].some(x => String(x || '').toLowerCase().includes(q)));
   if (!L.length && !own) return '';
   if (!L.length && q) return '';
-  return `<section class="lbsec"><h3>🧭 Training paths ${L.length ? `<span class="hcount">${L.length}</span>` : ''}${own ? ' <button type="button" class="quiet lbasgbtn" data-lbpathnew="1">New path</button>' : ''}</h3>` +
-    (!L.length ? '<p class="lead" style="margin:0">Group trainings into a path (like "New Flexologist onboarding") and assign the whole set at once.</p>'
-      : `<div class="lbgrid">${L.map(pa => { const it = lbPathItems(pa), asg = LB.all.filter(a => a.path_id === pa.id), ppl = new Set(asg.map(a => a.user_id));
+  if (!L.length) return `<div class="lbpathsmall">🧭 <b>Training paths</b> <span class="muted">group trainings and assign the whole set at once</span> <button type="button" class="quiet lbasgbtn" data-lbpathnew="1">New path</button></div>`;
+  return `<section class="lbsec"><h3>🧭 Training paths <span class="hcount">${L.length}</span>${own ? ' <button type="button" class="quiet lbasgbtn" data-lbpathnew="1">New path</button>' : ''}</h3>` +
+    (`<div class="lbgrid">${L.map(pa => { const it = lbPathItems(pa), asg = LB.all.filter(a => a.path_id === pa.id), ppl = new Set(asg.map(a => a.user_id));
         return `<div class="lbcard lbpathcard" data-lbpath="${pa.id}" tabindex="0" role="button" aria-label="Open path ${esc(pa.title)}"><div class="lbic" aria-hidden="true">🧭</div>
           <div class="lbtxt"><b>${esc(pa.title)}</b>${pa.description ? `<span class="lbdesc">${esc(pa.description)}</span>` : ''}<div class="lbchips"><span class="lbchip k">${it.length} training${it.length === 1 ? '' : 's'}</span></div>
           ${own ? `<div class="lbacts"><span class="lbmeta">${ppl.size ? `Assigned to ${ppl.size}` : ''}</span><button type="button" class="quiet lbasgbtn" data-lbpathasg="${pa.id}">Assign</button><button type="button" class="mg-ic" data-lbpathedit="${pa.id}" aria-label="Edit ${esc(pa.title)}" title="Edit">✎</button></div>` : ''}</div></div>`; }).join('')}</div>`) + '</section>';
