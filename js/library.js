@@ -119,12 +119,22 @@ async function lbOpen(id) {
       <div class="acts"><a class="btnlink" href="${u}" target="_blank" rel="noopener">Open in a new tab</a><a class="btnlink quiet" href="${u}" download="${esc(r.file_name || '')}">Download</a><button class="quiet" data-act="close">Close</button></div>`;
     $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal(); return;
   }
-  if (r.kind === 'file' && r.file_path) {
-    const w = window.open('', '_blank');   // open the tab now so pop-up blockers allow it
+  if (r.kind === 'file' && r.file_path) {   // every other file opens in the portal too, instead of downloading
     const { data, error } = await db.storage.from('library').createSignedUrl(r.file_path, 3600);
-    if (error || !data) { if (w) w.close(); alert('Could not open that file. ' + (error ? error.message : '')); return; }
-    if (w) w.location = data.signedUrl; else location.href = data.signedUrl;
-    return;
+    if (error || !data) { alert('Could not open that file. ' + (error ? error.message : '')); return; }
+    const dl = await db.storage.from('library').createSignedUrl(r.file_path, 3600, { download: r.file_name || true }).catch(() => ({}));
+    const url = data.signedUrl, u = esc(url), du = esc((dl && dl.data && dl.data.signedUrl) || url), ext = String(r.file_name || r.file_path).split('.').pop().toLowerCase();
+    const desc = r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<p class="lead" style="margin:.2rem 0 .8rem">${esc(r.description)}</p>` : '';
+    let view = '';
+    if (['doc', 'docx', 'ppt', 'pptx', 'pps', 'ppsx', 'xls', 'xlsx'].includes(ext))   // Word / PowerPoint / Excel: Microsoft's free online viewer
+      view = `<div class="lbview pdf"><iframe src="https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}" title="${esc(r.title)}"></iframe></div><p class="muted" style="font-size:.78rem;margin:-.4rem 0 .6rem">If it doesn't show after a few seconds, use Open in a new tab or Download.</p>`;
+    else if (['mp4', 'mov', 'm4v', 'webm', 'ogv'].includes(ext)) view = `<div class="lbview"><video src="${u}" controls playsinline preload="metadata"></video></div>`;
+    else if (['mp3', 'm4a', 'wav', 'aac', 'ogg'].includes(ext)) view = `<div class="lbview lbaud"><audio src="${u}" controls preload="metadata"></audio></div>`;
+    else if (['txt', 'csv', 'md'].includes(ext)) { const t = await fetch(url).then(x => x.text()).catch(() => null); if (t !== null) view = `<div class="lbview lbtext"><pre>${esc(t.slice(0, 200000))}</pre></div>`; }
+    if (!view) view = `<div class="pcard" style="margin:0 0 .8rem"><p style="margin:0">This kind of file (<b>.${esc(ext)}</b>) can't be shown inside the portal. Open it in a new tab or download it.</p></div>`;
+    $('dlgBody').innerHTML = `<h2>${esc(r.title)}</h2>${desc}${view}
+      <div class="acts"><a class="btnlink" href="${u}" target="_blank" rel="noopener">Open in a new tab</a><a class="btnlink quiet" href="${du}" download="${esc(r.file_name || '')}">Download</a><button class="quiet" data-act="close">Close</button></div>`;
+    $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal(); return;
   }
   if (r.url) window.open(r.url, '_blank', 'noopener');
 }
