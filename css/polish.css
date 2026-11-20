@@ -3,6 +3,11 @@
    the compact top bar and More menu, loading placeholders, friendlier empty states, and dark mode.
    Delete this file's <link> in index.html to go back to the previous look. */
 
+/* ---------- 0. Page background ---------- */
+/* Keep the space under each page (room for the bottom nav) inside the body, so the photo covers it instead of the plain blue behind the page */
+body { display:flow-root; }
+html.dark { background:#17161a; }
+
 /* ---------- 1. Sizing: a notch smaller everywhere ---------- */
 body { font-size:14.5px; }
 main h2 { font-size:1.4rem; }
