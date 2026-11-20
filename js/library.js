@@ -132,21 +132,22 @@ async function lbOpen(id) {
 function lbForm(id) {
   const r = LB.rows.find(x => x.id === id) || { kind: 'file', category: LB.cat || 'General', positions: [], tags: [] };
   const cats = [...new Set([...LB_CATS, ...LB.rows.map(x => x.category)])];
-  $('dlgBody').innerHTML = `<h2>${r.id ? 'Edit resource' : 'Add resource'}</h2>
+  $('dlgBody').innerHTML = `<div class="lbform"><h2>${r.id ? 'Edit resource' : 'Add resource'}</h2>
     <label>Title <input id="lbT" maxlength="120" value="${esc(r.title)}" placeholder="Front desk opening checklist"></label>
     <label>Type <select id="lbK">${[['file', 'Upload a file (PDF, doc, slides, image, short video)'], ['link', 'Link (Google Drive, website...)'], ['video', 'Video link (YouTube, Loom, Vimeo, Drive)'], ['page', 'Write a page (script, SOP, checklist)']].map(([k, l]) => `<option value="${k}" ${r.kind === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <div data-lbk="file"><label>File ${r.file_name ? `<small class="muted">(now: ${esc(r.file_name)}; choose a new one to replace it)</small>` : '<small class="muted">(up to 50 MB; for longer videos, use a video link)</small>'}<input id="lbF" type="file"></label></div>
     <div data-lbk="link video"><label>Link <input id="lbU" type="url" maxlength="500" value="${esc(r.url)}" placeholder="https://"></label></div>
     <div data-lbk="page"><label>Page text <small class="muted">(blank line = new paragraph, start lines with "- " for bullets, **bold**)</small><textarea id="lbB" rows="10" maxlength="20000">${esc(r.body)}</textarea></label></div>
-    <label>Short description (optional) <input id="lbD" maxlength="200" value="${esc(r.description)}"></label>
+    <label>Short description <small class="muted">(optional)</small> <input id="lbD" maxlength="200" value="${esc(r.description)}"></label>
     <div class="grid2"><label>Category <input id="lbC" list="lbCats" maxlength="60" value="${esc(r.category)}"><datalist id="lbCats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></label>
-      <label>Tags (optional) <input id="lbG" maxlength="200" value="${esc((r.tags || []).join(', '))}" placeholder="new hire, pricing"></label></div>
-    <fieldset class="dlgrp"><legend>Who it's for <small class="muted" style="text-transform:none;letter-spacing:0">(leave all unticked for everyone)</small></legend>
-      <div class="lbpos">${LB.pos.map(p => `<label class="chkline"><input type="checkbox" data-lbp="${p.id}" ${(r.positions || []).includes(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}</div></fieldset>
-    <label class="chkline"><input type="checkbox" id="lbPin" ${r.pinned ? 'checked' : ''}> Pin to the top ("Start here")</label>
-    <label class="chkline"><input type="checkbox" id="lbSign" ${r.needs_signoff ? 'checked' : ''}> Needs sign-off from their studio lead when assigned (hands-on skills)</label>
+      <label>Tags <small class="muted">(optional)</small> <input id="lbG" maxlength="200" value="${esc((r.tags || []).join(', '))}" placeholder="new hire, pricing"></label></div>
+    <fieldset class="dlgrp"><legend>Who it's for <small class="muted lbhint">none picked = everyone</small></legend>
+      <div class="lbtogs">${LB.pos.map(p => `<label class="lbtog"><input type="checkbox" data-lbp="${p.id}" ${(r.positions || []).includes(p.id) ? 'checked' : ''}>${esc(p.name)}</label>`).join('')}</div></fieldset>
+    <fieldset class="dlgrp"><legend>Options</legend>
+      <label class="chkline"><input type="checkbox" id="lbPin" ${r.pinned ? 'checked' : ''}> Pin to the top ("Start here")</label>
+      <label class="chkline"><input type="checkbox" id="lbSign" ${r.needs_signoff ? 'checked' : ''}> Needs sign-off from their studio lead</label></fieldset>
     <div class="err" id="lbErr" role="alert"></div>
-    <div class="acts"><button data-act="lbSave" data-id="${r.id || ''}">Save</button>${r.id ? `<button class="quiet" data-act="lbDel" data-id="${r.id}">Remove</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div>`;
+    <div class="acts"><button data-act="lbSave" data-id="${r.id || ''}">Save</button>${r.id ? `<button class="quiet" data-act="lbDel" data-id="${r.id}">Remove</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div></div>`;
   lbShowKind();
   $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
 }
@@ -252,13 +253,13 @@ function lbPathOpen(id) {
 }
 function lbPathForm(id) {
   const pa = LB.paths.find(x => x.id === id) || { items: [] }, sel = (pa.items || []).filter(lbRes), rest = LB.rows.filter(r => !sel.includes(r.id));
-  $('dlgBody').innerHTML = `<h2>${pa.id ? 'Edit path' : 'New training path'}</h2>
+  $('dlgBody').innerHTML = `<div class="lbform"><h2>${pa.id ? 'Edit path' : 'New training path'}</h2>
     <label>Name <input id="lpT" maxlength="120" value="${esc(pa.title)}" placeholder="New Flexologist onboarding"></label>
     <label>Description (optional) <input id="lpD" maxlength="200" value="${esc(pa.description)}" placeholder="Everything to finish in your first two weeks"></label>
     <fieldset class="dlgrp"><legend>Trainings, in order <small class="muted" style="text-transform:none;letter-spacing:0">(tick to include; use ↑ ↓ to reorder)</small></legend>
       <div class="lbpathpick" id="lpList">${[...sel.map(lbRes), ...rest].map(r => `<div class="lbpp" data-rid="${r.id}"><label class="chkline"><input type="checkbox" ${sel.includes(r.id) ? 'checked' : ''}> ${esc(r.title)} <small class="muted">${esc(r.category)}</small></label><span><button type="button" class="mg-ic" data-lpmv="-1" aria-label="Move up">↑</button><button type="button" class="mg-ic" data-lpmv="1" aria-label="Move down">↓</button></span></div>`).join('')}</div></fieldset>
     <div class="err" id="lpErr" role="alert"></div>
-    <div class="acts"><button data-act="lpSave" data-id="${pa.id || ''}">Save</button>${pa.id ? `<button class="quiet" data-act="lpDel" data-id="${pa.id}">Delete path</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div>`;
+    <div class="acts"><button data-act="lpSave" data-id="${pa.id || ''}">Save</button>${pa.id ? `<button class="quiet" data-act="lpDel" data-id="${pa.id}">Delete path</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div></div>`;
   $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
 }
 async function lbPathSave(btn) {
@@ -327,21 +328,25 @@ function lbDrawAssigned() {
 }
 
 function lbAssignForm(pick) {
-  const ppl = LB.people, posOf = id => LB.pp.filter(x => x.user_id === id).map(x => x.position_id);
+  const ppl = LB.people.filter(p => !/\bbot\b|clubready-bot/i.test(p.full_name || p.email || '')), posOf = id => LB.pp.filter(x => x.user_id === id).map(x => x.position_id);
   const usedPos = LB.pos.filter(p => LB.pp.some(x => x.position_id === p.id)), usedLoc = locs.filter(l => ppl.some(p => p.location_id === l.id));
   const only = pick && !String(pick).startsWith('path:') ? LB.rows.filter(r => r.id === pick) : null;
   if (!LB.rows.length) { alert('Add something to the Library first, then assign it.'); return; }
   const opts = only ? only.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('')
     : (LB.paths.length ? `<optgroup label="Paths (assigns every training in it)">${LB.paths.map(pa => `<option value="path:${pa.id}" ${pick === 'path:' + pa.id ? 'selected' : ''}>🧭 ${esc(pa.title)} (${lbPathItems(pa).length})</option>`).join('')}</optgroup><optgroup label="Single trainings">` : '') +
       LB.rows.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('') + (LB.paths.length ? '</optgroup>' : '');
-  $('dlgBody').innerHTML = `<h2>Assign training</h2>
+  $('dlgBody').innerHTML = `<div class="lbform"><h2>Assign training</h2>
     <label>Training or path <select id="laR">${opts}</select></label>
-    <fieldset class="dlgrp"><legend>Who</legend>
-      <div class="lbquick">Select: <button type="button" class="quiet sm" data-laq="all">Everyone</button>${usedLoc.map(l => `<button type="button" class="quiet sm" data-laq="loc:${l.id}">${esc(l.name)}</button>`).join('')}${usedPos.map(p => `<button type="button" class="quiet sm" data-laq="pos:${p.id}">${esc(p.name)}</button>`).join('')}<button type="button" class="quiet sm" data-laq="none">Clear</button></div>
-      <div class="lbpeople">${ppl.map(p => `<label class="chkline"><input type="checkbox" data-lau="${p.id}" data-loc="${p.location_id || ''}" data-pos="${posOf(p.id).join(' ')}"> ${esc(p.full_name || p.email)} <small class="muted">${esc(lbLoc(p.location_id))}</small><small class="muted lbhas" data-has="${p.id}"></small></label>`).join('')}</div></fieldset>
-    <div class="grid2"><label>Due date (optional) <input id="laD" type="date"></label><label>Note (optional) <input id="laN" maxlength="200" placeholder="Finish before your first solo shift"></label></div>
+    <fieldset class="dlgrp"><legend>Who <span class="lbsel" id="laCount">0 selected</span></legend>
+      <div class="lbquick">
+        <select id="laAddLoc" aria-label="Add everyone at a studio"><option value="">+ Add a studio</option>${usedLoc.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')}</select>
+        <select id="laAddPos" aria-label="Add everyone with a role"><option value="">+ Add a role</option>${usedPos.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>
+        <button type="button" class="linkish" data-laq="all">Everyone</button><button type="button" class="linkish" data-laq="none">Clear</button>
+        <input id="laFind" type="search" placeholder="Find a person" aria-label="Find a person"></div>
+      <div class="lbpeople">${ppl.map(p => `<label class="chkline" data-name="${esc(String(p.full_name || p.email).toLowerCase())}"><input type="checkbox" data-lau="${p.id}" data-loc="${p.location_id || ''}" data-pos="${posOf(p.id).join(' ')}"><span>${esc(p.full_name || p.email)} <small class="muted">${esc(lbLoc(p.location_id))}</small><small class="muted lbhas" data-has="${p.id}"></small></span></label>`).join('')}</div></fieldset>
+    <div class="grid2"><label>Due date <small class="muted">(optional)</small> <input id="laD" type="date"></label><label>Note <small class="muted">(optional)</small> <input id="laN" maxlength="200" placeholder="Finish before your first solo shift"></label></div>
     <div class="err" id="laErr" role="alert"></div>
-    <div class="acts"><button data-act="laSave">Assign</button><button class="quiet" data-act="close">Cancel</button></div>`;
+    <div class="acts"><button data-act="laSave">Assign</button><button class="quiet" data-act="close">Cancel</button></div></div>`;
   $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
   lbMarkHas();
 }
@@ -352,13 +357,18 @@ function lbMarkHas() {
   document.querySelectorAll('[data-has]').forEach(el => { const A = LB.all.filter(x => rids.includes(x.resource_id) && x.user_id === el.dataset.has);
     el.textContent = !A.length ? '' : pa ? ` • has ${A.length} of ${rids.length}` : lbIsDone(A[0]) ? ' • already done' : ' • already assigned'; });
 }
-document.addEventListener('change', e => { if (e.target.id === 'laR') lbMarkHas(); });
+const lbCountSel = () => { const n = document.querySelectorAll('[data-lau]:checked').length; if ($('laCount')) $('laCount').textContent = n + ' selected'; };
+document.addEventListener('change', e => { const t = e.target;
+  if (t.id === 'laR') lbMarkHas();
+  else if (t.id === 'laAddLoc' || t.id === 'laAddPos') { const v = t.value; if (!v) return; document.querySelectorAll('[data-lau]').forEach(c => { if (t.id === 'laAddLoc' ? c.dataset.loc === v : c.dataset.pos.split(' ').includes(v)) c.checked = true; }); t.value = ''; lbCountSel(); }
+  else if (t.dataset && t.dataset.lau) lbCountSel(); });
+document.addEventListener('input', e => { if (e.target.id !== 'laFind') return; const q = e.target.value.trim().toLowerCase(); document.querySelectorAll('.lbpeople [data-name]').forEach(l => l.hidden = !!q && !l.dataset.name.includes(q)); });
 document.addEventListener('click', e => {
   if (!$('dlg').contains(e.target)) return;
   const q = e.target.closest('[data-laq]'); if (q) {
     const [k, v] = q.dataset.laq.split(':');
     document.querySelectorAll('[data-lau]').forEach(c => { if (k === 'none') c.checked = false; else if (k === 'all' || (k === 'loc' && c.dataset.loc === v) || (k === 'pos' && c.dataset.pos.split(' ').includes(v))) c.checked = true; });
-    return;
+    lbCountSel(); return;
   }
   const mv = e.target.closest('[data-lpmv]'); if (mv) { const row = mv.closest('.lbpp'), d = +mv.dataset.lpmv; if (d < 0 && row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling); else if (d > 0 && row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row); return; }
   const pi = e.target.closest('[data-lbpi]'); if (pi) { lbOpen(pi.dataset.lbpi); return; }

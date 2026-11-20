@@ -1100,3 +1100,31 @@ a.htask { text-decoration:none; color:inherit; }
 .lbcard:has(.lbacts) .lbtxt { padding-right:0; }
 .lbasgbtn { height:1.9rem; padding:0 .65rem; font-size:.75rem; }
 .lbtr .lbtxt { padding-right:0; }
+
+/* Library dialogs: compact forms */
+.lbform { width:min(560px, 100%); }
+.lbform h2 { margin:0 0 .9rem; }
+.lbform label { display:block; font-size:.86rem; font-weight:600; margin:0 0 .75rem; }
+.lbform label > input:not([type=checkbox]), .lbform label > select, .lbform label > textarea { margin-top:.3rem; }
+.lbform .chkline { display:flex; font-weight:400; margin:0 0 .35rem; }
+.lbform .grid2 { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0 .8rem; }
+.lbform .dlgrp { margin:0 0 .9rem; }
+.lbhint { text-transform:none; letter-spacing:0; font-weight:400; margin-left:.3rem; }
+.lbtogs { display:flex; flex-wrap:wrap; gap:.35rem; }
+.lbform label.lbtog { display:inline-flex; align-items:center; margin:0; padding:.3rem .75rem; border-radius:999px; font-size:.8rem; font-weight:500; background:rgba(255,255,255,.55); border:1px solid rgba(38,30,20,.12); cursor:pointer; user-select:none; }
+.lbtog input { position:absolute; opacity:0; width:1px; height:1px; }
+.lbtog:has(input:checked) { background:var(--dark, #2a2118); color:#fff; border-color:transparent; }
+.lbtog:has(input:focus-visible) { outline:2px solid var(--dark); outline-offset:2px; }
+.lbsel { text-transform:none; letter-spacing:0; font-weight:500; margin-left:.4rem; color:var(--ink); }
+.lbform .lbquick { gap:.4rem; margin:0 0 .5rem; }
+.lbform .lbquick select { width:auto; margin:0; padding:.35rem .6rem; font-size:.8rem; }
+.lbform .lbquick .linkish { font-size:.8rem; font-weight:500; }
+.lbform .lbquick #laFind { margin:0 0 0 auto; width:150px; padding:.35rem .7rem; font-size:.8rem; }
+.lbform .lbpeople { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0 .8rem; max-height:220px; padding:.4rem .5rem; border-radius:12px; background:rgba(255,255,255,.35); }
+.lbform .lbpeople .chkline { margin:0; padding:.28rem 0; font-size:.86rem; align-items:flex-start; }
+.lbform .lbpeople .chkline span { line-height:1.25; }
+.lbform .lbpeople .chkline input { margin-top:.15rem; }
+.lbform .lbpeople small { font-size:.72rem; margin-left:.2rem; }
+@media (max-width:560px) { .lbform .grid2, .lbform .lbpeople { grid-template-columns:1fr; } .lbform .lbquick #laFind { width:100%; margin-left:0; } }
+.lbform label > input:not([type=checkbox]), .lbform label > select, .lbform label > textarea { display:block; width:100%; box-sizing:border-box; }
+.lbform .lbquick select { max-width:190px; }
