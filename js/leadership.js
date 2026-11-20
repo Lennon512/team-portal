@@ -82,7 +82,7 @@ function drawHr() {
       <td>${rz}</td><td class="${cls}">${dueTxt}</td><td class="hract"><button class="quiet sm" data-hrraise="${x.s.id}">Give raise</button></td></tr>`;
   }).join('');
   $('hrBody').innerHTML = rows.length ? `<div class="table-wrap"><table class="mt hrt"><thead><tr><th>Employee</th><th>Hired</th><th>Base rate</th><th>Per stretch</th><th>Last raise</th><th>Next review</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`
-    : '<p class="lead">No one matches.</p>';
+    : '<p class="lead empty">No one matches.</p>';
 }
 
 // Every pay change across the team, newest first
@@ -95,7 +95,7 @@ function drawHrHistory(rows) {
     const p = prevOf(x), s = byId[x.staff_id];
     const ch = (n, o) => n === null || n === undefined ? '-' : (o !== null && o !== undefined && +o !== +n ? `<span class="muted">${hr$(o)} →</span> ` : '') + `<b>${hr$(n)}</b>${o !== null && o !== undefined ? ' ' + hrDelta(n, o) : ''}`;
     return `<tr data-hr="${x.staff_id}"><td>${hrFmt(x.effective_date)}${x.effective_date > td ? ' <span class="pill ice">scheduled</span>' : ''}</td><td><b>${esc(s.full_name)}</b><small>${esc(studio(s.studio_id) || '')}</small></td><td class="hrnum">${ch(x.base_rate, p && p.base_rate)}</td><td class="hrnum">${ch(x.per_stretch, p && p.per_stretch)}</td><td>${esc(CHG[x.change_type] || x.change_type || '')}</td><td class="nt">${esc(x.note || '')}</td></tr>`;
-  }).join('') + '</tbody></table></div>' : '<p class="lead">No pay changes logged yet.</p>';
+  }).join('') + '</tbody></table></div>' : '<p class="lead empty none">No pay changes logged yet.</p>';
 }
 
 // ----- one person -----

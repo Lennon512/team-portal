@@ -39,7 +39,7 @@ async function timeOffBadge() {
   if (!ME || ME.role === 'staff') return;
   const [{ data }] = await Promise.all([db.from('time_off_requests').select('id,user_id').eq('status', 'pending'), loadToAct()]);
   const n = (data || []).filter(r => toAct ? toAct.has(r.id) : (r.user_id !== ME.id || ME.role === 'owner')).length;
-  $('navOff').textContent = 'Time off' + (n ? ` (${n})` : '');
+  setNavBadge('navOff', n);
 }
 
 async function showOff(id) {

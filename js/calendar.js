@@ -258,7 +258,7 @@ async function loadOffPanel() {
   const mine = all.filter(r => r.user_id === ME.id);
   $('offPanel').innerHTML =
     (pend.length ? '<h2>Waiting for your approval</h2>' + pend.map(r => `<div class="req"><div><b>${esc(nm(r))}</b><br>${line(r)}</div><div class="acts" style="margin:0"><button data-a="approved" data-id="${r.id}">Approve</button><button class="quiet" data-a="denied" data-id="${r.id}">Deny</button></div></div>`).join('') : '') +
-    '<h2>My requests</h2>' + (mine.map(r => `<div class="req"><div>${line(r)}</div><div>${esc(r.status)}${r.status === 'pending' ? ` <button class="quiet" data-a="cancel" data-id="${r.id}">Cancel</button>` : ''}</div></div>`).join('') || '<p class="lead">No requests yet. Use Request time off above.</p>');
+    '<h2>My requests</h2>' + (mine.map(r => `<div class="req"><div>${line(r)}</div><div>${esc(r.status)}${r.status === 'pending' ? ` <button class="quiet" data-a="cancel" data-id="${r.id}">Cancel</button>` : ''}</div></div>`).join('') || '<p class="lead empty none">No requests yet. Use Request time off above.</p>');
 }
 
 $('offPanel').onclick = async e => {

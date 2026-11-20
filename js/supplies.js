@@ -22,7 +22,7 @@ async function suppliesBadge() {
   if (!ME || ME.role !== 'owner') return;
   const { data } = await db.from('supply_requests').select('item_id').eq('status', 'needed');
   const n = (data || []).length;
-  $('navSup').textContent = 'Supplies' + (n ? ` (${n})` : '');
+  setNavBadge('navSup', n);
 }
 
 async function loadSupplies() {
@@ -88,7 +88,7 @@ function spDrawOrder() {
       : '<p class="hclear">✓ Nothing to order right now.</p>') +
     (lows.length ? `<h3 class="sub" style="margin-top:1.6rem">Low, but not requested</h3><div class="splist">` + lows.map(({ l, it, st }) => `<div class="spreq"><div><b>${esc(it.name)}</b> <span class="muted">• ${esc(l.name)} • have ${st.have}, min ${st.min}</span></div><div class="spreqact"><button class="quiet sm" data-sp="need" data-s="${l.id}" data-i="${it.id}" data-q="${esc(spAutoQty(it, st.have, st))}">Add to order list</button></div></div>`).join('') + '</div>' : '') +
     `<h3 class="sub" style="margin-top:1.6rem">On the way <span class="hcount">${coming.length}</span></h3>` +
-    (coming.length ? '<div class="splist">' + coming.flatMap(([iid, rs]) => rs.map(r => `<div class="spreq"><div><b>${esc(byItem[iid].name)}</b> <span class="muted">• ${esc(studio(r.studio_id))}${r.qty ? ' • ' + esc(r.qty) : ''}</span></div>${reqStep(r)}<div class="spreqact">${arriveForm(r.studio_id, iid)}<button class="quiet sm" data-sp="unorder" data-s="${r.studio_id}" data-i="${iid}" title="Move back to To order">Undo</button></div></div>`)).join('') + '</div>' : '<p class="lead">Nothing on the way.</p>');
+    (coming.length ? '<div class="splist">' + coming.flatMap(([iid, rs]) => rs.map(r => `<div class="spreq"><div><b>${esc(byItem[iid].name)}</b> <span class="muted">• ${esc(studio(r.studio_id))}${r.qty ? ' • ' + esc(r.qty) : ''}</span></div>${reqStep(r)}<div class="spreqact">${arriveForm(r.studio_id, iid)}<button class="quiet sm" data-sp="unorder" data-s="${r.studio_id}" data-i="${iid}" title="Move back to To order">Undo</button></div></div>`)).join('') + '</div>' : '<p class="lead empty">Nothing on the way.</p>');
 }
 
 // ----- Owner: inventory grid, every item at every studio -----
@@ -128,7 +128,7 @@ function spManage() {
   $('dlgBody').innerHTML = `<h2>Manage supply list</h2><p class="lead" style="margin:.25rem 0 1rem">Every studio uses this same list. Set per-studio minimums on the Minimums tab.</p>
     <label>Add supplies, one per line: Name | Category | Order link | Unit | Minimum | Order up to (everything after the name is optional)<textarea id="spNew" rows="5" placeholder="Massage oil | Treatment room | https://... | bottles | 4 | 10"></textarea></label>
     <div class="err" id="spErr" role="alert"></div><div class="acts"><button data-act="spAdd">Add to list</button></div>
-    <h3 class="sub" style="margin-top:1.25rem">Current list</h3>` + (sp.items.map(x => `<div class="req"><div>${esc(x.name)} <span class="lead">${esc(x.category || 'Other')}</span></div><button class="quiet sm" data-act="spRm" data-id="${x.id}">Remove</button></div>`).join('') || '<p class="lead">Nothing yet.</p>') + '<div class="acts"><button class="quiet" data-act="close">Close</button></div>';
+    <h3 class="sub" style="margin-top:1.25rem">Current list</h3>` + (sp.items.map(x => `<div class="req"><div>${esc(x.name)} <span class="lead">${esc(x.category || 'Other')}</span></div><button class="quiet sm" data-act="spRm" data-id="${x.id}">Remove</button></div>`).join('') || '<p class="lead empty">Nothing yet.</p>') + '<div class="acts"><button class="quiet" data-act="close">Close</button></div>';
   if (!$('dlg').open) $('dlg').showModal();
 }
 

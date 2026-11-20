@@ -38,7 +38,7 @@ function cmpResultsHtml(side) {
 }
 
 async function drawCompare() {
-  if (!PF.cmpIndex) { $('pfBody').innerHTML = '<p class="lead">Loading locations...</p>'; await loadCmpIndex(); }
+  if (!PF.cmpIndex) { $('pfBody').innerHTML = '<p class="lead loading">Loading locations...</p>'; await loadCmpIndex(); }
   const slot = (side, label) => {
     const c = PF.cmp[side];
     return `<label class="cmpslot">${label}${cmpSelectHtml(side)}${c ? `<small class="muted">${esc([c.franchise, c.tier].filter(Boolean).join(' \u2022 '))}${c.rows.length ? ' \u2022 ' + c.rows.length + ' month' + (c.rows.length === 1 ? '' : 's') + ' on file' : ' \u2022 no history yet'}</small>` : ''}</label>`;

@@ -12,7 +12,7 @@ const gpNum = (v, d = 1) => v === null || v === undefined || !isFinite(v) ? '–
 const gpAdd = (d, n) => { const x = new Date(d + 'T00:00'); x.setDate(x.getDate() + n); return ymd(x); };
 
 async function loadGoalPlan() {
-  $('pfBody').innerHTML = '<p class="lead">Loading…</p>';
+  $('pfBody').innerHTML = '<p class="lead loading">Loading…</p>';
   if (!GP.closed) { const c = await db.from('studio_info').select('location_id').eq('temp_closed', true); GP.closed = new Set((c.data || []).map(r => r.location_id)); }
   const L = gpStudios(), mine = ME.role !== 'owner' && ME.location_id && L.some(l => l.id === ME.location_id);
   if (mine && !netOk()) GP.studio = ME.location_id;

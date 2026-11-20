@@ -127,7 +127,7 @@ function drawLeads() {
     <p class="lead mem-lead">Showing <b>${rows.length}</b> of <b>${base.length}</b> leads${span ? ' added ' + span : ''}${LD.dueOnly ? ', only those due for a call or text' : ''}${LD.never ? ', only never contacted' : ''}, ${sortTxt}.${filtered ? ' <button class="linkish" data-ldreset="1">Clear filters</button>' : ''} Click a lead for their full history.</p>` +
     (rows.length ? speedStrip(rows) : '') +
     (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr>${LD_COLS.map(th).join('')}</tr></thead><tbody>` +
-      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l)}</td><td>${attCell(c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>${detailCells(c)}</tr>`).join('') + '</tbody></table></div>' : '<p class="lead">No leads match these filters.</p>') +
+      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l)}</td><td>${attCell(c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>${detailCells(c)}</tr>`).join('') + '</tbody></table></div>' : '<p class="lead empty">No leads match these filters.</p>') +
     `<p class="legend nb-legend"><span><i class="hchip h0"></i>Today / 1 day</span><span><i class="hchip h1"></i>2–3 days</span><span><i class="hchip h2"></i>4–7</span><span><i class="hchip h3"></i>8–14</span><span><i class="hchip h4"></i>15+ or never</span><span class="muted">(last contact). Added: 1 / 7 / 30 / 60 days..</span></p>`;
 }
 
