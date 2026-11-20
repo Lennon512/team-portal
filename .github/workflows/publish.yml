@@ -1,0 +1,38 @@
+# Publishes the portal to GitHub Pages on every change to main.
+# Before publishing it stamps every ?v= on scripts and styles in the HTML with this change's commit ID,
+# so browsers always load the newest code (no more forgetting to bump version numbers by hand).
+# One-time setup: Settings > Pages > Build and deployment > Source: "GitHub Actions".
+name: Publish site
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy the site and stamp file versions
+        run: |
+          V="${GITHUB_SHA::8}"
+          mkdir _site
+          git ls-files -z | grep -zv '^\.github/' | xargs -0 cp --parents -t _site
+          for f in _site/*.html; do sed -i -E "s/\.(js|css)\?v=[0-9A-Za-z]+/.\1?v=${V}/g" "$f"; done
+          echo "Stamped version ${V}:"; grep -ho '[a-z/-]*\.\(js\|css\)?v=[0-9A-Za-z]*' _site/*.html | sort -u
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
