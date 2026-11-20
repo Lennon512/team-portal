@@ -844,6 +844,19 @@ a.htask { text-decoration:none; color:inherit; }
 .lbchip.me { background:rgba(46,125,80,.14); color:#22603d; }
 .lbchip.t { background:transparent; padding-left:0; }
 .lbedit { position:absolute; top:.6rem; right:.6rem; }
+.lbacts { position:absolute; top:.6rem; right:.6rem; display:flex; gap:.3rem; opacity:.85; }
+.lbcount { display:inline-grid; place-items:center; min-width:1.2rem; height:1.2rem; padding:0 .3rem; margin-left:.2rem; border-radius:999px; background:var(--dark, #2a2118); color:#fff; font-size:.7rem; font-weight:700; }
+.lbmine { display:flex; flex-direction:column; gap:.6rem; }
+.lbtr { display:flex; gap:.8rem; align-items:center; padding:.9rem 1rem; border-radius:16px; background:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.7); cursor:pointer; }
+.lbtr:hover { background:rgba(255,255,255,.8); } .lbtr:focus-visible { outline:2px solid var(--dark); outline-offset:2px; }
+.lbtr .lbtxt { flex:1; min-width:0; } .lbtr.done { opacity:.7; } .lbtr.done b { text-decoration:line-through; text-decoration-color:rgba(38,30,20,.35); }
+.lbtr.late { border-color:rgba(165,50,31,.35); }
+.lbdonebtn { white-space:nowrap; flex:none; }
+.lbchip.st-done { background:rgba(46,125,80,.14); color:#22603d; } .lbchip.st-late { background:#fde3dc; color:#a5321f; } .lbchip.st-open { background:rgba(160,120,60,.14); color:#7d5608; }
+.lbquick { display:flex; flex-wrap:wrap; gap:.3rem; align-items:center; margin:0 0 .6rem; font-size:.85rem; color:var(--muted); }
+.lbquick button { padding:.25rem .65rem; font-size:.78rem; }
+.lbpeople { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:.2rem .8rem; max-height:260px; overflow-y:auto; }
+.lbpeople small { font-size:.72rem; }
 .lbpage { max-height:60vh; overflow:auto; line-height:1.55; }
 .lbpage h3 { margin:1rem 0 .4rem; } .lbpage p { margin:0 0 .8rem; } .lbpage ul, .lbpage ol { margin:0 0 .8rem; padding-left:1.3rem; }
 .lbvid { position:relative; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; }
@@ -1065,3 +1078,6 @@ a.htask { text-decoration:none; color:inherit; }
 .gpins { display:flex; flex-wrap:wrap; gap:.6rem 1.2rem; align-items:center; }
 .gpins label { display:flex; align-items:center; gap:.35rem; font-size:.88rem; margin:0; }
 .gpin { width:5.5rem; }
+.lbcard:has(.lbacts) .lbtxt { padding-right:6.2rem; }
+.lbasgbtn { height:1.9rem; padding:0 .65rem; font-size:.75rem; }
+.lbtr .lbtxt { padding-right:0; }
