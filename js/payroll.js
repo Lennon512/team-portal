@@ -129,7 +129,7 @@ async function loadPayroll() {
   PAY.periods = [...seen.values()].sort((a, b) => b.period_start < a.period_start ? -1 : 1);
   $('payPeriod').innerHTML = PAY.periods.map(x => `<option value="${x.period_start}" ${x.period_start === PAY.period ? 'selected' : ''}>${fmt(x.period_start)} \u2013 ${fmt(x.period_end)} (pay ${fmt(x.pay_date)})</option>`).join('') || '<option value="">No periods uploaded yet</option>';
   if (!PAY.period && PAY.periods[0]) PAY.period = PAY.periods[0].period_start;
-  if (!PAY.period) { $('payBody').innerHTML = '<p class="lead">No payroll uploaded for this studio yet. Click Upload reports to start.</p>'; $('payAlert').innerHTML = ''; return; }
+  if (!PAY.period) { $('payBody').innerHTML = '<p class="lead empty none">No payroll uploaded for this studio yet. Click Upload reports to start.</p>'; $('payAlert').innerHTML = ''; return; }
   const { data } = await db.from('payroll_lines').select('*').eq('studio_id', PAY.studio).eq('period_start', PAY.period).order('total_pay', { ascending: false });
   PAY.rows = data || [];
   drawPayroll();

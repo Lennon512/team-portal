@@ -130,8 +130,8 @@ function drawMem() {
     check: `${all.length} recent signups with monthly billing but no invoice coming due. Worth a look in ClubReady.`,
     package: `${all.length} people on packages instead of memberships, fewest credits first. They need a nudge to join.` }[g];
   const cols = g === 'member' && !hasInv() ? COLS.member.filter(c => c[0] !== 'Next invoice' && c[0] !== 'Pace') : COLS[g];
-  $('memBody').innerHTML = mem.meta ? `<p class="lead">${blurb}</p>` + (rows.length ? `<div class="table-wrap"><table class="mt"><thead><tr>${cols.map(c => { const k = g === 'member' && SORTABLE[c[0]]; return k ? `<th data-sort=\"${k}\" class=\"${mem.sort === k ? 'on' : ''}\" title=\"Sort by ${c[0].toLowerCase()}\">${c[0]}${mem.sort === k ? (mem.dir > 0 ? ' \u25BE' : ' \u25B4') : ''}</th>` : `<th>${c[0]}</th>`; }).join('')}</tr></thead><tbody>${rows.map(x => `<tr data-m="${x.r.club_id}">${cols.map(c => c[1](x)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="lead">Nothing here.</p>')
-    : '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>';
+  $('memBody').innerHTML = mem.meta ? `<p class="lead">${blurb}</p>` + (rows.length ? `<div class="table-wrap"><table class="mt"><thead><tr>${cols.map(c => { const k = g === 'member' && SORTABLE[c[0]]; return k ? `<th data-sort=\"${k}\" class=\"${mem.sort === k ? 'on' : ''}\" title=\"Sort by ${c[0].toLowerCase()}\">${c[0]}${mem.sort === k ? (mem.dir > 0 ? ' \u25BE' : ' \u25B4') : ''}</th>` : `<th>${c[0]}</th>`; }).join('')}</tr></thead><tbody>${rows.map(x => `<tr data-m="${x.r.club_id}">${cols.map(c => c[1](x)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="lead empty">Nothing here.</p>')
+    : '<p class="lead empty none">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>';
 }
 
 // ----- Renewals: no active membership (nothing recurring), active in the last/next 30 days, low on or out of credits -----
@@ -157,7 +157,7 @@ function sumRenew() {
 }
 const leftTxt = c => c.st === 'out' ? '<span class="pill warn">Out of credits</span>' : c.left === null ? '<span class="muted">No recent visits</span>' : c.left <= 7 ? `About ${Math.max(c.left, 1)} day${c.left > 1 ? 's' : ''}` : `About ${Math.round(c.left / 7)} week${Math.round(c.left / 7) > 1 ? 's' : ''}`;
 function drawRenew() {
-  if (!mem.meta) { $('memBody').innerHTML = '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>'; return; }
+  if (!mem.meta) { $('memBody').innerHTML = '<p class="lead empty none">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>'; return; }
   if (!hasInv()) { $('memBody').innerHTML = '<p class="lead"><b>Add the Invoices Coming Due report</b> in Upload reports so we can tell who has recurring billing. Renewal opportunities are the people who don\u2019t.</p>'; return; }
   const q = mem.find.toLowerCase(), quick = mem.quick;
   const list = renewList().filter(x => (!q || x.r.name.toLowerCase().includes(q)) && (!quick || (quick === 'nobook' ? !x.r.next_booking : x.c.st === quick)));
@@ -177,7 +177,7 @@ function drawRenew() {
         <td>${dateChip(r.last_session, c.dl, [7, 30, 60, 90], 'None on record')}</td><td class="num">${r.sessions_30d || 0}</td>
         <td>${r.next_booking ? fmt(r.next_booking) : '<span class="muted">Nothing booked</span>'}</td>
         <td>${dateChip(lc(r), c.dc, [7, 14, 30, 60], 'Never')}</td><td>${asg(r) || '<span class="muted">-</span>'}</td></tr>`).join('') + '</tbody></table></div>'
-      : '<p class="lead">Nobody right now. This fills in from your latest ClubReady upload.</p>');
+      : '<p class="lead empty">Nobody right now. This fills in from your latest ClubReady upload.</p>');
 }
 
 // ----- Not booked: everyone billing soon with nothing on the books -----
@@ -185,7 +185,7 @@ function drawRenew() {
 const heat = (n, cuts) => n === null ? 'h4' : n <= cuts[0] ? 'h0' : n <= cuts[1] ? 'h1' : n <= cuts[2] ? 'h2' : n <= cuts[3] ? 'h3' : 'h4';
 const dateChip = (d, n, cuts, none) => `<span class="hchip ${heat(n, cuts)}">${d ? `<b>${fmt(d)}</b> ${ago(n)}` : none}</span>`;
 function drawAttn(pool) {
-  if (!mem.meta) { $('memBody').innerHTML = '<p class="lead">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>'; return; }
+  if (!mem.meta) { $('memBody').innerHTML = '<p class="lead empty none">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>'; return; }
   const inv = hasInv(), list = pool.filter(x => !x.r.frozen && !x.r.next_booking);
   const by = { credits: (a, b) => (b.r.credits || 0) - (a.r.credits || 0), due: (a, b) => (a.r.next_due || 'z') < (b.r.next_due || 'z') ? -1 : 1,
     last: (a, b) => (a.r.last_session || '') < (b.r.last_session || '') ? -1 : 1, contact: (a, b) => (lc(a.r) || '') < (lc(b.r) || '') ? -1 : 1,

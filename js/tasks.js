@@ -106,7 +106,7 @@ function splitTitle(t) {
 function renderMine() {
   const td = todayStr(), n = dim(tk.month), ro = tk.uid !== ME.id, ym = ymd(tk.month).slice(0, 8);
   if (tk.blocked) { $('taskBody').innerHTML = '<p class="lead">You can only see task checklists for your own team.</p>'; return; }
-  if (!tk.rows.length) { $('taskBody').innerHTML = `${ro ? `<h3>${esc(tk.who)}</h3>` : ''}<p class="lead">No tasks assigned yet.${ro ? '' : ' The owner assigns task sets by position.'}</p>`; return; }
+  if (!tk.rows.length) { $('taskBody').innerHTML = `${ro ? `<h3>${esc(tk.who)}</h3>` : ''}<p class="lead empty none">No tasks assigned yet.${ro ? '' : ' The owner assigns task sets by position.'}</p>`; return; }
   const groups = positions.filter(p => tk.rows.some(r => r.position_id === p.id));
   const box = (r, d) => `<input type="checkbox" data-t="${r.id}" data-d="${d}" aria-label="${esc(splitTitle(r.title)[0])} ${d}" ${tk.done.has(r.id + '|' + d) ? 'checked' : ''} ${ro || d > td ? 'disabled' : ''}>`;
   // Day view box: weekly/monthly tasks count as done if checked any day in their week/month

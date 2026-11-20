@@ -124,7 +124,7 @@ function drawCx() {
         ${F && st.view !== 'now' ? `<td>${fo ? `${fmt(fo)} <span class="muted">• ${daysAgo(fo) - c.d} days</span>` : '<span class="muted">-</span>'}</td>` : ''}
         <td>${r.last_visit ? `${fmt(r.last_visit)} <span class="muted">${ago(daysAgo(r.last_visit))}</span>` : '<span class="muted">None on record</span>'}</td>
         ${F ? `<td>${c.back ? `<span class="hchip h0"><b>${fmt(r.next_booking)}</b></span>` : '<span class="muted">Nothing booked</span>'}</td>` : ''}
-        <td>${attCell(c)}</td><td>${lastCell(c)}</td>${F ? '' : detailCells(c)}</tr>`; }).join('') + '</tbody></table></div>' : '<p class="lead">Nobody matches these filters.</p>') +
+        <td>${attCell(c)}</td><td>${lastCell(c)}</td>${F ? '' : detailCells(c)}</tr>`; }).join('') + '</tbody></table></div>' : '<p class="lead empty">Nobody matches these filters.</p>') +
     (F ? '' : `<p class="legend nb-legend"><span><i class="hchip h0"></i>0–3 days</span><span><i class="hchip h1"></i>4–30</span><span><i class="hchip h2"></i>31–60</span><span><i class="hchip h3"></i>61–90</span><span><i class="hchip h4"></i>90+</span><span class="muted">(since they cancelled)</span></p>`);
 }
 

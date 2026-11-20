@@ -54,6 +54,7 @@ async function showApp(user) {
   route();
   const loc = locs.find(x => x.id === me.location_id);
   $('who').textContent = me.full_name || me.email;
+  $('acctAv').textContent = String(me.full_name || me.email || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   $('meta').textContent = me.role + ' \u2022 ' + (me.role === 'owner' ? 'All locations' : loc ? loc.name : 'No location yet');
   const h = new Date().getHours(), first = me.full_name ? me.full_name.split(' ')[0] : '';
   $('hello').textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + (first ? ', ' + first : '');
@@ -136,7 +137,7 @@ function route() {
   if (v === 'dpr') { if (location.hash === '#enter') REP.sub = 'enter'; else if (REP.sub !== 'weekly' && REP.sub !== 'monthly') REP.sub = 'dpr'; } else if (v === 'perf' && (REP.sub === 'dpr' || REP.sub === 'weekly' || REP.sub === 'monthly' || REP.sub === 'enter' || (REP.sub === 'score' && !REP.sheet))) REP.sub = canPage('dpr') ? 'monthly' : 'score';   // Monthly opens the Weekly-style review; the sheet view only when asked for
   $('navTasks').classList.toggle('on', v === 'tasks'); $('navMem').classList.toggle('on', v === 'mem'); $('navOff').classList.toggle('on', v === 'off'); $('navStudio').classList.toggle('on', v === 'studio'); $('navPeople').classList.toggle('on', v === 'people'); $('navSup').classList.toggle('on', v === 'sup'); $('navHr').classList.toggle('on', v === 'hr'); $('navPay').classList.toggle('on', v === 'pay'); $('navLib').classList.toggle('on', v === 'lib');
   $('navRep').classList.toggle('on', v === 'perf' || v === 'dpr');
-  $('navAdminBtn').classList.toggle('on', ['perf', 'hr', 'pay', 'people'].includes(v));
+  $('navAdminBtn').classList.toggle('on', ['perf', 'hr', 'pay', 'people', 'sup', 'team', 'studio', 'off'].includes(v));
   $('navHome').classList.toggle('on', v === 'home'); $('navTeam').classList.toggle('on', v === 'team'); $('navCal').classList.toggle('on', v === 'cal');
   if (v === 'team' && ME) loadPeople();
   if (v === 'cal' && ME) loadCal();

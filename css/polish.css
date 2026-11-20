@@ -1,0 +1,416 @@
+/* ============ UI polish (loads last) ============
+   One place for the site-wide refresh: slightly smaller sizing, matching buttons / tabs / badges / tables,
+   the compact top bar and More menu, loading placeholders, friendlier empty states, and dark mode.
+   Delete this file's <link> in index.html to go back to the previous look. */
+
+/* ---------- 1. Sizing: a notch smaller everywhere ---------- */
+body { font-size:14.5px; }
+main h2 { font-size:1.4rem; }
+.hero { padding:.25rem 0 1.25rem; }
+.hero h1 { font-size:clamp(1.4rem, 2.8vw, 1.95rem); }
+main, #homeView { padding:1.6rem clamp(1rem, 2.1vw, 1.9rem) 2.1rem; border-radius:24px; }
+.lead { font-size:.93rem; margin-bottom:1.2rem; }
+.mem-head { margin-bottom:.9rem; }
+.mem-head h2 { margin:0 0 .15rem; }
+.pcard { border-radius:16px; padding:1rem 1.15rem; }
+.pcard h3, .sub { font-size:1.02rem; }
+.hcard { border-radius:18px; }
+.hcard h3 { font-size:.98rem; }
+
+/* ---------- 2. Matching components ---------- */
+/* Buttons: one main style (dark) and one secondary style (glass), same size everywhere */
+button, a.btnlink { padding:.5rem 1rem; font-size:.86rem; font-weight:500; line-height:1.2; }
+button.quiet, a.btnlink.quiet { border:1px solid rgba(255,255,255,.7); }
+button:focus-visible, a.btnlink:focus-visible, .tabs button:focus-visible { outline:2px solid var(--dark); outline-offset:2px; }
+button:disabled { opacity:.45; cursor:default; transform:none; }
+/* Tabs */
+.tabs { padding:.25rem; }
+.tabs button { padding:.38rem .85rem; font-size:.82rem; }
+/* Inputs */
+input:not([type=checkbox]):not([type=radio]):not([type=file]), select { padding:.5rem .75rem; font-size:.9rem; border-radius:11px; }
+textarea { font-size:.9rem; border-radius:11px; }
+/* Count badges: quiet grey numbers instead of heavy dark circles */
+.hcount { background:rgba(38,30,20,.09); color:var(--muted); font-weight:600; font-size:.7rem; padding:0 .45rem; line-height:1.25rem; vertical-align:middle; }
+/* Tables: header row, and only wide scrolling tables keep a pinned first column (that's what drew the odd light box) */
+th, .mt th { font-size:.7rem; letter-spacing:.05em; }
+.mt td:first-child, .mt th:first-child { position:static; background:transparent; }
+.mt tbody tr:hover td:first-child { background:transparent; }
+.spgrid td:first-child, .spgrid th:first-child, .agrid td:first-child, .agrid th:first-child, .ovt td:first-child, .ovt th:first-child, .dlwrap td:first-child, .dlwrap th:first-child { position:sticky; left:0; background:var(--solid); z-index:1; }
+.table-wrap { border-radius:16px; }
+
+/* ---------- 3. Top bar: icon buttons + account menu ---------- */
+.hrow { padding:.35rem .4rem .35rem .45rem; }
+.hrow h1::before { width:30px; height:30px; font-size:.68rem; }
+.who { gap:.3rem; }
+.hicon { display:grid; place-items:center; width:34px; height:34px; border-radius:50%; background:rgba(255,255,255,.42); border:1px solid rgba(255,255,255,.7); text-decoration:none; transition:background .15s, transform .15s; }
+.hicon:hover { background:rgba(255,255,255,.8); transform:translateY(-1px); }
+.hicon:focus-visible { outline:2px solid var(--dark); outline-offset:2px; }
+.hicon img, .hicon svg { display:block; }
+.acct { position:relative; margin-left:.25rem; }
+.acctbtn { display:flex; align-items:center; gap:.5rem; padding:.2rem .55rem .2rem .2rem; background:rgba(255,255,255,.42); color:var(--ink); border:1px solid rgba(255,255,255,.7); }
+.acctbtn:hover { background:rgba(255,255,255,.75); }
+.acctbtn .wtxt { text-align:left; margin:0; font-size:.8rem; line-height:1.2; }
+.acctbtn .wtxt span { max-width:170px; font-weight:600; } .acctbtn .wtxt small { display:block; font-size:.7rem; }
+.avatar { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--dark); color:#f4ead8; font-size:.7rem; font-weight:600; flex:none; }
+.acctmenu { background:rgba(250,246,240,.97); position:absolute; right:0; top:calc(100% + .45rem); min-width:200px; display:flex; flex-direction:column; }
+.acctmenu button { display:flex; align-items:center; gap:.55rem; width:100%; padding:.55rem .7rem; border-radius:12px; background:transparent; color:var(--ink); font-size:.86rem; text-align:left; box-shadow:none; }
+.acctmenu button:hover { background:rgba(255,255,255,.6); transform:none; }
+.acctmenu #signout { color:#a5321f; }
+@media (max-width:700px) { .acctbtn .wtxt { display:none; } .hrow { flex-wrap:nowrap; } .hrow h1 { font-size:0; gap:0; } .hicon { width:32px; height:32px; } .acct { margin-left:.1rem; } }
+
+/* ---------- 4. Bottom nav: daily pages + More ---------- */
+#topnav { padding:.3rem; }
+#topnav a, #navAdminBtn { display:inline-flex; align-items:center; padding:.45rem .8rem; font-size:.8rem; }
+.navbadge { display:inline-grid; place-items:center; min-width:1.15rem; height:1.15rem; padding:0 .3rem; margin-left:.35rem; border-radius:999px; background:#c4452f; color:#fff; font-size:.66rem; font-weight:700; line-height:1; }
+.navbadge[hidden] { display:none; }
+.navdot { display:inline-block; width:7px; height:7px; margin-left:.35rem; border-radius:50%; background:#c4452f; }
+.navdot[hidden] { display:none; }
+.navmenu a { display:flex; align-items:center; }
+.navsep { margin:.35rem .6rem .15rem; padding-top:.4rem; border-top:1px solid var(--line); font-size:.66rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.navsep[hidden] { display:none; }
+
+/* ---------- 5. Loading placeholders and empty states ---------- */
+@keyframes skel { 0% { background-position:100% 0; } 100% { background-position:-100% 0; } }
+.skel:empty { min-height:220px; border-radius:18px;
+  background:linear-gradient(90deg, rgba(255,255,255,.18) 25%, rgba(255,255,255,.42) 50%, rgba(255,255,255,.18) 75%); background-size:200% 100%; animation:skel 1.3s ease-in-out infinite; }
+.hgrid.skel:empty { min-height:120px; }
+@media (prefers-reduced-motion:reduce) { .skel:empty { animation:none; } }
+p.lead.empty { display:flex; flex-direction:column; align-items:center; gap:.35rem; margin:1rem 0; padding:2rem 1rem; text-align:center; color:var(--muted); background:rgba(255,255,255,.22); border:1px dashed rgba(38,30,20,.15); border-radius:16px; max-width:none; }
+p.lead.empty::before { content:"🔍"; font-size:1.4rem; }
+p.lead.empty.none::before { content:"✨"; }
+p.lead.loading { display:flex; align-items:center; gap:.6rem; }
+p.lead.loading::before { content:""; width:15px; height:15px; border-radius:50%; border:2px solid rgba(38,30,20,.15); border-top-color:var(--dark); animation:spin .8s linear infinite; flex:none; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* AUTO-DARK START: generated by gen_dark.py from glass.css, do not edit by hand */
+html.dark .hrow { background:rgba(255,255,255,0.04); }
+html.dark .hrow h1::before { color:#1f1a14; }
+html.dark #topnav { background:rgba(255,255,255,0.05); }
+html.dark #topnav a:hover, html.dark #navAdminBtn:hover { background:rgba(255,255,255,0.07); }
+html.dark #topnav a.on, html.dark #navAdminBtn.on { background:rgba(255,255,255,.12); }
+html.dark .navmenu { background:rgba(255,255,255,0.14); }
+html.dark .navmenu a:hover { background:rgba(255,255,255,0.11); }
+html.dark .navmenu a.on { background:rgba(255,255,255,.12); }
+html.dark .hcard, html.dark .pcard, html.dark .sum > div, html.dark .kt, html.dark .pj-card, html.dark .pj-box, html.dark .pj-controls, html.dark .pj-visual, html.dark .pj-impact-card, html.dark .req, html.dark .tk, html.dark .person, html.dark .table-wrap, html.dark .callout, html.dark .item, html.dark .soon div, html.dark .soon a, html.dark .menu button, html.dark .pj-baseline { background:rgba(255,255,255,0.06); border-color:rgba(255,255,255,.12); }
+html.dark .hcard:hover, html.dark .kt:hover, html.dark .person:hover, html.dark .sum > div:hover, html.dark .pj-card:hover, html.dark .pj-impact-card:hover, html.dark .soon a:hover { background:rgba(255,255,255,0.09); }
+html.dark .kt.on { border-color:rgba(255,255,255,.12); background:rgba(255,255,255,0.11); }
+html.dark .hgrid.status .hcard { background:rgba(255,255,255,0.04); }
+html.dark .hcard.alert, html.dark .req.low { background:rgba(255,236,226,0.14); }
+html.dark .pj-grid .pj-box { background:rgba(255,255,255,0.05); }
+html.dark .pj-card.hit { background:rgba(200,240,215,0.14); color:#8fe0b5; }
+html.dark .dn, html.dark .pj-delta.down { color:#ff9f8c; }
+html.dark .ph { background:rgba(255,255,255,0.08); }
+html.dark .shero { background:rgba(255,255,255,0.05); }
+html.dark input, html.dark select, html.dark textarea, html.dark dialog textarea { border-color:rgba(255,255,255,.12); }
+html.dark input:focus, html.dark select:focus, html.dark textarea:focus { border-color:rgba(255,255,255,.12); background:rgba(255,255,255,0.14); }
+html.dark button { color:#1f1a14; }
+html.dark button.quiet { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,.12); }
+html.dark button.quiet:hover { background:rgba(255,255,255,0.13); }
+html.dark input.cellin:hover, html.dark select.cellin:hover, html.dark input.cellin:focus, html.dark select.cellin:focus { background:rgba(255,255,255,0.14); border-color:rgba(255,255,255,.12); }
+html.dark .tabs { background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,.12); }
+html.dark .tabs button:hover { background:rgba(255,255,255,0.07); }
+html.dark .tabs button.on { background:rgba(255,255,255,.12); }
+html.dark .studios span, html.dark .studios a, html.dark .studios button { background:rgba(255,255,255,0.07); border-color:rgba(255,255,255,.12); }
+html.dark .studios span.mine, html.dark .studios a.mine, html.dark .studios button.mine { color:#1f1a14; }
+html.dark .ov tbody tr:hover, html.dark .mt tbody tr:hover { background:rgba(255,255,255,0.08); }
+html.dark .mt tbody tr:hover td:first-child { background:rgba(255,255,255,.12); }
+html.dark .tg .td, html.dark .tg .grp td { background:rgba(255,255,255,0.06); }
+html.dark .dg tr.tod td { background:rgba(255,255,255,0.09); }
+html.dark .pill { background:rgba(255,255,255,0.11); }
+html.dark .pill.ok { color:#8fe0b5; }
+html.dark .meter i { color:#1f1a14; }
+html.dark .cal { background:rgba(255,255,255,0.04); }
+html.dark .cal .dow { background:rgba(255,255,255,0.05); }
+html.dark .cal > div:not(.dow):hover { background:rgba(255,255,255,0.08); }
+html.dark .cal .today > span { color:#1f1a14; }
+html.dark .chip { background:rgba(255,255,255,0.12); }
+html.dark dialog { background:rgba(255,255,255,0.14); }
+html.dark #login .card, html.dark #reset .card { background:rgba(255,255,255,0.12); }
+html.dark main, html.dark #homeView, html.dark .card, html.dark dialog, html.dark .navmenu { background:rgba(255,255,255,0.14); }
+html.dark .tk { background:rgba(255,255,255,0.12); }
+html.dark .tk:hover { background:rgba(255,255,255,0.14); }
+html.dark .tk input[type=checkbox] { background:rgba(255,255,255,0.14); }
+html.dark .tk input[type=checkbox]::after { border-color:rgba(255,255,255,.12); }
+html.dark .tk.done { background:rgba(255,255,255,0.07); }
+html.dark .tk-more { background:rgba(255,255,255,0.11); }
+html.dark .tk-more:hover { background:rgba(255,255,255,.12); }
+html.dark .tk-clear { background:rgba(255,255,255,0.05); }
+html.dark .tk-donebox summary { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,.12); }
+html.dark .tk-party { background:rgba(214,245,228,0.14); }
+html.dark .tk-party b { color:#8fe0b5; }
+html.dark .tk-party small { color:#8fe0b5; }
+html.dark .tk-daylbl:hover { background:rgba(255,255,255,0.07); }
+html.dark .ov-chip { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,.12); }
+html.dark .ov-chip:hover { background:rgba(255,255,255,0.13); }
+html.dark .ov-chip.on { color:#1f1a14; }
+html.dark .ov-chip.zero:not(.on) b { color:#ff9f8c; }
+html.dark .ov-row { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .ov-row:hover { background:rgba(255,255,255,0.14); }
+html.dark .ov-ava { color:#1f1a14; }
+html.dark .ov-pill.zero { color:#ff9f8c; }
+html.dark .ov-pill.prog { color:#f0cc7a; }
+html.dark .ov-pill.done { color:#8fe0b5; }
+html.dark .ov-none { background:rgba(255,255,255,0.06); }
+html.dark .mg-pos { background:rgba(255,255,255,0.09); border-color:rgba(255,255,255,.12); }
+html.dark .mg-row { background:rgba(255,255,255,0.11); }
+html.dark .mg-row.dup { background:rgba(255,244,220,0.14); }
+html.dark .mg-badge { color:#f0cc7a; }
+html.dark .mg-badge.soft { color:#b9d4f2; }
+html.dark .mg-ic { background:rgba(255,255,255,0.14); }
+html.dark .mg-ic:hover { background:rgba(255,255,255,.12); }
+html.dark .mg-ic.del:hover { background:rgba(255,255,255,.12); color:#ff9f8c; }
+html.dark .mg-row.editing { background:rgba(255,255,255,.12); }
+html.dark #toast button { background:rgba(255,255,255,.12); color:var(--ink); }
+html.dark .mem-asof .stale { color:#ff9f8c; }
+html.dark .mtile { background:rgba(255,255,255,0.06); border-color:rgba(255,255,255,.12); }
+html.dark .mtile:hover { background:rgba(255,255,255,0.10); }
+html.dark .mtile.on { background:rgba(255,255,255,0.14); border-color:rgba(255,255,255,.12); }
+html.dark .mem-why[open] { background:rgba(255,255,255,0.07); }
+html.dark .mcard { background:rgba(255,255,255,0.12); border-color:rgba(255,255,255,.12); }
+html.dark .mcard:hover { background:rgba(255,255,255,0.14); }
+html.dark .mcard.done { background:rgba(255,255,255,0.08); }
+html.dark .mtag.hot { color:#f0cc7a; }
+html.dark .mquick { background:rgba(255,255,255,0.14); }
+html.dark .mq-chip { background:rgba(255,255,255,0.14); }
+html.dark .mq-chip:hover { background:rgba(255,255,255,.12); }
+html.dark .flag { color:#ff9f8c; }
+html.dark td.due-soon { color:#f0cc7a; }
+html.dark .pace.pace-bad { color:#ff9f8c; }
+html.dark .mhist li { background:rgba(255,255,255,0.10); }
+html.dark .tk-link { color:#1f1a14; }
+html.dark .updrop { background:rgba(255,255,255,0.08); }
+html.dark .updrop:hover, html.dark .updrop.over { background:rgba(255,255,255,0.14); }
+html.dark .upcheck li { background:rgba(255,255,255,0.08); }
+html.dark .upcheck li.need .upmark { color:#ff9f8c; }
+html.dark .upcheck li.bad { color:#ff9f8c; }
+html.dark .hchip.h4 { color:#ff9f8c; }
+html.dark .hchip.h4 b { color:#ff9f8c; }
+html.dark .nm-pill.ok { color:#8fe0b5; }
+html.dark .nm-pill.watch { color:#f0cc7a; }
+html.dark .nm-pill.risk { color:#ff9f8c; }
+html.dark .mt.nm td.nt2:hover { background:rgba(255,255,255,0.10); }
+html.dark .calm { background:rgba(255,255,255,0.04); }
+html.dark .calhead { background:rgba(255,255,255,0.06); }
+html.dark .cd:hover { background:rgba(255,255,255,0.07); }
+html.dark .cd.today .cdn { color:#1f1a14; }
+html.dark .cbar { background:rgba(255,255,255,0.14); }
+html.dark .cbar.off, html.dark .up-item.off .up-dot, html.dark .legend .sw.off { color:#ff9f8c; }
+html.dark .cbar.pend { color:#f0cc7a; }
+html.dark .cbar.cel, html.dark .up-item.cel .up-dot, html.dark .legend .sw.cel { color:#ff9f8c; }
+html.dark .cal-up { background:rgba(255,255,255,0.07); border-color:rgba(255,255,255,.12); }
+html.dark .up-main em { color:#f0cc7a; }
+html.dark .up-warn { color:#ff9f8c; }
+html.dark .clash { color:#ff9f8c; }
+html.dark .hatile.warm b { color:#ff9f8c; }
+html.dark .hatile.hot { background:rgba(255,236,226,0.14); }
+html.dark .hatile.hot b { color:#ff9f8c; }
+html.dark .hclear { color:#8fe0b5; }
+html.dark #myCards .hcard { background:rgba(255,255,255,0.07); }
+html.dark .hlink { background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,.12); }
+html.dark .hlink:hover { background:rgba(255,255,255,.12); }
+html.dark .htask { background:rgba(255,255,255,0.11); }
+html.dark .htask input { background:rgba(255,255,255,.12); }
+html.dark .happ { background:rgba(255,255,255,0.11); }
+html.dark .hcount { color:#1f1a14; }
+html.dark .warn-t { color:#ff9f8c; }
+html.dark .sprow { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .sprow.out { color:#ff9f8c; }
+html.dark .sprow.dirty { background:rgba(255,248,225,0.14); }
+html.dark .spstale { color:#ff9f8c; }
+html.dark .sppill.ok { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .sppill.low { background:rgba(255,255,255,.12); color:#f0cc7a; }
+html.dark .sppill.out { background:rgba(255,255,255,.12); color:#ff9f8c; }
+html.dark .sppill.none, html.dark .sppill.unset { background:rgba(255,255,255,.12); }
+html.dark .sppill.req { background:rgba(255,255,255,.12); color:#b9d4f2; }
+html.dark .spsave button { background:rgba(255,255,255,.12); color:var(--ink); }
+html.dark .spsave button.quiet { border-color:rgba(255,255,255,.12); }
+html.dark .spreq { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .spsteps span.on { color:#b9d4f2; }
+html.dark .spcard { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .spcell.ok { color:#8fe0b5; }
+html.dark .spcell.low { color:#f0cc7a; }
+html.dark .spcell.out { color:#ff9f8c; }
+html.dark .spreqdot { color:#b9d4f2; }
+html.dark .tnudge { background:rgba(255,244,220,0.14); }
+html.dark .tcard { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .tcard:hover { background:rgba(255,255,255,0.14); }
+html.dark .tbadge.out { background:rgba(255,255,255,.12); color:#f0cc7a; }
+html.dark .tbadge.tsoon { background:rgba(255,255,255,.12); }
+html.dark .tbadge.bday { background:rgba(255,255,255,.12); color:#b9d4f2; }
+html.dark .tic { background:rgba(255,255,255,0.14); }
+html.dark .tic:hover { background:rgba(255,255,255,.12); }
+html.dark .tbtn { background:rgba(255,255,255,0.14); }
+html.dark .tbtn:hover { background:rgba(255,255,255,.12); }
+html.dark .tfacts { background:rgba(255,255,255,0.09); }
+html.dark .scard { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .sopen { background:rgba(255,255,255,.12); }
+html.dark .sopen.yes { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .spanel { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,.12); }
+html.dark .sstat { background:rgba(255,255,255,0.14); }
+html.dark .sstat.warm b { color:#ff9f8c; }
+html.dark .sstat.hot { background:rgba(255,255,255,.12); }
+html.dark .tosum { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .towarn { background:rgba(255,255,255,.12); color:#f0cc7a; }
+html.dark .took { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .toreq { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .toreq.denied { color:#ff9f8c; }
+html.dark .topill.approved { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .topill.pending { background:rgba(255,255,255,.12); color:#f0cc7a; }
+html.dark .topill.denied { background:rgba(255,255,255,.12); color:#ff9f8c; }
+html.dark .ovt td.good { color:#8fe0b5; }
+html.dark .ovt td.bad { color:#ff9f8c; }
+html.dark .rkb.top { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .rkb.mid { background:rgba(255,255,255,.12); color:var(--ink); }
+html.dark .rkb.low { background:rgba(255,255,255,.12); color:#ff9f8c; }
+html.dark .scchart { background:rgba(255,255,255,0.14); }
+html.dark .fstep { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .fstep.on, html.dark .frate.on { background:rgba(255,255,255,0.14); }
+html.dark .dlchip { background:rgba(255,255,255,0.09); border-color:rgba(255,255,255,.12); }
+html.dark .dlchip.done { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .dlchip.on { color:#1f1a14; }
+html.dark .dlsaved { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .dlfocus { background:rgba(255,255,255,.12); color:#b9d4f2; }
+html.dark .dlfocus.miss { background:rgba(255,255,255,.12); color:#f0cc7a; }
+html.dark .dlmsg { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .dlpre { background:rgba(255,255,255,0.10); }
+html.dark .dlflag.revenue { background:rgba(255,255,255,.12); color:#ff9f8c; }
+html.dark .dlflag.labor { background:rgba(255,255,255,.12); color:#f0cc7a; }
+html.dark .dlflag.booking { background:rgba(255,255,255,.12); color:#f0cc7a; }
+html.dark .dlflag.retention { background:rgba(255,255,255,.12); color:#b9d4f2; }
+html.dark .dlflag.monitor { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .dlnotes li { background:rgba(255,255,255,0.10); }
+html.dark .dlact { color:#b9d4f2; }
+html.dark .dlcta { background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,.12); }
+html.dark .hrt tr.hrgrp td { background:rgba(255,255,255,0.10); }
+html.dark .hrt td.hr-over { color:#ff9f8c; }
+html.dark .hrd.up { color:#8fe0b5; }
+html.dark .hrd.dn { color:#ff9f8c; }
+html.dark .hrpaynow > div { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .ppl .status.ok { color:#8fe0b5; }
+html.dark .ppl .status.bad { color:#ff9f8c; }
+html.dark .agrid td.agdef { background:rgba(255,255,255,0.04); }
+html.dark .agrid .agx:hover { color:#ff9f8c; }
+html.dark .ldn.h4 { color:#ff9f8c; }
+html.dark .ldstats > div { background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,.12); }
+html.dark .ldstats b.bad { color:#ff9f8c; }
+html.dark .pill.due { color:#f0cc7a; }
+html.dark .tk-num { background:rgba(255,255,255,0.14); }
+html.dark .twday { background:rgba(255,255,255,0.13); }
+html.dark .tk-off { background:rgba(255,255,255,0.10); }
+html.dark .who .slackbtn { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,.12); }
+html.dark .who .slackbtn:hover { background:rgba(255,255,255,0.13); }
+html.dark .lbcard { background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,.12); }
+html.dark .lbcard:hover { background:rgba(255,255,255,0.14); }
+html.dark .lbchip.me { color:#8fe0b5; }
+html.dark .lbpp:hover { background:rgba(255,255,255,0.09); }
+html.dark .lbchip.st-wait { color:#b9d4f2; }
+html.dark .lbtr { background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,.12); }
+html.dark .lbtr:hover { background:rgba(255,255,255,0.14); }
+html.dark .lbchip.st-done { color:#8fe0b5; }
+html.dark .lbchip.st-late { background:rgba(255,255,255,.12); color:#ff9f8c; }
+html.dark .lbchip.st-open { color:#f0cc7a; }
+html.dark .acts a.btnlink { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,.12); }
+html.dark .ann { background:rgba(255,255,255,0.10); }
+html.dark .ann-promo .ann-tag { color:#f0cc7a; }
+html.dark .ann-contest { color:#b9d4f2; background:rgba(214,229,250,0.14); }
+html.dark .ann-contest .ann-tag { color:#b9d4f2; }
+html.dark .ann-news { color:#b9d4f2; background:rgba(255,255,255,0.10); }
+html.dark .ann-news .ann-tag { color:#b9d4f2; }
+html.dark .ann-important .ann-tag { color:#b9d4f2; }
+html.dark .ann-setup { background:rgba(255,236,226,0.14); }
+html.dark .todel { color:#ff9f8c; }
+html.dark .pfcorp { background:rgba(255,244,214,0.14); }
+html.dark .mtpill { background:rgba(255,255,255,.12); color:#b9d4f2; }
+html.dark .dlfocus.ok { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .dlwrap thead th { background:rgba(255,255,255,0.14); }
+html.dark .dlwrap tr.dlgoal td { background:rgba(255,255,255,0.14); }
+html.dark .dlinfo > div { background:rgba(255,255,255,0.14); }
+html.dark .dldays thead th { background:rgba(255,255,255,0.14); }
+html.dark .nett thead th { background:rgba(255,255,255,0.14); }
+html.dark .nett .nrk { background:rgba(255,255,255,0.14); }
+html.dark .nett td:nth-child(2), html.dark .nett th:nth-child(2) { background:rgba(255,255,255,0.14); }
+html.dark .nett tr.yours td.nrk, html.dark .nett tr.yours td:nth-child(2) { background:rgba(250,232,190,0.14); }
+html.dark .nett td.good { color:#8fe0b5; }
+html.dark .nett td.bad { color:#ff9f8c; }
+html.dark .nett thead th, html.dark .dlwrap thead th { background:rgba(255,255,255,.12); }
+html.dark .lbnew { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .tlead { background:rgba(255,255,255,.12); color:#b9d4f2; }
+html.dark .tbadge.anniv { background:rgba(255,255,255,.12); color:#f0cc7a; }
+html.dark .tbadge.bday { background:rgba(255,255,255,.12); color:#ff9f8c; }
+html.dark .tg input[type=checkbox] { background:rgba(255,255,255,0.14); }
+html.dark .tg input[type=checkbox]::after { border-color:rgba(255,255,255,.12); }
+html.dark .tg th.vac { color:#f0cc7a; }
+html.dark .ov-pill.vac { color:#f0cc7a; }
+html.dark .ov-chip.vac:not(.on) b { color:#f0cc7a; }
+html.dark .tk-off.vac { background:rgba(255,238,205,0.14); }
+html.dark .topeople tbody tr:hover td { background:rgba(255,255,255,0.08); }
+html.dark .toreq small.tocr, html.dark .tosmall.tocr { background:rgba(214,229,250,0.14); color:#b9d4f2; }
+html.dark .toreq small.tocr a { color:#b9d4f2; }
+html.dark .spin::after { color:#b9d4f2; }
+html.dark .spin.closed::after { color:var(--ink); }
+html.dark .smapcard { background:rgba(255,255,255,0.14); }
+html.dark .gpk { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .gpk em { background:rgba(255,255,255,.12); color:#f0cc7a; }
+html.dark .gpout .gpk { background:rgba(214,229,250,0.14); }
+html.dark .gpout .gpk b { color:#b9d4f2; }
+html.dark .gpmath { background:rgba(255,255,255,0.11); border-color:rgba(255,255,255,.12); }
+html.dark .gpmath .gptot b { color:#b9d4f2; }
+html.dark .gpgood { background:rgba(255,255,255,.12); color:#8fe0b5; }
+html.dark .lbform label.lbtog { background:rgba(255,255,255,0.10); }
+html.dark .lbform .lbpeople { background:rgba(255,255,255,0.06); }
+html.dark .lbpart { background:rgba(255,255,255,0.06); }
+html.dark .lbcats button { background:rgba(255,255,255,0.08); }
+html.dark .lbview { background:rgba(255,255,255,0.06); }
+html.dark .lbview button.on { background:rgba(255,255,255,.12); }
+html.dark .lbchip.cat { color:#b9d4f2; }
+html.dark .lbrow:hover td { background:rgba(255,255,255,0.08); }
+html.dark .lbcard > .lbacts { background:rgba(255,255,255,0.05); }
+html.dark .lbfbtn:hover { background:rgba(255,255,255,0.14); }
+html.dark .lbrowacts .lbfbtn { background:rgba(255,255,255,0.08); }
+/* AUTO-DARK END */
+
+/* ---------- 6. Dark mode (account menu → Dark mode) ---------- */
+html.dark { --ink:#f2ece3; --muted:rgba(242,236,227,.62); --line:rgba(255,255,255,.1); --line2:rgba(255,255,255,.2); --glass:rgba(24,21,19,.6); --gborder:rgba(255,255,255,.12);
+  --field:rgba(255,255,255,.07); --solid:rgba(36,32,29,.97); --dark:#efe6d8; --lb:#93bde9; --gshadow:0 10px 40px rgba(0,0,0,.35); color-scheme:dark; }
+html.dark body { background-image:linear-gradient(rgba(12,11,14,.62), rgba(12,11,14,.62)), url("../img/studio-bg.jpg"); color:var(--ink); }
+/* main buttons turn light with dark text; :where keeps this weaker than every tab/chip/menu button's own color */
+:where(html.dark) button { color:#1f1a14; } :where(html.dark) button:hover { background:#fff; }
+html.dark button.quiet, html.dark a.btnlink.quiet, html.dark .acctbtn, html.dark .hicon { background:rgba(255,255,255,.08); color:var(--ink); border-color:rgba(255,255,255,.14); }
+html.dark button.quiet:hover, html.dark .acctbtn:hover, html.dark .hicon:hover { background:rgba(255,255,255,.16); }
+html.dark .avatar, html.dark .hrow h1::before { background:#efe6d8; color:#1f1a14; }
+html.dark .hrow, html.dark #topnav { background:rgba(24,21,19,.55); border-color:rgba(255,255,255,.12); }
+html.dark #topnav a.on, html.dark #navAdminBtn.on, html.dark .tabs button.on, html.dark .lbview button.on { background:rgba(255,255,255,.16); color:var(--ink); box-shadow:none; }
+html.dark #topnav a:hover, html.dark #navAdminBtn:hover, html.dark .tabs button:hover { background:rgba(255,255,255,.1); color:var(--ink); }
+html.dark .tabs, html.dark .lbview { background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.1); }
+html.dark .acctmenu { background:rgba(32,29,26,.98); }
+html.dark dialog, html.dark .navmenu { background:rgba(32,29,26,.94); border-color:rgba(255,255,255,.12); color:var(--ink); }
+html.dark .navmenu a:hover, html.dark .acctmenu button:hover { background:rgba(255,255,255,.08); } html.dark .navmenu a.on { background:rgba(255,255,255,.14); }
+html.dark .acctmenu button { color:var(--ink); } html.dark .acctmenu #signout { color:#ff8f7a; }
+html.dark input, html.dark select, html.dark textarea { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.13); color:var(--ink); }
+html.dark input:focus, html.dark select:focus, html.dark textarea:focus { background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.3); box-shadow:0 0 0 3px rgba(255,255,255,.08); }
+html.dark select option { background:#2a2622; color:var(--ink); }
+html.dark input:-webkit-autofill { -webkit-box-shadow:0 0 0 40px #2a2622 inset; -webkit-text-fill-color:var(--ink); }
+html.dark .hcard, html.dark .pcard, html.dark .sum > div, html.dark .kt, html.dark .pj-card, html.dark .pj-box, html.dark .pj-controls, html.dark .pj-visual, html.dark .pj-impact-card,
+html.dark .req, html.dark .tk, html.dark .person, html.dark .table-wrap, html.dark .callout, html.dark .item, html.dark .soon div, html.dark .soon a, html.dark .menu button, html.dark .pj-baseline,
+html.dark .lbcard, html.dark .lbtr, html.dark .lbpart, html.dark .shero, html.dark .ph, html.dark .studios span, html.dark .studios a, html.dark .studios button { background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.1); color:var(--ink); }
+html.dark .hgrid.status .hcard, html.dark .hgrid .hcard { background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.1); }
+html.dark .hgrid .hcard.alert { background:rgba(196,69,47,.16); border-color:rgba(255,143,122,.3); }
+html.dark .hcard:hover, html.dark .kt:hover, html.dark .person:hover, html.dark .lbcard:hover, html.dark .lbtr:hover, html.dark .tk:hover { background:rgba(255,255,255,.1); }
+html.dark .hcard.alert, html.dark .req.low { background:rgba(196,69,47,.18); border-color:rgba(255,143,122,.35); }
+html.dark .mt tbody tr:hover, html.dark .ov tbody tr:hover, html.dark .lbrow:hover td { background:rgba(255,255,255,.05); }
+html.dark .lbcard > .lbacts { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.08); }
+html.dark .lbchip, html.dark .lbic, html.dark .lbrowic span, html.dark .pill, html.dark .hcount { background:rgba(255,255,255,.1); color:var(--muted); }
+html.dark .lbchip.cat, html.dark .lbchip.st-wait { background:rgba(147,189,233,.16); color:#b9d4f2; }
+html.dark .lbchip.me, html.dark .lbchip.st-done, html.dark .pill.ok, html.dark .lbnew { background:rgba(80,200,140,.16); color:#8fe0b5; }
+html.dark .lbchip.st-late { background:rgba(255,120,100,.16); color:#ff9f8c; } html.dark .lbchip.st-open { background:rgba(232,184,74,.16); color:#f0cc7a; }
+html.dark .lbcats button, html.dark .lbtog, html.dark .lbfbtn:hover { background:rgba(255,255,255,.07); color:var(--ink); border-color:rgba(255,255,255,.12); }
+html.dark .lbcats button.on, html.dark .lbtog:has(input:checked) { background:#efe6d8; color:#1f1a14; }
+html.dark .lbfbtn { color:var(--ink); }
+html.dark .mt tr.yours, html.dark .cmprow.on, html.dark .best { background:rgba(232,184,74,.14); }
+html.dark p.lead.empty { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.14); }
+html.dark p.lead.loading::before { border-color:rgba(255,255,255,.18); border-top-color:var(--ink); }
+html.dark .skel:empty { background-image:linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.1) 50%, rgba(255,255,255,.04) 75%); }
+html.dark .meter { background:rgba(255,255,255,.12); } html.dark .meter i { background:var(--ink); }
+html.dark .lbbar2 { background:rgba(255,255,255,.12); }
+html.dark .lbtwo > .acts { background:linear-gradient(rgba(32,29,26,0), rgba(32,29,26,.96) 35%); }
+html.dark ::placeholder { color:rgba(242,236,227,.4); }

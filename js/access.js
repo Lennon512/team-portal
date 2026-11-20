@@ -18,13 +18,32 @@ async function loadPages() {
 }
 function applyNav() {
   Object.entries(NAVID).forEach(([k, id]) => { $(id).hidden = !canPage(k); });
-  $('navAdminWrap').hidden = !['leadership', 'payroll', 'people'].some(canPage);
+  // "More" holds Supplies, Team, Studio and Time off, plus the Admin pages below a divider
+  const adm = ['leadership', 'payroll', 'people'].some(canPage);
+  $('navAdminSep').hidden = !adm;
+  $('navAdminWrap').hidden = !adm && !['supplies', 'team', 'studio', 'timeoff'].some(canPage);
   $('navRep').hidden = !(canPage('dpr') || canPage('performance'));
 }
 $('navAdminBtn').onclick = e => { e.stopPropagation(); const open = $('navAdminMenu').hidden; if (open) { const r = $('navAdminBtn').getBoundingClientRect(), w = 178, left = Math.min(r.left, window.innerWidth - w - 8); if (r.top > window.innerHeight / 2) { $('navAdminMenu').style.top = 'auto'; $('navAdminMenu').style.bottom = (window.innerHeight - r.top + 8) + 'px'; } else { $('navAdminMenu').style.bottom = 'auto'; $('navAdminMenu').style.top = (r.bottom + 4) + 'px'; } $('navAdminMenu').style.left = Math.max(8, left) + 'px'; } $('navAdminMenu').hidden = !open; $('navAdminBtn').setAttribute('aria-expanded', String(open)); };
 document.body.appendChild($('navAdminMenu'));
 document.addEventListener('click', e => { if (!e.target.closest('.navdrop') && !e.target.closest('#navAdminMenu')) { $('navAdminMenu').hidden = true; $('navAdminBtn').setAttribute('aria-expanded', 'false'); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('navAdminMenu').hidden) { $('navAdminMenu').hidden = true; $('navAdminBtn').setAttribute('aria-expanded', 'false'); $('navAdminBtn').focus(); } });
+// Count badges on nav items (keeps the icon); a dot on More when something inside it has a count
+function setNavBadge(id, n) {
+  const a = $(id); if (!a) return;
+  let b = a.querySelector('.navbadge'); if (!b) { b = document.createElement('span'); b.className = 'navbadge'; a.appendChild(b); }
+  b.textContent = n || ''; b.hidden = !n;
+  $('navMoreDot').hidden = ![...$('navAdminMenu').querySelectorAll('.navbadge')].some(x => !x.hidden);
+}
+// Account menu (name in the top bar): dark mode, change password, sign out
+const acctClose = () => { $('acctMenu').hidden = true; $('acctBtn').setAttribute('aria-expanded', 'false'); };
+$('acctBtn').onclick = e => { e.stopPropagation(); const open = $('acctMenu').hidden; $('acctMenu').hidden = !open; $('acctBtn').setAttribute('aria-expanded', String(open)); if (open) { const f = $('acctMenu').querySelector('button'); if (f) f.focus(); } };
+$('acctMenu').addEventListener('click', e => { if (e.target.closest('button')) acctClose(); });
+document.addEventListener('click', e => { if (!e.target.closest('.acct')) acctClose(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('acctMenu').hidden) { acctClose(); $('acctBtn').focus(); } });
+const themeLabel = () => { const d = document.documentElement.classList.contains('dark'); $('themeTxt').textContent = d ? 'Light mode' : 'Dark mode'; $('themeBtn').firstElementChild.textContent = d ? '☀️' : '🌙'; };
+$('themeBtn').onclick = () => { const d = document.documentElement.classList.toggle('dark'); try { localStorage.setItem('theme', d ? 'dark' : 'light'); } catch (e) {} themeLabel(); };
+themeLabel();
 $('navAdminMenu').addEventListener('click', () => { $('navAdminMenu').hidden = true; $('navAdminBtn').setAttribute('aria-expanded', 'false'); });
 
 // One grid: pages down the side, groups across the top

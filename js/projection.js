@@ -37,7 +37,7 @@ async function loadProjection() {
   const av = locs.filter(l => PF.rows.some(r => r.studio_id === l.id));
   if (!PF.studio || !av.some(l => l.id === PF.studio)) PF.studio = (av[0] || {}).id || '';
   if (!PF.studio) { $('pfBody').innerHTML = '<p class="lead">Add monthly studio data first, on the Austin scorecard tab.</p>'; return; }
-  $('pfBody').innerHTML = '<p class="lead">Loading projection...</p>';
+  $('pfBody').innerHTML = '<p class="lead loading">Loading projection...</p>';
   const end = mAdd(PF.month, 1), today = todayStr(), monthStart = PF.month + '-01';
   const [d, g, members] = await Promise.all([
     db.from('dpr_daily').select('*').eq('studio_id', PF.studio).gte('day', PF.month).lt('day', end),
@@ -153,7 +153,7 @@ function fmtNet(v, f) {
 async function loadMaster() {
   if (!netOk()) { $('pfBody').innerHTML = '<p class="lead">Only owners and general managers can see the full Stretch Zone network.</p>'; return; }
   if (!PF.netAll[PF.month]) {
-    $('pfBody').innerHTML = '<p class="lead">Loading the network...</p>';
+    $('pfBody').innerHTML = '<p class="lead loading">Loading the network...</p>';
     const { data, error } = await db.from('kpi_network_all').select('*').eq('month', PF.month).limit(1000);
     if (error) { $('pfBody').innerHTML = '<p class="lead">Could not load the network. ' + esc(error.message) + '</p>'; return; }
     PF.netAll[PF.month] = data || [];

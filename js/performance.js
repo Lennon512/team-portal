@@ -70,7 +70,7 @@ async function loadPerf() {
   $('pfMonth').innerHTML = ms.map(m => `<option value="${m}">${mLbl(m, 1)}</option>`).join('');
   if (!ms.includes(PF.month)) PF.month = mine[0] || ms[0] || '';
   $('pfMonth').value = PF.month;
-  if (!ms.length) { $('pfBody').innerHTML = '<p class="lead">No performance data yet.</p>'; return; }
+  if (!ms.length) { $('pfBody').innerHTML = '<p class="lead empty none">No performance data yet.</p>'; return; }
   drawPerf();
 }
 
@@ -230,7 +230,7 @@ function drawNetStore() {
   };
   $('pfBody').innerHTML = `<button class="quiet" id="netBack" style="margin-bottom:1rem">\u2190 All Stretch Zone Mastercard</button>
     <h3 style="margin:0 0 .15rem">${esc(st.name)}</h3><p class="lead" style="margin:0 0 1rem">${esc([st.franchise, st.tier].filter(Boolean).join(' \u2022 ')) || 'Store ' + esc(st.store)}${rows.length ? ' \u2022 ' + rows.length + ' month' + (rows.length === 1 ? '' : 's') + ' on file' : ''}</p>
-    ${!rows.length ? '<p class="lead">No history uploaded for this location yet.</p>' : `<div class="pcard"><h3 id="netTitle"></h3><div style="position:relative;height:320px"><canvas id="netChart"></canvas></div><p class="lead" id="netNote" style="margin:.6rem 0 0;font-size:.85rem"></p></div>
+    ${!rows.length ? '<p class="lead empty none">No history uploaded for this location yet.</p>' : `<div class="pcard"><h3 id="netTitle"></h3><div style="position:relative;height:320px"><canvas id="netChart"></canvas></div><p class="lead" id="netNote" style="margin:.6rem 0 0;font-size:.85rem"></p></div>
     <h3 class="sub" style="margin-top:1.5rem">Click a card to chart it above</h3><div class="kgrid">${CORP.map(tile).join('')}</div>`}`;
   if (rows.length) drawNetChart();
 }
