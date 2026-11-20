@@ -1152,3 +1152,24 @@ dialog.lbwide { max-width:1000px; width:calc(100% - 2rem); max-height:92vh; }
 .lbtwo > .acts { position:sticky; bottom:-1.5rem; margin:0 -1.5rem -1.5rem; padding:.8rem 1.5rem 1.2rem; background:linear-gradient(rgba(250,246,240,0), rgba(250,246,240,.95) 35%); }
 .lbtwo .lbhint2 { margin:-.4rem 0 .5rem; }
 @media (max-width:760px) { .lbcols, .lbcols-asg { grid-template-columns:1fr; } }
+
+/* Library: category chips, one continuous grid, list view */
+.lbcats { display:flex; flex-wrap:wrap; gap:.35rem; margin:-.4rem 0 1.1rem; }
+.lbcats button { padding:.32rem .8rem; font-size:.82rem; font-weight:500; background:rgba(255,255,255,.45); color:var(--ink); border:1px solid rgba(38,30,20,.1); border-radius:999px; }
+.lbcats button span { color:var(--muted); font-size:.75rem; margin-left:.2rem; }
+.lbcats button.on { background:var(--dark, #2a2118); color:#fff; border-color:transparent; } .lbcats button.on span { color:rgba(255,255,255,.7); }
+.lbview { display:inline-flex; padding:.2rem; border-radius:999px; background:rgba(255,255,255,.35); border:1px solid rgba(38,30,20,.08); }
+.lbview button { padding:.3rem .7rem; font-size:.8rem; background:transparent; color:var(--muted); border:0; border-radius:999px; }
+.lbview button.on { background:#fff; color:var(--ink); box-shadow:0 1px 6px rgba(60,38,15,.12); }
+.lbbar .lbview { margin-left:auto; } .lbbar .lbview + #lbFind { margin-left:0; }
+.lbchip.cat { background:rgba(60,90,170,.1); color:#2f4a8a; }
+.lbpinmark { position:absolute; top:-.45rem; left:-.35rem; font-size:.95rem; }
+.lbpathsmall { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; margin:0 0 1.1rem; font-size:.9rem; }
+.lbpathsmall .muted { font-size:.82rem; }
+.lblist table { width:100%; } .lblist td { vertical-align:middle; padding-top:.45rem; padding-bottom:.45rem; font-size:.86rem; }
+.lbrow { cursor:pointer; } .lbrow:hover td { background:rgba(255,255,255,.45); } .lbrow:focus-visible { outline:2px solid var(--dark); outline-offset:-2px; }
+.lbrowic { width:2.6rem; } .lbrowic span { display:grid; place-items:center; width:2.1rem; height:2.1rem; border-radius:9px; background:rgba(38,30,20,.07); font-size:1rem; }
+.lbrowic img { width:2.1rem; height:2.1rem; border-radius:9px; object-fit:cover; display:block; }
+.lbrowt b { display:block; font-size:.9rem; } .lbrowt span:not(.lbnew) { display:block; color:var(--muted); font-size:.78rem; max-width:420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lbrowm { white-space:nowrap; font-size:.78rem; }
+@media (max-width:760px) { .lblist th:nth-child(n+3), .lblist td:nth-child(n+3):not(:last-child) { display:none; } }
