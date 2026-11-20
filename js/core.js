@@ -55,6 +55,7 @@ async function showApp(user) {
   const loc = locs.find(x => x.id === me.location_id);
   $('who').textContent = me.full_name || me.email;
   $('acctAv').textContent = String(me.full_name || me.email || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  if (me.photo_path) db.storage.from('team-photos').createSignedUrl(me.photo_path, 3600).then(({ data }) => { if (data && data.signedUrl) $('acctAv').innerHTML = `<img src="${esc(data.signedUrl)}" alt="">`; });
   $('meta').textContent = me.role + ' \u2022 ' + (me.role === 'owner' ? 'All locations' : loc ? loc.name : 'No location yet');
   const h = new Date().getHours(), first = me.full_name ? me.full_name.split(' ')[0] : '';
   $('hello').textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + (first ? ', ' + first : '');
@@ -226,6 +227,8 @@ $('teamNudge').onclick = e => { if (e.target.closest('[data-editme]')) $('editMi
 $('studioFilter').onchange = renderPeople;
 $('people').onclick = e => { if (e.target.closest('.tic')) return; const b = e.target.closest('.person, .tcard'); if (b) openCard(b.dataset.id); };
 $('people').onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('tcard')) { e.preventDefault(); openCard(e.target.dataset.id); } };
+// Account menu → My profile: open your own team card
+$('myProfileBtn').onclick = async () => { if (!people.find(p => p.id === ME.id)) await loadPeople(); if (people.find(p => p.id === ME.id)) openCard(ME.id, false); else alert('Ask the owner to add your name first.'); };
 $('editMine').onclick = () => {
   if (!people.find(p => p.id === ME.id)) { alert('Ask the owner to add your name first, then you can edit your card.'); return; }
   openCard(ME.id, true);

@@ -51,7 +51,8 @@ th, .mt th { font-size:.7rem; letter-spacing:.05em; }
 .acctbtn:hover { background:rgba(255,255,255,.75); }
 .acctbtn .wtxt { text-align:left; margin:0; font-size:.8rem; line-height:1.2; }
 .acctbtn .wtxt span { max-width:170px; font-weight:600; } .acctbtn .wtxt small { display:block; font-size:.7rem; }
-.avatar { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--dark); color:#f4ead8; font-size:.7rem; font-weight:600; flex:none; }
+.avatar img { width:100%; height:100%; object-fit:cover; display:block; border-radius:50%; }
+.avatar { overflow:hidden; display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--dark); color:#f4ead8; font-size:.7rem; font-weight:600; flex:none; }
 .acctmenu { background:rgba(250,246,240,.97); position:absolute; right:0; top:calc(100% + .45rem); min-width:200px; display:flex; flex-direction:column; }
 .acctmenu button { display:flex; align-items:center; gap:.55rem; width:100%; padding:.55rem .7rem; border-radius:12px; background:transparent; color:var(--ink); font-size:.86rem; text-align:left; box-shadow:none; }
 .acctmenu button:hover { background:rgba(255,255,255,.6); transform:none; }
