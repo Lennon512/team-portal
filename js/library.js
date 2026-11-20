@@ -44,6 +44,9 @@ function lbFormat(t) {
   }).join('');
 }
 
+// Library forms open in a wide two-column pop-up; the class comes off when it closes so other pages' pop-ups stay normal
+const lbWide = () => { const d = $('dlg'); d.classList.remove('wide'); d.classList.add('lbwide'); if (!d.open) d.showModal(); const f = d.querySelector('#lbT, #lpT'); if (f && !f.value) f.focus(); };
+$('dlg').addEventListener('close', () => $('dlg').classList.remove('lbwide'));
 const lbImg = r => !!r.file_path && /\.(png|jpe?g|gif|webp)$/i.test(r.file_name || ''), lbPdf = r => !!r.file_path && /\.pdf$/i.test(r.file_name || '');
 // A resource can hold any mix of a file, a link / video and written page text
 const lbParts = r => [...(r.url && lbEmbed(r.url) ? ['video'] : r.url ? ['link'] : []), ...(r.file_path ? ['file'] : []), ...(r.body && String(r.body).trim() ? ['page'] : [])];
@@ -135,7 +138,7 @@ async function lbOpen(id) {
     (panels.length > 1 ? `<div class="tabs lbdtabs" role="tablist">${panels.map(([l], k) => `<button type="button" role="tab" data-lbpanel="${k}" class="${k ? '' : 'on'}" aria-selected="${!k}">${l}</button>`).join('')}</div>` : '') +
     panels.map(([, h], k) => `<div class="lbpanel" data-panel="${k}" ${k ? 'hidden' : ''}>${h}</div>`).join('') +
     `<div class="acts">${acts.join('')}<button class="quiet" data-act="close">Close</button></div>`;
-  $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal();
+  $('dlg').classList.remove('lbwide'); $('dlg').classList.add('wide'); if (!$('dlg').open) $('dlg').showModal();
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-lbpanel]'); if (!b || !$('dlg').contains(b)) return;
   document.querySelectorAll('[data-lbpanel]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', x === b); });
@@ -146,13 +149,14 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-lbpa
 function lbForm(id) {
   const r = LB.rows.find(x => x.id === id) || { kind: 'file', category: LB.cat || 'General', positions: [], tags: [] };
   const cats = [...new Set([...LB_CATS, ...LB.rows.map(x => x.category)])];
-  $('dlgBody').innerHTML = `<div class="lbform"><h2>${r.id ? 'Edit resource' : 'Add resource'}</h2>
+  $('dlgBody').innerHTML = `<div class="lbform lbtwo"><h2>${r.id ? 'Edit resource' : 'Add resource'}</h2><div class="lbcols"><div>
     <label>Title <input id="lbT" maxlength="120" value="${esc(r.title)}" placeholder="Front desk opening checklist"></label>
-    <p class="muted lbhint2">Add any mix of these: for example a script file and a video link.</p>
-    <div class="lbpart"><label>📄 File <small class="muted">${r.file_name ? `(now: ${esc(r.file_name)}; choose a new one to replace it)` : '(PDF, doc, slides, image, short video; up to 50 MB)'}</small><input id="lbF" type="file"></label>
+    <p class="muted lbhint2">Add any mix of these, like a script file and a video link.</p>
+    <div class="lbpart"><label>📄 File ${r.file_name ? `<small class="muted">now: ${esc(r.file_name)}</small>` : '<small class="muted">up to 50 MB</small>'}<input id="lbF" type="file"></label>
       ${r.file_name ? '<label class="chkline lbrmf"><input type="checkbox" id="lbFx"> Remove this file</label>' : ''}</div>
-    <div class="lbpart"><label>🔗 Link or video <small class="muted">(YouTube, Loom, Vimeo, Google Drive, a website...)</small><input id="lbU" type="url" maxlength="500" value="${esc(r.url)}" placeholder="https://"></label></div>
-    <div class="lbpart"><label>📝 Written page <small class="muted">(script, SOP, checklist; blank line = new paragraph, "- " for bullets, **bold**)</small><textarea id="lbB" rows="${r.body ? 8 : 3}" maxlength="20000">${esc(r.body)}</textarea></label></div>
+    <div class="lbpart"><label>🔗 Link or video <input id="lbU" type="url" maxlength="500" value="${esc(r.url)}" placeholder="YouTube, Loom, Google Drive, website... https://"></label></div>
+    <div class="lbpart"><label>📝 Written page <small class="muted" title="Blank line = new paragraph, start a line with - for bullets, **bold**">blank line = paragraph, "- " = bullet, **bold**</small><textarea id="lbB" class="${r.body ? 'big' : ''}" maxlength="20000" placeholder="Type a script, SOP or checklist (optional)">${esc(r.body)}</textarea></label></div>
+    </div><div>
     <label>Short description <small class="muted">(optional)</small> <input id="lbD" maxlength="200" value="${esc(r.description)}"></label>
     <div class="grid2"><label>Category <input id="lbC" list="lbCats" maxlength="60" value="${esc(r.category)}"><datalist id="lbCats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></label>
       <label>Tags <small class="muted">(optional)</small> <input id="lbG" maxlength="200" value="${esc((r.tags || []).join(', '))}" placeholder="new hire, pricing"></label></div>
@@ -161,9 +165,10 @@ function lbForm(id) {
     <fieldset class="dlgrp"><legend>Options</legend>
       <label class="chkline"><input type="checkbox" id="lbPin" ${r.pinned ? 'checked' : ''}> Pin to the top ("Start here")</label>
       <label class="chkline"><input type="checkbox" id="lbSign" ${r.needs_signoff ? 'checked' : ''}> Needs sign-off from their studio lead</label></fieldset>
+    </div></div>
     <div class="err" id="lbErr" role="alert"></div>
     <div class="acts"><button data-act="lbSave" data-id="${r.id || ''}">Save</button>${r.id ? `<button class="quiet" data-act="lbDel" data-id="${r.id}">Remove</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div></div>`;
-  $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
+  lbWide();
 }
 
 async function lbSave(id) {
@@ -265,14 +270,16 @@ function lbPathOpen(id) {
 }
 function lbPathForm(id) {
   const pa = LB.paths.find(x => x.id === id) || { items: [] }, sel = (pa.items || []).filter(lbRes), rest = LB.rows.filter(r => !sel.includes(r.id));
-  $('dlgBody').innerHTML = `<div class="lbform"><h2>${pa.id ? 'Edit path' : 'New training path'}</h2>
+  $('dlgBody').innerHTML = `<div class="lbform lbtwo"><h2>${pa.id ? 'Edit path' : 'New training path'}</h2><div class="lbcols lbcols-asg"><div>
     <label>Name <input id="lpT" maxlength="120" value="${esc(pa.title)}" placeholder="New Flexologist onboarding"></label>
-    <label>Description (optional) <input id="lpD" maxlength="200" value="${esc(pa.description)}" placeholder="Everything to finish in your first two weeks"></label>
+    <label>Description <small class="muted">(optional)</small> <textarea id="lpD" class="sm" maxlength="200" placeholder="Everything to finish in your first two weeks">${esc(pa.description)}</textarea></label>
+    </div><div>
     <fieldset class="dlgrp"><legend>Trainings, in order <small class="muted" style="text-transform:none;letter-spacing:0">(tick to include; use ↑ ↓ to reorder)</small></legend>
       <div class="lbpathpick" id="lpList">${[...sel.map(lbRes), ...rest].map(r => `<div class="lbpp" data-rid="${r.id}"><label class="chkline"><input type="checkbox" ${sel.includes(r.id) ? 'checked' : ''}> ${esc(r.title)} <small class="muted">${esc(r.category)}</small></label><span><button type="button" class="mg-ic" data-lpmv="-1" aria-label="Move up">↑</button><button type="button" class="mg-ic" data-lpmv="1" aria-label="Move down">↓</button></span></div>`).join('')}</div></fieldset>
+    </div></div>
     <div class="err" id="lpErr" role="alert"></div>
     <div class="acts"><button data-act="lpSave" data-id="${pa.id || ''}">Save</button>${pa.id ? `<button class="quiet" data-act="lpDel" data-id="${pa.id}">Delete path</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div></div>`;
-  $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
+  lbWide();
 }
 async function lbPathSave(btn) {
   const id = btn.dataset.id || null, title = $('lpT').value.trim(), items = [...document.querySelectorAll('#lpList .lbpp')].filter(d => d.querySelector('input').checked).map(d => d.dataset.rid);
@@ -347,8 +354,11 @@ function lbAssignForm(pick) {
   const opts = only ? only.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('')
     : (LB.paths.length ? `<optgroup label="Paths (assigns every training in it)">${LB.paths.map(pa => `<option value="path:${pa.id}" ${pick === 'path:' + pa.id ? 'selected' : ''}>🧭 ${esc(pa.title)} (${lbPathItems(pa).length})</option>`).join('')}</optgroup><optgroup label="Single trainings">` : '') +
       LB.rows.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('') + (LB.paths.length ? '</optgroup>' : '');
-  $('dlgBody').innerHTML = `<div class="lbform"><h2>Assign training</h2>
+  $('dlgBody').innerHTML = `<div class="lbform lbtwo"><h2>Assign training</h2><div class="lbcols lbcols-asg"><div>
     <label>Training or path <select id="laR">${opts}</select></label>
+    <label>Due date <small class="muted">(optional)</small> <input id="laD" type="date"></label>
+    <label>Note <small class="muted">(optional)</small> <textarea id="laN" class="sm" maxlength="200" placeholder="Finish before your first solo shift"></textarea></label>
+    </div><div>
     <fieldset class="dlgrp"><legend>Who <span class="lbsel" id="laCount">0 selected</span></legend>
       <div class="lbquick">
         <select id="laAddLoc" aria-label="Add everyone at a studio"><option value="">+ Add a studio</option>${usedLoc.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')}</select>
@@ -356,10 +366,10 @@ function lbAssignForm(pick) {
         <button type="button" class="linkish" data-laq="all">Everyone</button><button type="button" class="linkish" data-laq="none">Clear</button>
         <input id="laFind" type="search" placeholder="Find a person" aria-label="Find a person"></div>
       <div class="lbpeople">${ppl.map(p => `<label class="chkline" data-name="${esc(String(p.full_name || p.email).toLowerCase())}"><input type="checkbox" data-lau="${p.id}" data-loc="${p.location_id || ''}" data-pos="${posOf(p.id).join(' ')}"><span>${esc(p.full_name || p.email)} <small class="muted">${esc(lbLoc(p.location_id))}</small><small class="muted lbhas" data-has="${p.id}"></small></span></label>`).join('')}</div></fieldset>
-    <div class="grid2"><label>Due date <small class="muted">(optional)</small> <input id="laD" type="date"></label><label>Note <small class="muted">(optional)</small> <input id="laN" maxlength="200" placeholder="Finish before your first solo shift"></label></div>
+    </div></div>
     <div class="err" id="laErr" role="alert"></div>
     <div class="acts"><button data-act="laSave">Assign</button><button class="quiet" data-act="close">Cancel</button></div></div>`;
-  $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
+  lbWide();
   lbMarkHas();
 }
 const lbPicked = () => { const v = $('laR').value; if (v.startsWith('path:')) { const pa = LB.paths.find(x => x.id === v.slice(5)); return { pa, rids: pa ? lbPathItems(pa).map(r => r.id) : [] }; } return { pa: null, rids: [v] }; };

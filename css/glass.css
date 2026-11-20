@@ -1138,3 +1138,17 @@ a.htask { text-decoration:none; color:inherit; }
 .lbform .lbrmf { margin-top:-.25rem; font-size:.82rem; }
 .lbdtabs { margin:0 0 .8rem; }
 .lblinkcard p { word-break:break-all; font-size:.88rem; }
+
+/* Library: wide two-column pop-ups, so forms fit without scrolling */
+dialog.lbwide { max-width:1000px; width:calc(100% - 2rem); max-height:92vh; }
+.lbform.lbtwo { width:100%; }
+.lbcols { display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(0, 1fr); gap:0 1.6rem; align-items:start; }
+.lbcols-asg { grid-template-columns:minmax(0, .8fr) minmax(0, 1.2fr); }
+.lbform textarea { min-height:70px; }
+.lbform textarea.big { min-height:180px; }
+.lbform textarea.sm { min-height:60px; }
+.lbtwo .lbpeople { max-height:46vh; }
+.lbtwo .lbpathpick { max-height:52vh; }
+.lbtwo > .acts { position:sticky; bottom:-1.5rem; margin:0 -1.5rem -1.5rem; padding:.8rem 1.5rem 1.2rem; background:linear-gradient(rgba(250,246,240,0), rgba(250,246,240,.95) 35%); }
+.lbtwo .lbhint2 { margin:-.4rem 0 .5rem; }
+@media (max-width:760px) { .lbcols, .lbcols-asg { grid-template-columns:1fr; } }
