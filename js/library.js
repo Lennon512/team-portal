@@ -1,6 +1,6 @@
 // ---------- Library: training and reference resources ----------
 // Everyone can browse; owners add, edit and remove. Files live in the private "library" storage bucket.
-const LB = { rows: [], pos: [], myPos: new Set(), missing: false, q: '', cat: '', mine: false, kind: '', tab: 'lib', asg: [], all: [], people: [], pp: [], asgMissing: false, af: { loc: '', st: 'open', res: '' } };
+const LB = { rows: [], pos: [], myPos: new Set(), missing: false, q: '', cat: '', mine: false, kind: '', tab: 'lib', asg: [], all: [], people: [], pp: [], asgMissing: false, paths: [], af: { loc: '', st: 'open', res: '' } };
 const LB_KINDS = { file: ['File', '📄'], link: ['Link', '🔗'], video: ['Video', '▶'], page: ['Page', '📝'] };
 const LB_CATS = ['Start here', 'Sales', 'Stretch technique', 'Front desk', 'Member success', 'Policies', 'Opening & closing', 'Marketing', 'General'];
 
@@ -9,16 +9,19 @@ async function loadLibrary() {
     db.from('profile_positions').select('position_id').eq('user_id', ME.id)]);
   LB.missing = !!r.error && /library_resources/.test(r.error.message || '');
   LB.rows = r.data || []; LB.thumbs = {}; LB.pos = p.data || []; LB.myPos = new Set((pp.data || []).map(x => x.position_id));
-  // Assigned trainings: everyone loads their own; owners also load everyone's plus the people to pick from
-  const own = ME.role === 'owner', [a, all, pe, ppl] = await Promise.all([db.from('library_assignments').select('*').eq('user_id', ME.id),
-    own ? db.from('library_assignments').select('*') : Promise.resolve({ data: [] }),
-    own ? db.from('profiles').select('id,full_name,email,location_id,role').order('full_name') : Promise.resolve({ data: [] }),
-    own ? db.from('profile_positions').select('user_id,position_id') : Promise.resolve({ data: [] })]);
+  // Assigned trainings: everyone loads their own; owners load everyone's, studio leads their studio's (the database limits it)
+  const own = ME.role === 'owner', wide = own || lbLead(), [a, all, pe, ppl, pa] = await Promise.all([db.from('library_assignments').select('*').eq('user_id', ME.id),
+    wide ? db.from('library_assignments').select('*') : Promise.resolve({ data: [] }),
+    wide ? db.from('profiles').select('id,full_name,email,location_id,role').order('full_name') : Promise.resolve({ data: [] }),
+    own ? db.from('profile_positions').select('user_id,position_id') : Promise.resolve({ data: [] }),
+    db.from('library_paths').select('*').order('title')]);
   LB.asgMissing = !!a.error && /library_assignments/.test(a.error.message || '');
   LB.asg = a.data || []; LB.all = all.data || []; LB.people = (pe.data || []).filter(x => x.full_name || x.email); LB.pp = ppl.data || [];
+  LB.pathsMissing = !!pa.error; LB.paths = pa.data || [];
   drawLibrary();
 }
 
+const lbLead = () => ME.role === 'manager' && !!ME.location_id;   // studio lead: a manager at their studio (same as time off)
 const lbPosName = id => (LB.pos.find(p => p.id === id) || {}).name || '';
 const lbForMe = r => !r.positions || !r.positions.length || r.positions.some(id => LB.myPos.has(id));
 // YouTube / Loom / Vimeo links play inside the portal
@@ -62,7 +65,9 @@ function drawLibrary() {
     return;
   }
   const openN = LB.asg.filter(x => !x.completed_at && LB.rows.some(r => r.id === x.resource_id)).length;
-  $('lbTabs').innerHTML = [['lib', 'Library'], ['mine', 'My trainings' + (openN ? ` <span class="lbcount">${openN}</span>` : '')], ...(own ? [['assign', 'Assigned']] : [])]
+  const waitN = LB.all.filter(x => lbStatus(x)[0] === 'wait' && lbCanSign(x)).length;
+  $('lbTabs').innerHTML = [['lib', 'Library'], ['mine', 'My trainings' + (openN ? ` <span class="lbcount">${openN}</span>` : '')],
+    ...(own ? [['assign', 'Assigned' + (waitN ? ` <span class="lbcount">${waitN}</span>` : '')]] : lbLead() ? [['assign', 'My studio' + (waitN ? ` <span class="lbcount">${waitN}</span>` : '')]] : [])]
     .map(([k, l]) => `<button type="button" data-lbt="${k}" class="${LB.tab === k ? 'on' : ''}">${l}</button>`).join('');
   $('lbAdd').hidden = !own || LB.missing || LB.tab !== 'lib';
   $('lbAssignNew').hidden = !own || LB.tab !== 'assign' || LB.asgMissing;
@@ -71,16 +76,16 @@ function drawLibrary() {
     return;
   }
   if (LB.tab === 'mine') return lbDrawMine();
-  if (LB.tab === 'assign' && own) return lbDrawAssigned();
+  if (LB.tab === 'assign' && (own || lbLead())) return lbDrawAssigned();
   const q = LB.q.trim().toLowerCase(), cats = [...new Set([...LB_CATS.filter(c => LB.rows.some(r => r.category === c)), ...LB.rows.map(r => r.category)])];
   const hit = r => !q || [r.title, r.description, r.category, r.body, r.file_name, ...(r.tags || []), ...(r.positions || []).map(lbPosName)].some(x => String(x || '').toLowerCase().includes(q));
   const list = LB.rows.filter(r => hit(r) && (!LB.cat || r.category === LB.cat) && (!LB.mine || lbForMe(r)) && (!LB.kind || r.kind === LB.kind));
   const card = r => { const [kl, ki] = LB_KINDS[r.kind] || LB_KINDS.link, forMe = lbForMe(r) && r.positions && r.positions.length;
     return `<div class="lbcard${r.pinned ? ' pin' : ''}" data-lb="${r.id}" tabindex="0" role="button" aria-label="Open ${esc(r.title)}">
       ${LB.thumbs && LB.thumbs[r.id] ? `<div class="lbthumb" aria-hidden="true"><img src="${esc(LB.thumbs[r.id])}" alt="" loading="lazy"></div>` : `<div class="lbic" aria-hidden="true">${ki}</div>`}
-      <div class="lbtxt"><b>${esc(r.title)}${lbNew(r) ? ' <span class="lbnew">New</span>' : ''}</b>${r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<span>${esc(r.description)}</span>` : ''}
-        <div class="lbchips"><span class="lbchip k">${kl}${r.kind === 'file' && r.file_name ? ' • ' + esc(r.file_name.split('.').pop().toUpperCase()) : ''}</span>${forMe ? '<span class="lbchip me">For your role</span>' : ''}${(r.positions || []).length && !forMe ? (r.positions || []).map(id => `<span class="lbchip">${esc(lbPosName(id))}</span>`).join('') : ''}${(r.tags || []).map(t => `<span class="lbchip t">#${esc(t)}</span>`).join('')}</div></div>
-      ${own ? `<div class="lbacts"><button type="button" class="quiet lbasgbtn" data-lbasg="${r.id}" aria-label="Assign ${esc(r.title)}" title="Assign to people">Assign</button><button type="button" class="mg-ic" data-lbedit="${r.id}" aria-label="Edit ${esc(r.title)}" title="Edit">✎</button></div>` : ''}</div>`; };
+      <div class="lbtxt"><b>${esc(r.title)}${lbNew(r) ? ' <span class="lbnew">New</span>' : ''}</b>${r.description && r.description.trim().toLowerCase() !== String(r.title || '').trim().toLowerCase() ? `<span class="lbdesc">${esc(r.description)}</span>` : ''}
+        <div class="lbchips"><span class="lbchip k">${kl}${r.kind === 'file' && r.file_name ? ' • ' + esc(r.file_name.split('.').pop().toUpperCase()) : ''}</span>${forMe ? '<span class="lbchip me">For your role</span>' : ''}${(r.positions || []).length && !forMe ? (r.positions || []).map(id => `<span class="lbchip">${esc(lbPosName(id))}</span>`).join('') : ''}${r.needs_signoff ? '<span class="lbchip">Needs sign-off</span>' : ''}${(r.tags || []).map(t => `<span class="lbchip t">#${esc(t)}</span>`).join('')}</div>
+        ${own ? `<div class="lbacts"><span class="lbmeta">${lbAsgLine(r.id)}</span><button type="button" class="quiet lbasgbtn" data-lbasg="${r.id}" aria-label="Assign ${esc(r.title)}" title="Assign to people">Assign</button><button type="button" class="mg-ic" data-lbedit="${r.id}" aria-label="Edit ${esc(r.title)}" title="Edit">✎</button></div>` : ''}</div></div>`; };
   const pinned = list.filter(r => r.pinned), byCat = cats.map(c => [c, list.filter(r => r.category === c && !r.pinned)]).filter(([, L]) => L.length);
   $('lbBody').innerHTML = `<div class="lbbar">
       <select id="lbCat" aria-label="Category"><option value="">All categories (${LB.rows.length})</option>${cats.map(c => `<option ${LB.cat === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
@@ -89,7 +94,7 @@ function drawLibrary() {
       <input id="lbFind" type="search" placeholder="Search the library" aria-label="Search the library" value="${esc(LB.q)}"></div>` +
     (!LB.rows.length ? `<div class="pcard"><h3>Nothing here yet</h3><p>${own ? 'Click <b>Add resource</b> to upload a file, link a video or doc, or write a page (scripts, SOPs, checklists).' : 'Training materials and resources will show up here.'}</p></div>`
       : !list.length ? '<p class="lead">Nothing matches that search.</p>'
-      : (pinned.length ? `<section class="lbsec"><h3>📌 Start here</h3><div class="lbgrid">${pinned.map(card).join('')}</div></section>` : '') +
+      : lbPathsSection(q) + (pinned.length ? `<section class="lbsec"><h3>📌 Start here</h3><div class="lbgrid">${pinned.map(card).join('')}</div></section>` : '') +
         byCat.map(([c, L]) => `<section class="lbsec"><h3>${esc(c)} <span class="hcount">${L.length}</span></h3><div class="lbgrid">${L.map(card).join('')}</div></section>`).join(''));
   const f = $('lbFind'); if (f && LB.focus) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); LB.focus = false; }
   lbThumbs();
@@ -139,6 +144,7 @@ function lbForm(id) {
     <fieldset class="dlgrp"><legend>Who it's for <small class="muted" style="text-transform:none;letter-spacing:0">(leave all unticked for everyone)</small></legend>
       <div class="lbpos">${LB.pos.map(p => `<label class="chkline"><input type="checkbox" data-lbp="${p.id}" ${(r.positions || []).includes(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}</div></fieldset>
     <label class="chkline"><input type="checkbox" id="lbPin" ${r.pinned ? 'checked' : ''}> Pin to the top ("Start here")</label>
+    <label class="chkline"><input type="checkbox" id="lbSign" ${r.needs_signoff ? 'checked' : ''}> Needs sign-off from their studio lead when assigned (hands-on skills)</label>
     <div class="err" id="lbErr" role="alert"></div>
     <div class="acts"><button data-act="lbSave" data-id="${r.id || ''}">Save</button>${r.id ? `<button class="quiet" data-act="lbDel" data-id="${r.id}">Remove</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div>`;
   lbShowKind();
@@ -151,7 +157,7 @@ async function lbSave(id) {
   if (!title) return err('Add a title.');
   const row = { title, kind: k, description: $('lbD').value.trim() || null, category: $('lbC').value.trim() || 'General',
     tags: $('lbG').value.split(',').map(s => s.trim().replace(/^#/, '')).filter(Boolean), positions: [...document.querySelectorAll('[data-lbp]:checked')].map(x => x.dataset.lbp),
-    pinned: $('lbPin').checked, url: null, body: null, updated_at: new Date().toISOString() };
+    pinned: $('lbPin').checked, needs_signoff: $('lbSign').checked, url: null, body: null, updated_at: new Date().toISOString() };
   if (k === 'link' || k === 'video') { row.url = $('lbU').value.trim(); if (!/^https?:\/\//i.test(row.url)) return err('Add a link that starts with https://'); }
   if (k === 'page') { row.body = $('lbB').value.trim(); if (!row.body) return err('Write something on the page.'); }
   const btn = document.querySelector('[data-act="lbSave"]'); btn.disabled = true; btn.textContent = 'Saving...';
@@ -166,7 +172,9 @@ async function lbSave(id) {
         row.file_path = path; row.file_name = f.name;
       } else if (!old || !old.file_path) throw new Error('Choose a file to upload.');
     } else if (old && old.file_path) { db.storage.from('library').remove([old.file_path]); row.file_path = null; row.file_name = null; }
-    const res = id ? await db.from('library_resources').update(row).eq('id', id) : await db.from('library_resources').insert({ ...row, created_by: ME.id });
+    const put = x => id ? db.from('library_resources').update(x).eq('id', id) : db.from('library_resources').insert({ ...x, created_by: ME.id });
+    let res = await put(row);
+    if (res.error && /needs_signoff/.test(res.error.message || '')) { const { needs_signoff, ...rest } = row; res = await put(rest); }   // sql/library_paths_signoff.sql not run yet
     if (res.error) throw res.error;
   } catch (e) { btn.disabled = false; btn.textContent = 'Save'; return err('Could not save. ' + (e.message || '')); }
   $('dlg').close(); toast(id ? 'Saved' : 'Added to the library'); loadLibrary();
@@ -186,9 +194,14 @@ $('lbBody').addEventListener('click', e => {
   const as = e.target.closest('[data-lbasg]'); if (as) { e.stopPropagation(); lbAssignForm(as.dataset.lbasg); return; }
   const dn = e.target.closest('[data-lbdone]'); if (dn) { e.stopPropagation(); lbDone(dn.dataset.lbdone, dn.dataset.undo === '1'); return; }
   const rm = e.target.closest('[data-lbunasg]'); if (rm) { e.stopPropagation(); lbUnassign(rm.dataset.lbunasg); return; }
+  const so = e.target.closest('[data-lbsign]'); if (so) { e.stopPropagation(); lbSignoff(so.dataset.lbsign, so.dataset.undo === '1'); return; }
+  const pn = e.target.closest('[data-lbpathnew]'); if (pn) { lbPathForm(null); return; }
+  const pe = e.target.closest('[data-lbpathedit]'); if (pe) { e.stopPropagation(); lbPathForm(pe.dataset.lbpathedit); return; }
+  const pas = e.target.closest('[data-lbpathasg]'); if (pas) { e.stopPropagation(); lbAssignForm('path:' + pas.dataset.lbpathasg); return; }
+  const po = e.target.closest('[data-lbpath]'); if (po) { lbPathOpen(po.dataset.lbpath); return; }
   const c = e.target.closest('[data-lb]'); if (c) { e.preventDefault(); lbOpen(c.dataset.lb); }
 });
-$('lbBody').addEventListener('keydown', e => { const c = e.target.closest('[data-lb]'); if (c && (e.key === 'Enter' || e.key === ' ') && e.target === c) { e.preventDefault(); lbOpen(c.dataset.lb); } });
+$('lbBody').addEventListener('keydown', e => { const pc = e.target.closest('[data-lbpath]'); if (pc && (e.key === 'Enter' || e.key === ' ') && e.target === pc) { e.preventDefault(); lbPathOpen(pc.dataset.lbpath); return; } const c = e.target.closest('[data-lb]'); if (c && (e.key === 'Enter' || e.key === ' ') && e.target === c) { e.preventDefault(); lbOpen(c.dataset.lb); } });
 $('lbBody').addEventListener('input', e => { if (e.target.id === 'lbFind') { LB.q = e.target.value; LB.focus = true; drawLibrary(); } });
 $('lbBody').addEventListener('change', e => { const t = e.target;
   if (t.id === 'lbAfLoc') { LB.af.loc = t.value; drawLibrary(); return; } if (t.id === 'lbAfSt') { LB.af.st = t.value; drawLibrary(); return; } if (t.id === 'lbAfRes') { LB.af.res = t.value; drawLibrary(); return; }
@@ -198,52 +211,131 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-act=
   b.dataset.act === 'lbSave' ? lbSave(b.dataset.id || null) : lbDel(b.dataset.id); });
 
 
-// ---------- Trainings: My trainings, and owners assigning ----------
+// ---------- Trainings: My trainings, paths, assigning and studio-lead sign-off ----------
 const lbToday = () => todayStr();
-const lbDue = d => d ? new Date(d + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+const lbDue = d => d ? new Date(String(d).slice(0, 10) + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
 const lbName = id => { const p = LB.people.find(x => x.id === id); return p ? (p.full_name || p.email) : (id === ME.id ? (ME.full_name || ME.email) : 'Someone'); };
 const lbLoc = id => (locs.find(l => l.id === id) || {}).name || '';
-const lbStatus = a => a.completed_at ? ['done', 'Done ' + lbDue(String(a.completed_at).slice(0, 10))] : a.due_date && a.due_date < lbToday() ? ['late', 'Overdue'] : ['open', a.due_date ? 'Due ' + lbDue(a.due_date) : 'To do'];
+const lbRes = id => LB.rows.find(r => r.id === id);
+const lbNeeds = a => !!(lbRes(a.resource_id) || {}).needs_signoff;
+const lbIsDone = a => !!a.completed_at && (!lbNeeds(a) || !!a.signed_off_at);
+// A training needing sign-off counts as done only once their studio lead (or an owner) signs it off
+const lbStatus = a => lbIsDone(a) ? ['done', (a.signed_off_at ? 'Signed off ' : 'Done ') + lbDue(a.signed_off_at || a.completed_at)]
+  : a.completed_at ? ['wait', 'Waiting for sign-off'] : a.due_date && a.due_date < lbToday() ? ['late', 'Overdue'] : ['open', a.due_date ? 'Due ' + lbDue(a.due_date) : 'To do'];
+const lbCanSign = a => { if (a.user_id === ME.id && ME.role !== 'owner') return false; if (ME.role === 'owner') return true; const p = LB.people.find(x => x.id === a.user_id); return lbLead() && p && p.location_id === ME.location_id; };
+const lbAsgLine = rid => { const L = LB.all.filter(a => a.resource_id === rid); if (!L.length) return ''; const d = L.filter(lbIsDone).length; return `${L.length} assigned • ${d} done`; };
+const lbBar = (d, n) => `<span class="lbbar2" role="progressbar" aria-valuemin="0" aria-valuemax="${n}" aria-valuenow="${d}"><i style="width:${n ? Math.round(d / n * 100) : 0}%"></i></span><span class="lbbarn">${d}/${n}</span>`;
+const lbPathItems = pa => (pa.items || []).map(lbRes).filter(Boolean);
 
+// Paths on the Library tab
+function lbPathsSection(q) {
+  const own = ME.role === 'owner';
+  if (LB.pathsMissing) return own ? `<div class="pcard" style="margin-bottom:1.2rem"><h3>Training paths: one-time setup</h3><p>Paste <b>sql/library_paths_signoff.sql</b> into Supabase → SQL Editor and click Run, then refresh, to group trainings into paths and use studio-lead sign-off.</p></div>` : '';
+  const L = LB.paths.filter(pa => !q || [pa.title, pa.description].some(x => String(x || '').toLowerCase().includes(q)));
+  if (!L.length && !own) return '';
+  if (!L.length && q) return '';
+  return `<section class="lbsec"><h3>🧭 Training paths ${L.length ? `<span class="hcount">${L.length}</span>` : ''}${own ? ' <button type="button" class="quiet lbasgbtn" data-lbpathnew="1">New path</button>' : ''}</h3>` +
+    (!L.length ? '<p class="lead" style="margin:0">Group trainings into a path (like "New Flexologist onboarding") and assign the whole set at once.</p>'
+      : `<div class="lbgrid">${L.map(pa => { const it = lbPathItems(pa), asg = LB.all.filter(a => a.path_id === pa.id), ppl = new Set(asg.map(a => a.user_id));
+        return `<div class="lbcard lbpathcard" data-lbpath="${pa.id}" tabindex="0" role="button" aria-label="Open path ${esc(pa.title)}"><div class="lbic" aria-hidden="true">🧭</div>
+          <div class="lbtxt"><b>${esc(pa.title)}</b>${pa.description ? `<span class="lbdesc">${esc(pa.description)}</span>` : ''}<div class="lbchips"><span class="lbchip k">${it.length} training${it.length === 1 ? '' : 's'}</span></div>
+          ${own ? `<div class="lbacts"><span class="lbmeta">${ppl.size ? `Assigned to ${ppl.size}` : ''}</span><button type="button" class="quiet lbasgbtn" data-lbpathasg="${pa.id}">Assign</button><button type="button" class="mg-ic" data-lbpathedit="${pa.id}" aria-label="Edit ${esc(pa.title)}" title="Edit">✎</button></div>` : ''}</div></div>`; }).join('')}</div>`) + '</section>';
+}
+function lbPathOpen(id) {
+  const pa = LB.paths.find(x => x.id === id); if (!pa) return;
+  const it = lbPathItems(pa);
+  $('dlgBody').innerHTML = `<h2>🧭 ${esc(pa.title)}</h2>${pa.description ? `<p class="lead" style="margin:.2rem 0 1rem">${esc(pa.description)}</p>` : ''}
+    <ol class="lbpathlist">${it.map(r => { const a = LB.asg.find(x => x.resource_id === r.id); const st = a ? lbStatus(a) : null;
+      return `<li><button type="button" class="linkish" data-lbpi="${r.id}">${(LB_KINDS[r.kind] || LB_KINDS.link)[1]} ${esc(r.title)}</button>${st ? ` <span class="lbchip st-${st[0]}">${st[1]}</span>` : ''}${r.needs_signoff ? ' <span class="lbchip">Needs sign-off</span>' : ''}</li>`; }).join('') || '<li class="muted">No trainings in this path yet.</li>'}</ol>
+    <div class="acts">${ME.role === 'owner' ? `<button data-act="lbPathAsg" data-id="${pa.id}">Assign this path</button>` : ''}<button class="quiet" data-act="close">Close</button></div>`;
+  $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
+}
+function lbPathForm(id) {
+  const pa = LB.paths.find(x => x.id === id) || { items: [] }, sel = (pa.items || []).filter(lbRes), rest = LB.rows.filter(r => !sel.includes(r.id));
+  $('dlgBody').innerHTML = `<h2>${pa.id ? 'Edit path' : 'New training path'}</h2>
+    <label>Name <input id="lpT" maxlength="120" value="${esc(pa.title)}" placeholder="New Flexologist onboarding"></label>
+    <label>Description (optional) <input id="lpD" maxlength="200" value="${esc(pa.description)}" placeholder="Everything to finish in your first two weeks"></label>
+    <fieldset class="dlgrp"><legend>Trainings, in order <small class="muted" style="text-transform:none;letter-spacing:0">(tick to include; use ↑ ↓ to reorder)</small></legend>
+      <div class="lbpathpick" id="lpList">${[...sel.map(lbRes), ...rest].map(r => `<div class="lbpp" data-rid="${r.id}"><label class="chkline"><input type="checkbox" ${sel.includes(r.id) ? 'checked' : ''}> ${esc(r.title)} <small class="muted">${esc(r.category)}</small></label><span><button type="button" class="mg-ic" data-lpmv="-1" aria-label="Move up">↑</button><button type="button" class="mg-ic" data-lpmv="1" aria-label="Move down">↓</button></span></div>`).join('')}</div></fieldset>
+    <div class="err" id="lpErr" role="alert"></div>
+    <div class="acts"><button data-act="lpSave" data-id="${pa.id || ''}">Save</button>${pa.id ? `<button class="quiet" data-act="lpDel" data-id="${pa.id}">Delete path</button>` : ''}<button class="quiet" data-act="close">Cancel</button></div>`;
+  $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
+}
+async function lbPathSave(btn) {
+  const id = btn.dataset.id || null, title = $('lpT').value.trim(), items = [...document.querySelectorAll('#lpList .lbpp')].filter(d => d.querySelector('input').checked).map(d => d.dataset.rid);
+  if (!title) { $('lpErr').textContent = 'Give the path a name.'; return; }
+  if (!items.length) { $('lpErr').textContent = 'Tick at least one training.'; return; }
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const row = { title, description: $('lpD').value.trim() || null, items };
+  const { error } = id ? await db.from('library_paths').update(row).eq('id', id) : await db.from('library_paths').insert({ ...row, created_by: ME.id });
+  if (error) { btn.disabled = false; btn.textContent = 'Save'; $('lpErr').textContent = 'Could not save. ' + error.message; return; }
+  $('dlg').close(); toast(id ? 'Path saved' : 'Path added'); loadLibrary();
+}
+async function lbPathDel(id) {
+  const pa = LB.paths.find(x => x.id === id); if (!pa || !confirm(`Delete the path "${pa.title}"? Trainings already assigned stay assigned.`)) return;
+  const { error } = await db.from('library_paths').delete().eq('id', id);
+  if (error) { alert('Could not delete it. ' + error.message); return; }
+  $('dlg').close(); toast('Path deleted'); loadLibrary();
+}
+
+function lbTrRow(a, r) {
+  const [st, sl] = lbStatus(a), [, ki] = LB_KINDS[r.kind] || LB_KINDS.link;
+  const btn = a.signed_off_at ? '' : `<button type="button" class="${a.completed_at ? 'quiet' : ''} lbdonebtn" data-lbdone="${a.id}" data-undo="${a.completed_at ? 1 : 0}">${a.completed_at ? 'Undo' : r.needs_signoff ? 'Mark done (lead signs off)' : 'Mark done'}</button>`;
+  return `<div class="lbtr ${st}" data-lb="${r.id}" tabindex="0" role="button" aria-label="Open ${esc(r.title)}">
+    <div class="lbic" aria-hidden="true">${ki}</div>
+    <div class="lbtxt"><b>${esc(r.title)}</b>${a.note ? `<span class="lbdesc">${esc(a.note)}</span>` : r.description ? `<span class="lbdesc">${esc(r.description)}</span>` : ''}
+      <div class="lbchips"><span class="lbchip st-${st}">${sl}</span><span class="lbchip">${esc(r.category)}</span>${a.signed_off_by ? `<span class="lbchip">By ${esc(lbName(a.signed_off_by))}</span>` : ''}${a.assigned_by && a.assigned_by !== ME.id && LB.people.some(x => x.id === a.assigned_by) ? `<span class="lbchip">From ${esc(lbName(a.assigned_by))}</span>` : ''}</div></div>
+    ${btn}</div>`;
+}
 function lbDrawMine() {
-  const L = LB.asg.map(a => ({ a, r: LB.rows.find(r => r.id === a.resource_id) })).filter(x => x.r)
-    .sort((x, y) => !!x.a.completed_at - !!y.a.completed_at || String(x.a.due_date || '9999').localeCompare(String(y.a.due_date || '9999')) || x.r.title.localeCompare(y.r.title));
+  const L = LB.asg.map(a => ({ a, r: lbRes(a.resource_id) })).filter(x => x.r);
   if (!L.length) { $('lbBody').innerHTML = `<div class="pcard"><h3>No trainings assigned yet</h3><p>When ${ME.role === 'owner' ? 'a training is assigned to you' : 'an owner assigns you a training'}, it shows up here with its due date.</p></div>`; return; }
-  const done = L.filter(x => x.a.completed_at).length;
-  $('lbBody').innerHTML = `<p class="lead" style="margin:0 0 1rem">${done} of ${L.length} done${done < L.length ? ` • ${L.length - done} to go` : ' 🎉'}</p><div class="lbmine">` + L.map(({ a, r }) => {
-    const [st, sl] = lbStatus(a), [, ki] = LB_KINDS[r.kind] || LB_KINDS.link;
-    return `<div class="lbtr ${st}" data-lb="${r.id}" tabindex="0" role="button" aria-label="Open ${esc(r.title)}">
-      <div class="lbic" aria-hidden="true">${ki}</div>
-      <div class="lbtxt"><b>${esc(r.title)}</b>${a.note ? `<span>${esc(a.note)}</span>` : r.description ? `<span>${esc(r.description)}</span>` : ''}
-        <div class="lbchips"><span class="lbchip st-${st}">${sl}</span><span class="lbchip">${esc(r.category)}</span>${a.assigned_by && a.assigned_by !== ME.id && LB.people.some(x => x.id === a.assigned_by) ? `<span class="lbchip">From ${esc(lbName(a.assigned_by))}</span>` : ''}</div></div>
-      <button type="button" class="${a.completed_at ? 'quiet' : ''} lbdonebtn" data-lbdone="${a.id}" data-undo="${a.completed_at ? 1 : 0}">${a.completed_at ? 'Undo' : 'Mark done'}</button></div>`;
-  }).join('') + '</div>';
+  const sortIt = (x, y) => lbIsDone(x.a) - lbIsDone(y.a) || String(x.a.due_date || '9999').localeCompare(String(y.a.due_date || '9999')) || x.r.title.localeCompare(y.r.title);
+  const done = L.filter(x => lbIsDone(x.a)).length, wait = L.filter(x => lbStatus(x.a)[0] === 'wait').length;
+  // Group by path (in the path's order), then everything else
+  const groups = LB.paths.map(pa => [pa, L.filter(x => x.a.path_id === pa.id).sort((x, y) => (pa.items || []).indexOf(x.r.id) - (pa.items || []).indexOf(y.r.id))]).filter(([, G]) => G.length);
+  const other = L.filter(x => !groups.some(([pa]) => pa.id === x.a.path_id)).sort(sortIt);
+  $('lbBody').innerHTML = `<p class="lead" style="margin:0 0 1rem">${done} of ${L.length} done${done < L.length ? ` • ${L.length - done} to go` : ' 🎉'}${wait ? ` • ${wait} waiting for sign-off` : ''}</p>` +
+    groups.map(([pa, G]) => { const d = G.filter(x => lbIsDone(x.a)).length;
+      return `<section class="lbsec"><h3>🧭 ${esc(pa.title)} <span class="lbprog">${lbBar(d, G.length)}</span></h3><div class="lbmine">${G.map(x => lbTrRow(x.a, x.r)).join('')}</div></section>`; }).join('') +
+    (other.length ? `<section class="lbsec">${groups.length ? '<h3>Other trainings</h3>' : ''}<div class="lbmine">${other.map(x => lbTrRow(x.a, x.r)).join('')}</div></section>` : '');
 }
 
 function lbDrawAssigned() {
-  const f = LB.af, byU = id => LB.people.find(p => p.id === id) || {};
-  const L = LB.all.map(a => ({ a, r: LB.rows.find(r => r.id === a.resource_id), p: byU(a.user_id) })).filter(x => x.r)
-    .filter(({ a, r, p }) => (!f.loc || String(p.location_id) === f.loc) && (!f.res || r.id === f.res) && (f.st === 'all' || (f.st === 'open' ? !a.completed_at : f.st === 'late' ? lbStatus(a)[0] === 'late' : !!a.completed_at)))
+  const f = LB.af, own = ME.role === 'owner', byU = id => LB.people.find(p => p.id === id) || {};
+  const base = LB.all.map(a => ({ a, r: lbRes(a.resource_id), p: byU(a.user_id) })).filter(x => x.r && (own || x.a.user_id !== ME.id));
+  const L = base.filter(({ a, r, p }) => (!f.loc || String(p.location_id) === f.loc) && (!f.res || r.id === f.res) &&
+      (f.st === 'all' || (f.st === 'open' ? !lbIsDone(a) : f.st === 'done' ? lbIsDone(a) : lbStatus(a)[0] === f.st)))
     .sort((x, y) => x.r.title.localeCompare(y.r.title) || String(x.p.full_name || '').localeCompare(String(y.p.full_name || '')));
-  const res = [...new Set(LB.all.map(a => a.resource_id))].map(id => LB.rows.find(r => r.id === id)).filter(Boolean).sort((a, b) => a.title.localeCompare(b.title));
-  const tot = LB.all.filter(a => LB.rows.some(r => r.id === a.resource_id)), dn = tot.filter(a => a.completed_at).length, late = tot.filter(a => lbStatus(a)[0] === 'late').length;
-  $('lbBody').innerHTML = `<p class="lead" style="margin:0 0 1rem">${tot.length ? `${dn} of ${tot.length} assigned trainings done${late ? ` • <b>${late} overdue</b>` : ''}` : 'Nothing assigned yet. Click <b>Assign training</b>, or the <b>Assign</b> button on any resource in the Library.'}</p>` +
-    (tot.length ? `<div class="lbbar">
-      <select id="lbAfSt" aria-label="Status">${[['open', 'Not done'], ['late', 'Overdue'], ['done', 'Done'], ['all', 'All']].map(([k, l]) => `<option value="${k}" ${f.st === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
-      <select id="lbAfLoc" aria-label="Studio"><option value="">All studios</option>${locs.map(l => `<option value="${l.id}" ${f.loc === String(l.id) ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>
+  const res = [...new Set(base.map(x => x.r.id))].map(lbRes).sort((a, b) => a.title.localeCompare(b.title));
+  const dn = base.filter(x => lbIsDone(x.a)).length, late = base.filter(x => lbStatus(x.a)[0] === 'late').length, wait = base.filter(x => lbStatus(x.a)[0] === 'wait' && lbCanSign(x.a)).length;
+  // Path progress: each person's done / total for each path assigned to them
+  const pathRows = LB.paths.map(pa => { const A = base.filter(x => x.a.path_id === pa.id && (!f.loc || String(x.p.location_id) === f.loc)); const ppl = [...new Set(A.map(x => x.a.user_id))];
+    return [pa, ppl.map(u => { const mine = A.filter(x => x.a.user_id === u); return { u, p: byU(u), d: mine.filter(x => lbIsDone(x.a)).length, n: mine.length }; }).sort((x, y) => String(x.p.full_name || '').localeCompare(String(y.p.full_name || '')))]; }).filter(([, P]) => P.length);
+  $('lbBody').innerHTML = `<p class="lead" style="margin:0 0 1rem">${base.length ? `${dn} of ${base.length} assigned trainings done${late ? ` • <b>${late} overdue</b>` : ''}${wait ? ` • <b>${wait} waiting for your sign-off</b>` : ''}`
+      : own ? 'Nothing assigned yet. Click <b>Assign training</b>, or the <b>Assign</b> button on any resource or path in the Library.' : 'Nobody at your studio has trainings assigned yet.'}</p>` +
+    (base.length ? `<div class="lbbar">
+      <select id="lbAfSt" aria-label="Status">${[['open', 'Not done'], ['wait', 'Waiting for sign-off'], ['late', 'Overdue'], ['done', 'Done'], ['all', 'All']].map(([k, l]) => `<option value="${k}" ${f.st === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      ${own ? `<select id="lbAfLoc" aria-label="Studio"><option value="">All studios</option>${locs.map(l => `<option value="${l.id}" ${f.loc === String(l.id) ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>` : ''}
       <select id="lbAfRes" aria-label="Training"><option value="">All trainings</option>${res.map(r => `<option value="${r.id}" ${f.res === r.id ? 'selected' : ''}>${esc(r.title)}</option>`).join('')}</select></div>` +
-      (!L.length ? '<p class="lead">Nothing matches.</p>' : `<div class="table-wrap"><table class="mt"><thead><tr><th>Training</th><th>Person</th><th>Studio</th><th>Status</th><th>Assigned</th><th></th></tr></thead><tbody>${L.map(({ a, r, p }) => { const [st, sl] = lbStatus(a);
-        return `<tr><td><a href="#" data-lb="${r.id}">${esc(r.title)}</a>${a.note ? `<div class="muted" style="font-size:.8rem">${esc(a.note)}</div>` : ''}</td><td>${esc(p.full_name || p.email || 'Unknown')}</td><td>${esc(lbLoc(p.location_id))}</td>
-          <td><span class="lbchip st-${st}">${sl}</span></td><td class="muted">${lbDue(String(a.created_at).slice(0, 10))}</td><td><button type="button" class="mg-ic" data-lbunasg="${a.id}" aria-label="Remove this assignment" title="Remove">✕</button></td></tr>`; }).join('')}</tbody></table></div>`) : '');
+      (pathRows.length && !f.res ? `<div class="lbpathprog">${pathRows.map(([pa, P]) => `<div class="pcard lbpp2"><h3>🧭 ${esc(pa.title)}</h3>${P.map(x => `<div class="lbpprow"><span>${esc(x.p.full_name || x.p.email || 'Unknown')}${own ? ` <small class="muted">${esc(lbLoc(x.p.location_id))}</small>` : ''}</span><span class="lbprog">${lbBar(x.d, x.n)}</span></div>`).join('')}</div>`).join('')}</div>` : '') +
+      (!L.length ? '<p class="lead">Nothing matches.</p>' : `<div class="table-wrap"><table class="mt"><thead><tr><th>Training</th><th>Person</th>${own ? '<th>Studio</th>' : ''}<th>Status</th><th>Assigned</th><th></th></tr></thead><tbody>${L.map(({ a, r, p }) => { const [st, sl] = lbStatus(a), pa = a.path_id && LB.paths.find(x => x.id === a.path_id);
+        const act = (st === 'wait' && lbCanSign(a) ? `<button type="button" class="lbasgbtn" data-lbsign="${a.id}">Sign off</button>` : '') + (a.signed_off_at && lbCanSign(a) ? `<button type="button" class="quiet lbasgbtn" data-lbsign="${a.id}" data-undo="1">Undo sign-off</button>` : '') +
+          (own ? `<button type="button" class="mg-ic" data-lbunasg="${a.id}" aria-label="Remove this assignment" title="Remove">✕</button>` : '');
+        return `<tr><td><a href="#" data-lb="${r.id}">${esc(r.title)}</a>${pa ? `<div class="muted" style="font-size:.78rem">🧭 ${esc(pa.title)}</div>` : ''}${a.note ? `<div class="muted" style="font-size:.8rem">${esc(a.note)}</div>` : ''}</td><td>${esc(p.full_name || p.email || 'Unknown')}</td>${own ? `<td>${esc(lbLoc(p.location_id))}</td>` : ''}
+          <td><span class="lbchip st-${st}">${sl}</span>${a.signed_off_by ? `<div class="muted" style="font-size:.75rem">by ${esc(lbName(a.signed_off_by))}</div>` : ''}</td><td class="muted">${lbDue(a.created_at)}</td><td><div class="lbrowacts">${act}</div></td></tr>`; }).join('')}</tbody></table></div>`) : '');
 }
 
-function lbAssignForm(resId) {
+function lbAssignForm(pick) {
   const ppl = LB.people, posOf = id => LB.pp.filter(x => x.user_id === id).map(x => x.position_id);
   const usedPos = LB.pos.filter(p => LB.pp.some(x => x.position_id === p.id)), usedLoc = locs.filter(l => ppl.some(p => p.location_id === l.id));
-  const res = resId ? LB.rows.filter(r => r.id === resId) : LB.rows;
-  if (!res.length) { alert('Add something to the Library first, then assign it.'); return; }
+  const only = pick && !String(pick).startsWith('path:') ? LB.rows.filter(r => r.id === pick) : null;
+  if (!LB.rows.length) { alert('Add something to the Library first, then assign it.'); return; }
+  const opts = only ? only.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('')
+    : (LB.paths.length ? `<optgroup label="Paths (assigns every training in it)">${LB.paths.map(pa => `<option value="path:${pa.id}" ${pick === 'path:' + pa.id ? 'selected' : ''}>🧭 ${esc(pa.title)} (${lbPathItems(pa).length})</option>`).join('')}</optgroup><optgroup label="Single trainings">` : '') +
+      LB.rows.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('') + (LB.paths.length ? '</optgroup>' : '');
   $('dlgBody').innerHTML = `<h2>Assign training</h2>
-    <label>Training <select id="laR">${res.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('')}</select></label>
+    <label>Training or path <select id="laR">${opts}</select></label>
     <fieldset class="dlgrp"><legend>Who</legend>
       <div class="lbquick">Select: <button type="button" class="quiet sm" data-laq="all">Everyone</button>${usedLoc.map(l => `<button type="button" class="quiet sm" data-laq="loc:${l.id}">${esc(l.name)}</button>`).join('')}${usedPos.map(p => `<button type="button" class="quiet sm" data-laq="pos:${p.id}">${esc(p.name)}</button>`).join('')}<button type="button" class="quiet sm" data-laq="none">Clear</button></div>
       <div class="lbpeople">${ppl.map(p => `<label class="chkline"><input type="checkbox" data-lau="${p.id}" data-loc="${p.location_id || ''}" data-pos="${posOf(p.id).join(' ')}"> ${esc(p.full_name || p.email)} <small class="muted">${esc(lbLoc(p.location_id))}</small><small class="muted lbhas" data-has="${p.id}"></small></label>`).join('')}</div></fieldset>
@@ -253,40 +345,57 @@ function lbAssignForm(resId) {
   $('dlg').classList.remove('wide'); if (!$('dlg').open) $('dlg').showModal();
   lbMarkHas();
 }
-// Show who already has the chosen training
+const lbPicked = () => { const v = $('laR').value; if (v.startsWith('path:')) { const pa = LB.paths.find(x => x.id === v.slice(5)); return { pa, rids: pa ? lbPathItems(pa).map(r => r.id) : [] }; } return { pa: null, rids: [v] }; };
+// Show who already has the chosen training (or how much of the path)
 function lbMarkHas() {
-  const rid = $('laR') && $('laR').value; if (!rid) return;
-  document.querySelectorAll('[data-has]').forEach(el => { const a = LB.all.find(x => x.resource_id === rid && x.user_id === el.dataset.has); el.textContent = a ? (a.completed_at ? ' • already done' : ' • already assigned') : ''; });
+  if (!$('laR')) return; const { pa, rids } = lbPicked();
+  document.querySelectorAll('[data-has]').forEach(el => { const A = LB.all.filter(x => rids.includes(x.resource_id) && x.user_id === el.dataset.has);
+    el.textContent = !A.length ? '' : pa ? ` • has ${A.length} of ${rids.length}` : lbIsDone(A[0]) ? ' • already done' : ' • already assigned'; });
 }
 document.addEventListener('change', e => { if (e.target.id === 'laR') lbMarkHas(); });
 document.addEventListener('click', e => {
-  const q = e.target.closest('[data-laq]'); if (q && $('dlg').contains(q)) {
+  if (!$('dlg').contains(e.target)) return;
+  const q = e.target.closest('[data-laq]'); if (q) {
     const [k, v] = q.dataset.laq.split(':');
     document.querySelectorAll('[data-lau]').forEach(c => { if (k === 'none') c.checked = false; else if (k === 'all' || (k === 'loc' && c.dataset.loc === v) || (k === 'pos' && c.dataset.pos.split(' ').includes(v))) c.checked = true; });
     return;
   }
-  const b = e.target.closest('[data-act="laSave"]'); if (b && $('dlg').contains(b)) lbAssignSave(b);
+  const mv = e.target.closest('[data-lpmv]'); if (mv) { const row = mv.closest('.lbpp'), d = +mv.dataset.lpmv; if (d < 0 && row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling); else if (d > 0 && row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row); return; }
+  const pi = e.target.closest('[data-lbpi]'); if (pi) { lbOpen(pi.dataset.lbpi); return; }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'laSave') lbAssignSave(b);
+  else if (b.dataset.act === 'lpSave') lbPathSave(b);
+  else if (b.dataset.act === 'lpDel') lbPathDel(b.dataset.id);
+  else if (b.dataset.act === 'lbPathAsg') lbAssignForm('path:' + b.dataset.id);
 });
 
 async function lbAssignSave(btn) {
-  const rid = $('laR').value, ids = [...document.querySelectorAll('[data-lau]:checked')].map(c => c.dataset.lau);
+  const { pa, rids } = lbPicked(), ids = [...document.querySelectorAll('[data-lau]:checked')].map(c => c.dataset.lau);
+  if (!rids.length) { $('laErr').textContent = 'That path has no trainings yet. Edit it to add some.'; return; }
   if (!ids.length) { $('laErr').textContent = 'Pick at least one person.'; return; }
-  const fresh = ids.filter(id => !LB.all.some(a => a.resource_id === rid && a.user_id === id)), skipped = ids.length - fresh.length;
-  if (!fresh.length) { $('laErr').textContent = 'Everyone you picked already has this training.'; return; }
+  const due = $('laD').value || null, note = $('laN').value.trim() || null, rows = [];
+  ids.forEach(user_id => rids.forEach(resource_id => { if (!LB.all.some(a => a.resource_id === resource_id && a.user_id === user_id)) rows.push({ resource_id, user_id, assigned_by: ME.id, due_date: due, note, ...(pa ? { path_id: pa.id } : {}) }); }));
+  if (!rows.length) { $('laErr').textContent = pa ? 'Everyone you picked already has every training in this path.' : 'Everyone you picked already has this training.'; return; }
   btn.disabled = true; btn.textContent = 'Assigning...';
-  const due = $('laD').value || null, note = $('laN').value.trim() || null;
-  const { error } = await db.from('library_assignments').insert(fresh.map(user_id => ({ resource_id: rid, user_id, assigned_by: ME.id, due_date: due, note })));
+  const { error } = await db.from('library_assignments').insert(rows);
   if (error) { btn.disabled = false; btn.textContent = 'Assign'; $('laErr').textContent = 'Could not assign. ' + error.message; return; }
-  $('dlg').close(); toast(`Assigned to ${fresh.length} ${fresh.length === 1 ? 'person' : 'people'}${skipped ? ` (${skipped} already had it)` : ''}`); loadLibrary();
+  const ppl = new Set(rows.map(r => r.user_id)).size;
+  $('dlg').close(); toast(pa ? `Assigned "${pa.title}" to ${ppl} ${ppl === 1 ? 'person' : 'people'}` : `Assigned to ${ppl} ${ppl === 1 ? 'person' : 'people'}${ids.length > ppl ? ` (${ids.length - ppl} already had it)` : ''}`); loadLibrary();
 }
 
 async function lbDone(id, undo) {
+  const a = LB.asg.find(x => x.id === id);
   const { error } = await db.from('library_assignments').update({ completed_at: undo ? null : new Date().toISOString() }).eq('id', id);
   if (error) { alert('Could not save. ' + error.message); return; }
-  toast(undo ? 'Marked not done' : 'Nice work! Marked done'); loadLibrary();
+  toast(undo ? 'Marked not done' : a && lbNeeds(a) ? 'Marked done. Your studio lead will sign it off.' : 'Nice work! Marked done'); loadLibrary();
+}
+async function lbSignoff(id, undo) {
+  const { error } = await db.from('library_assignments').update(undo ? { signed_off_at: null, signed_off_by: null } : { signed_off_at: new Date().toISOString(), signed_off_by: ME.id }).eq('id', id);
+  if (error) { alert('Could not save. ' + error.message); return; }
+  toast(undo ? 'Sign-off removed' : 'Signed off'); loadLibrary();
 }
 async function lbUnassign(id) {
-  const a = LB.all.find(x => x.id === id), r = a && LB.rows.find(x => x.id === a.resource_id);
+  const a = LB.all.find(x => x.id === id), r = a && lbRes(a.resource_id);
   if (!a || !confirm(`Remove "${r ? r.title : 'this training'}" from ${lbName(a.user_id)}?`)) return;
   const { error } = await db.from('library_assignments').delete().eq('id', id);
   if (error) { alert('Could not remove it. ' + error.message); return; }
