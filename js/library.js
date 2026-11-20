@@ -76,6 +76,7 @@ function drawLibrary() {
     ...(own ? [['assign', 'Assigned' + (waitN ? ` <span class="lbcount">${waitN}</span>` : '')]] : lbLead() ? [['assign', 'My studio' + (waitN ? ` <span class="lbcount">${waitN}</span>` : '')]] : [])]
     .map(([k, l]) => `<button type="button" data-lbt="${k}" class="${LB.tab === k ? 'on' : ''}">${l}</button>`).join('');
   $('lbAdd').hidden = !own || LB.missing || LB.tab !== 'lib';
+  $('lbNewPath').hidden = !own || LB.missing || LB.tab !== 'lib' || LB.pathsMissing;
   $('lbAssignNew').hidden = !own || LB.tab !== 'assign' || LB.asgMissing;
   if (LB.tab !== 'lib' && LB.asgMissing) {
     $('lbBody').innerHTML = `<div class="pcard"><h3>One-time setup needed</h3><p>${own ? 'Open Supabase → SQL Editor → New query, paste the contents of <b>sql/library_assignments.sql</b>, and click Run. Then refresh this page.' : 'Ask the owner to finish setting up trainings.'}</p></div>`;
@@ -103,12 +104,12 @@ function drawLibrary() {
       <td><div class="lbchips">${parts.map(k => `<span class="lbchip k">${(LB_KINDS[k] || LB_KINDS.link)[0]}${k === 'file' && r.file_name ? ' • ' + esc(r.file_name.split('.').pop().toUpperCase()) : ''}</span>`).join('')}${r.needs_signoff ? '<span class="lbchip">Sign-off</span>' : ''}</div></td>
       <td class="muted">${forMe ? '<span class="lbchip me">Your role</span>' : (r.positions || []).length ? (r.positions || []).map(lbPosName).map(esc).join(', ') : 'Everyone'}</td>
       ${own ? `<td class="muted lbrowm">${lbAsgLine(r.id)}</td><td><div class="lbrowacts"><button type="button" class="quiet lbasgbtn" data-lbasg="${r.id}">Assign</button><button type="button" class="mg-ic" data-lbedit="${r.id}" aria-label="Edit ${esc(r.title)}" title="Edit">✎</button></div></td>` : ''}</tr>`; };
-  $('lbBody').innerHTML = `<div class="lbbar">
-      <select id="lbKind" aria-label="Type"><option value="">All types</option>${Object.entries(LB_KINDS).map(([k, [l]]) => `<option value="${k}" ${LB.kind === k ? 'selected' : ''}>${l}s</option>`).join('')}</select>
-      ${LB.myPos.size ? `<label class="mem-mine"><input type="checkbox" id="lbMine" ${LB.mine ? 'checked' : ''}> Just for my role</label>` : ''}
-      <div class="lbview" role="group" aria-label="View"><button type="button" data-lbview="grid" class="${LB.view === 'grid' ? 'on' : ''}" aria-pressed="${LB.view === 'grid'}" title="Grid">▦ Grid</button><button type="button" data-lbview="list" class="${LB.view === 'list' ? 'on' : ''}" aria-pressed="${LB.view === 'list'}" title="List">☰ List</button></div>
-      <input id="lbFind" type="search" placeholder="Search the library" aria-label="Search the library" value="${esc(LB.q)}"></div>` +
-    (LB.rows.length ? `<div class="lbcats" role="group" aria-label="Category"><button type="button" data-lbcat="" class="${!LB.cat ? 'on' : ''}">All <span>${LB.rows.length}</span></button>${cats.map(c => `<button type="button" data-lbcat="${esc(c)}" class="${LB.cat === c ? 'on' : ''}">${esc(c)} <span>${catN(c)}</span></button>`).join('')}</div>` : '') +
+  $('lbBody').innerHTML = `<div class="lbbar lbbar1">
+      ${LB.rows.length ? `<div class="lbcats" role="group" aria-label="Category"><button type="button" data-lbcat="" class="${!LB.cat ? 'on' : ''}">All <span>${LB.rows.length}</span></button>${cats.map(c => `<button type="button" data-lbcat="${esc(c)}" class="${LB.cat === c ? 'on' : ''}">${esc(c)} <span>${catN(c)}</span></button>`).join('')}</div>` : '<div></div>'}
+      <div class="lbctl"><select id="lbKind" aria-label="Type"><option value="">All types</option>${Object.entries(LB_KINDS).map(([k, [l]]) => `<option value="${k}" ${LB.kind === k ? 'selected' : ''}>${l}s</option>`).join('')}</select>
+      ${LB.myPos.size ? `<label class="mem-mine"><input type="checkbox" id="lbMine" ${LB.mine ? 'checked' : ''}> My role</label>` : ''}
+      <div class="lbview" role="group" aria-label="View"><button type="button" data-lbview="grid" class="${LB.view === 'grid' ? 'on' : ''}" aria-pressed="${LB.view === 'grid'}" title="Grid">▦</button><button type="button" data-lbview="list" class="${LB.view === 'list' ? 'on' : ''}" aria-pressed="${LB.view === 'list'}" title="List">☰</button></div>
+      <input id="lbFind" type="search" placeholder="Search" aria-label="Search the library" value="${esc(LB.q)}"></div></div>` +
     (!LB.rows.length ? `<div class="pcard"><h3>Nothing here yet</h3><p>${own ? 'Click <b>Add resource</b> to upload a file, link a video or doc, or write a page (scripts, SOPs, checklists).' : 'Training materials and resources will show up here.'}</p></div>`
       : !list.length ? lbPathsSection(q) + '<p class="lead">Nothing matches that search.</p>'
       : lbPathsSection(q) + (LB.view === 'list'
@@ -262,12 +263,12 @@ const lbPathItems = pa => (pa.items || []).map(lbRes).filter(Boolean);
 // Paths on the Library tab
 function lbPathsSection(q) {
   const own = ME.role === 'owner';
-  if (LB.pathsMissing) return own ? `<div class="pcard" style="margin-bottom:1.2rem"><h3>Training paths: one-time setup</h3><p>Paste <b>sql/library_paths_signoff.sql</b> into Supabase → SQL Editor and click Run, then refresh, to group trainings into paths and use studio-lead sign-off.</p></div>` : '';
+  if (LB.pathsMissing) return own ? `<p class="muted lbpathsmall">Training paths need a one-time setup: run <b>sql/library_paths_signoff.sql</b> in Supabase.</p>` : '';
   const L = LB.paths.filter(pa => !q || [pa.title, pa.description].some(x => String(x || '').toLowerCase().includes(q)));
   if (!L.length && !own) return '';
   if (!L.length && q) return '';
-  if (!L.length) return `<div class="lbpathsmall">🧭 <b>Training paths</b> <span class="muted">group trainings and assign the whole set at once</span> <button type="button" class="quiet lbasgbtn" data-lbpathnew="1">New path</button></div>`;
-  return `<section class="lbsec"><h3>🧭 Training paths <span class="hcount">${L.length}</span>${own ? ' <button type="button" class="quiet lbasgbtn" data-lbpathnew="1">New path</button>' : ''}</h3>` +
+  if (!L.length) return '';
+  return `<section class="lbsec"><h3>🧭 Training paths <span class="hcount">${L.length}</span></h3>` +
     (`<div class="lbgrid">${L.map(pa => { const it = lbPathItems(pa), asg = LB.all.filter(a => a.path_id === pa.id), ppl = new Set(asg.map(a => a.user_id));
         return `<div class="lbcard lbpathcard" data-lbpath="${pa.id}" tabindex="0" role="button" aria-label="Open path ${esc(pa.title)}"><div class="lbic" aria-hidden="true">🧭</div>
           <div class="lbtxt"><b>${esc(pa.title)}</b>${pa.description ? `<span class="lbdesc">${esc(pa.description)}</span>` : ''}<div class="lbchips"><span class="lbchip k">${it.length} training${it.length === 1 ? '' : 's'}</span></div>
@@ -448,4 +449,5 @@ async function lbUnassign(id) {
   toast('Removed'); loadLibrary();
 }
 $('lbAssignNew').onclick = () => lbAssignForm(null);
+$('lbNewPath').onclick = () => lbPathForm(null);
 $('lbTabs').onclick = e => { const t = e.target.closest('[data-lbt]'); if (t) { LB.tab = t.dataset.lbt; drawLibrary(); } };
