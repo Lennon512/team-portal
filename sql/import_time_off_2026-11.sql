@@ -2,6 +2,7 @@
 -- Only requests that end today or later. All are added as APPROVED.
 -- People are matched to portal accounts by email first, then by name.
 -- Safe to run more than once: a request already in the portal (same person, same dates) is skipped.
+-- Needs sql/time_off_deleted.sql to have been run first (so deleted requests stay deleted).
 -- Run in Supabase: SQL Editor -> New query -> paste -> Run. The result lists anyone it could NOT match.
 
 drop table if exists tor_import, tor_matched;
@@ -56,7 +57,9 @@ insert into public.time_off_requests (user_id, start_date, end_date, shift_type,
 select m.user_id, m.start_date, m.end_date, m.shift_type, m.can_cover, m.coverage, m.coverage_note, m.note || ' (from time off form)', 'approved', now()
 from tor_matched m
 where m.user_id is not null
-  and not exists (select 1 from public.time_off_requests r where r.user_id = m.user_id and r.start_date = m.start_date and r.end_date = m.end_date);
+  and not exists (select 1 from public.time_off_requests r where r.user_id = m.user_id and r.start_date = m.start_date and r.end_date = m.end_date)
+  -- ...and never bring back a request someone deleted in the portal (sql/time_off_deleted.sql)
+  and not exists (select 1 from public.time_off_deleted d where d.user_id = m.user_id and d.start_date = m.start_date and d.end_date = m.end_date);
 
 -- In case the database resets new requests to pending, approve the imported ones
 update public.time_off_requests r set status = 'approved', decided_at = coalesce(r.decided_at, now())

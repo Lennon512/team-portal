@@ -263,7 +263,7 @@ async function loadOffPanel() {
 
 $('offPanel').onclick = async e => {
   const a = e.target.dataset.a, id = e.target.dataset.id; if (!a) return;
-  const { error } = a === 'cancel' ? await db.from('time_off_requests').delete().eq('id', id) : await db.rpc('decide_time_off', { p_id: id, p_status: a });
+  const { error } = a === 'cancel' ? { error: await delOff(id) } : await db.rpc('decide_time_off', { p_id: id, p_status: a });   // delOff notes the delete so imports don't bring it back
   if (error) alert('That did not work: ' + error.message);
   loadCal();
 };
