@@ -8,7 +8,8 @@ async function loadLeads() {
     db.from('lead_snapshot').select('*').eq('studio_id', mem.studio).limit(3000),
     db.from('lead_contacts').select('club_id,contacted_at,staff,kind,made,outcome').eq('studio_id', mem.studio).order('contacted_at', { ascending: false }).limit(10000)]);
   LD.missing = !!(a.error && /relation|does not exist|schema cache/i.test(a.error.message));
-  LD.rows = a.data || []; LD.cs = {};
+  // People who bought (Current Status is a customer, or they're in the Agreements Log since coming in) aren't leads to chase
+  LD.rows = (a.data || []).filter(l => !leadBought(l)); LD.cs = {};
   (b.data || []).forEach(x => (LD.cs[x.club_id] = LD.cs[x.club_id] || []).push(x));
   Object.values(LD.cs).forEach(L => L.sort((x, y) => x.contacted_at < y.contacted_at ? 1 : -1));   // newest first
 }
@@ -20,6 +21,7 @@ const LD_GRPS = [['all', 'All stages'], ['cooled', 'Cooled'], ['unsched', 'Unsch
 const LD_GRPS_ALWAYS = ['all', 'cooled', 'unsched', 'missed', 'noshow'];   // always listed, even when 0
 const leadGrp = s => { s = (s || '').toLowerCase(); return /dnr|do not/.test(s) ? 'dnr' : /missed/.test(s) ? 'missed' : /no ?show/.test(s) ? 'noshow' : /^sched/.test(s) ? 'sched' : /cool/.test(s) ? 'cooled' : (!s || /unsched/.test(s)) ? 'unsched' : 'other'; };
 const isDnr = l => leadGrp(l.stage) === 'dnr';
+const leadBought = l => !!l.bought_on || (!!l.lead_status && !/prospect/i.test(l.lead_status));
 LD.grp = 'all';
 
 function leadCalc(l) {
@@ -148,11 +150,14 @@ function leadCard(id) {
 
 // ----- import: build lead rows and their contacts from the uploaded reports -----
 function buildLeads() {
-  const { leads = [], contacts = [], bookings = [] } = imp.data, ids = new Set(), rows = [];
+  const { leads = [], contacts = [], bookings = [], agreements } = imp.data, ids = new Set(), rows = [];
+  // First agreement per person (any item in the Agreements Log), to tell which leads bought
+  const agr = {}; (agreements || []).forEach(r => { const id = +r['User ID'], t = toDT(r['Date']); if (!id || !t) return; const d = ymd(t); (agr[id] = agr[id] || []).push(d); });
   leads.forEach(r => { const id = +r['User ID']; if (!id || ids.has(id)) return; ids.add(id);
     rows.push({ studio_id: mem.studio, club_id: id, name: `${r['First Name'] || ''} ${r['Last Name'] || ''}`.replace(/\s+/g, ' ').trim(), added_on: toDay(r['Date Added']),
       source: r['Referral Type'] || null, stage: r['Prospect Type'] || null, added_by: r['Added By'] || null, phone: String(r['Cell Phone'] || r['Phone'] || '').trim() || null, email: r['Email'] || null,
-      booking_status: null, booking_date: null, next_booking: null, updated_at: new Date().toISOString() }); });
+      booking_status: null, booking_date: null, next_booking: null, lead_status: r['Current Status'] || null,
+      bought_on: (() => { const a = toDay(r['Date Added']); return (agr[id] || []).filter(d => !a || d >= a).sort()[0] || null; })(), updated_at: new Date().toISOString() }); });
   const today = todayStr(), byId = Object.fromEntries(rows.map(r => [r.club_id, r]));
   bookings.forEach(b => { const r = byId[+b['User ID']]; if (!r) return; const d = toDay(b['Booking Date']), st = String(b['Current Status'] || '').trim(); if (!d) return;
     if (/^open/i.test(st) && d >= today) { if (!r.next_booking || d < r.next_booking) r.next_booking = d; }
@@ -162,7 +167,16 @@ function buildLeads() {
   return { rows, cs };
 }
 async function saveLeads() {
-  const { rows, cs } = buildLeads(), chunk = async (t, L) => { for (let i = 0; i < L.length; i += 500) { const { error } = await db.from(t).insert(L.slice(i, i + 500)); if (error) return error; } };
+  const { rows, cs } = buildLeads();
+  // Before sql/leads_bought.sql is run there are no bought_on / lead_status columns: save the rest
+  let drop = false;
+  const chunk = async (t, L) => { for (let i = 0; i < L.length; i += 500) {
+    let part = L.slice(i, i + 500); if (drop && t === 'lead_snapshot') part = part.map(({ bought_on, lead_status, ...x }) => x);
+    let { error } = await db.from(t).insert(part);
+    if (error && t === 'lead_snapshot' && /bought_on|lead_status/.test(error.message || '')) { drop = true; ({ error } = await db.from(t).insert(part.map(({ bought_on, lead_status, ...x }) => x))); }
+    if (error) return error; } };
+  // No Agreements Log in this upload: keep the purchase dates we already had
+  if (!imp.data.agreements) { const { data: old } = await db.from('lead_snapshot').select('*').eq('studio_id', mem.studio); const o = Object.fromEntries((old || []).map(x => [x.club_id, x.bought_on])); rows.forEach(x => { if (!x.bought_on && o[x.club_id]) x.bought_on = o[x.club_id]; }); }
   let r = await db.from('lead_snapshot').delete().eq('studio_id', mem.studio); if (r.error) return r.error;
   // Only replace contact history when a Contact Log came with this upload; otherwise keep what's there
   if (!imp.data.contacts) return (await chunk('lead_snapshot', rows)) || null;

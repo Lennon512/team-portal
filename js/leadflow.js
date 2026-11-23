@@ -21,7 +21,7 @@ async function loadFlow() {
   if (ME.role !== 'owner') LF.studio = ME.location_id || (locs[0] || {}).id;
   $('lfBody').innerHTML = ''; LF.loading = true; drawFlowBar();
   try {
-    const [leads, contacts, sales] = await Promise.all([lfAll('lead_snapshot', 'studio_id,club_id,name,added_on,stage,booking_status,booking_date,next_booking,source', LF.studio),
+    const [leads, contacts, sales] = await Promise.all([lfAll('lead_snapshot', '*', LF.studio),
       lfAll('lead_contacts', 'studio_id,club_id,contacted_at', LF.studio), lfAll('new_member_snapshot', 'studio_id,club_id,signed_on', LF.studio)]);
     LF.data = { leads, contacts, sales }; LF.sel = null;
   } catch (e) { $('lfBody').innerHTML = `<p class="lead empty">Couldn't load the leads (${esc(e.message || '')}). Lead data comes from the Members page reports the bot loads each morning.</p>`; LF.loading = false; return; }
@@ -45,7 +45,8 @@ function lfBuild() {
   leads.filter(l => l.added_on && l.added_on >= start && l.added_on <= today).forEach(l => {
     add('leads', l);
     const st = String(l.stage || '').toLowerCase(), bs = String(l.booking_status || '').toLowerCase();
-    const signed = sBy[key(l)], bought = !!signed && signed >= l.added_on || /\bmember\b|client/.test(st);
+    // Bought: in the Agreements Log on or after the day they came in (bought_on, set at import), or ClubReady already shows them as a customer
+    const signed = sBy[key(l)], bought = !!l.bought_on || (!!l.lead_status && !/prospect/i.test(l.lead_status)) || (!!signed && signed >= l.added_on);
     const booked = !!(l.booking_date || l.next_booking) || bought;
     if (!booked) { add('notbooked', l); add(/dnr|do not/.test(st) ? 'dnr' : 'open', l); return; }
     add('booked', l);
