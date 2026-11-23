@@ -95,8 +95,11 @@ function updateRepTabs() {
   document.querySelector('#repTabs [data-t="master"]').hidden = !perfOk || !netOk();
   document.querySelector('#repTabs [data-t="compare"]').hidden = !perfOk || !netOk();
   document.querySelector('#repTabs [data-t="projection"]').hidden = !perfOk;
+  document.querySelector('#repTabs [data-t="flow"]').hidden = !perfOk;
 }
 function drawRepTabs() {
+  if (REP.sub === 'flow') { $('repDpr').hidden = true; $('repPerf').hidden = true; $('repFlow').hidden = false; updateRepTabs(); loadFlow(); return; }
+  $('repFlow').hidden = true;
   const dl = () => REP.sub === 'dpr' || REP.sub === 'weekly' || REP.sub === 'monthly' || REP.sub === 'enter';
   if (dl() && !canPage('dpr') && canPage('performance')) REP.sub = 'score';
   if (REP.sub === 'score' && !canPage('performance') && canPage('dpr')) REP.sub = 'monthly';
@@ -108,6 +111,8 @@ function drawRepTabs() {
 $('repTabs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
   REP.sub = b.dataset.t;
+  if (REP.sub === 'flow') { location.hash = '#leadflow'; return; }   // the route change shows it (drawRepTabs)
+  $('repFlow').hidden = true;
   if (REP.sub === 'monthly' && !canPage('dpr')) REP.sub = 'score';
   REP.sheet = false;   // no daily numbers access: the monthly sheet view
   const dl = REP.sub === 'dpr' || REP.sub === 'weekly' || REP.sub === 'monthly' || REP.sub === 'enter';
