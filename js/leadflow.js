@@ -56,7 +56,7 @@ function lfBuild() {
       add('nobuy', l); return add(followed(l, l.booking_date || l.added_on) ? 'nobuy_fu' : 'nobuy_none', l);
     }
     if (/no ?show/.test(bs) || /no ?show/.test(st)) { add('noshow', l); return add(followed(l, l.booking_date || l.added_on) ? 'ns_fu' : 'ns_none', l); }
-    if (/cancel/.test(bs)) return add('cancelled', l);
+    if (/cancel/.test(bs)) { add('cancelled', l); return add(followed(l, l.booking_date || l.added_on) ? 'cx_fu' : 'cx_none', l); }
     return add('upcoming', l);
   });
   return N;
@@ -70,6 +70,7 @@ const LF_NODES = [
   ['dnr', 'DNR', 2, 'notbooked', '#7d736a'], ['open', 'Not DNR (still open)', 2, 'notbooked', '#b3a89c'],
   ['bought', 'Bought', 3, 'showed', '#1f7a4a'], ['nobuy', "Didn't buy", 3, 'showed', '#d07a2c'],
   ['ns_fu', 'Followed up', 3, 'noshow', '#5a8f6e'], ['ns_none', 'No follow-up', 3, 'noshow', '#a33a28'],
+  ['cx_fu', 'Followed up', 3, 'cancelled', '#5a8f6e'], ['cx_none', 'No follow-up', 3, 'cancelled', '#a33a28'],
   ['nobuy_fu', 'Followed up', 4, 'nobuy', '#5a8f6e'], ['nobuy_none', 'No follow-up', 4, 'nobuy', '#a33a28']];
 
 function drawFlow() {
@@ -83,7 +84,7 @@ function drawFlow() {
     const col = nodes.filter(n => n[2] === c); let y = 0;
     // stack children in the order of their parent so links don't cross
     col.sort((a, b) => (a[3] ? nodes.findIndex(n => n[0] === a[3]) : 0) - (b[3] ? nodes.findIndex(n => n[0] === b[3]) : 0));
-    col.forEach(n => { const h = Math.max(3, cnt(n[0]) * scale); byId[n[0]] = { n, x: colX[c], y, h, out: 0 }; y += h + pad; });
+    col.forEach(n => { const h = Math.max(3, cnt(n[0]) * scale); byId[n[0]] = { n, x: colX[c], y, h, out: 0 }; y += Math.max(h + pad, 40); });   // at least room for the two-line label
   }
   // children start where their parent's band sits: line each column up with its parents
   for (let c = 1; c < 5; c++) nodes.filter(n => n[2] === c).forEach(n => { const p = byId[n[3]], me = byId[n[0]]; if (p && me.y < p.y) { const d = p.y - me.y; nodes.filter(m => m[2] === c && byId[m[0]].y >= me.y).forEach(m => byId[m[0]].y += d); } });
@@ -103,7 +104,7 @@ function drawFlow() {
   // Quick rates under the chart
   const rate = (a, b) => cnt(b) ? Math.round(cnt(a) / cnt(b) * 100) + '%' : '–';
   const stats = [['Booked', rate('booked', 'leads'), 'of leads'], ['Show rate', rate('showed', 'booked'), 'of booked (incl. still to come)'], ['Close rate', rate('bought', 'showed'), 'of those who showed'],
-    ['No-shows followed up', rate('ns_fu', 'noshow'), `${cnt('ns_fu')} of ${cnt('noshow')}`], ["Didn't-buys followed up", rate('nobuy_fu', 'nobuy'), `${cnt('nobuy_fu')} of ${cnt('nobuy')}`]];
+    ['No-shows followed up', rate('ns_fu', 'noshow'), `${cnt('ns_fu')} of ${cnt('noshow')}`], ['Cancels followed up', rate('cx_fu', 'cancelled'), `${cnt('cx_fu')} of ${cnt('cancelled')}`], ["Didn't-buys followed up", rate('nobuy_fu', 'nobuy'), `${cnt('nobuy_fu')} of ${cnt('nobuy')}`]];
   $('lfBody').innerHTML = `<div class="pcard lfcard"><svg class="lfsvg" viewBox="0 0 ${W} ${maxY}" role="img" aria-label="Lead flow: ${total} leads">${links}${boxes}</svg>
       <p class="muted lfhint">Click any box to see who's in it.</p></div>
     <div class="sum lfstats">${stats.map(([l, v, s]) => `<div><span>${l}</span><b>${v}</b><small>${esc(s)}</small></div>`).join('')}</div>
