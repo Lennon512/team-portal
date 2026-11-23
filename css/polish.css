@@ -420,3 +420,21 @@ html.dark .meter { background:rgba(255,255,255,.12); } html.dark .meter i { back
 html.dark .lbbar2 { background:rgba(255,255,255,.12); }
 html.dark .lbtwo > .acts { background:linear-gradient(rgba(32,29,26,0), rgba(32,29,26,.96) 35%); }
 html.dark ::placeholder { color:rgba(242,236,227,.4); }
+
+/* Performance > Lead flow (Sankey) */
+.lfbar { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin:0 0 1rem; }
+.lfbar select { width:auto; margin:0; }
+.lfrange { margin:0; }
+.lfcard { padding:1rem 1.2rem .6rem; }
+.lfsvg { width:100%; height:auto; display:block; overflow:visible; }
+.lflink { opacity:.28; cursor:pointer; transition:opacity .15s; }
+.lflink:hover, .lflink.on { opacity:.55; }
+.lfnode { cursor:pointer; } .lfnode rect { transition:filter .15s; } .lfnode:hover rect, .lfnode.on rect { filter:brightness(1.12) drop-shadow(0 0 4px rgba(0,0,0,.25)); }
+.lfnode:focus-visible { outline:none; } .lfnode:focus-visible rect { stroke:var(--ink); stroke-width:2; }
+.lfl { font-size:13px; font-weight:600; fill:var(--ink); } .lfn { font-size:12px; fill:var(--muted); }
+.lfnode.on .lfl { text-decoration:underline; }
+.lfhint { font-size:.78rem; margin:.3rem 0 0; }
+.lfstats { margin:1rem 0; }
+.lfstats > div { display:flex; flex-direction:column; gap:.1rem; }
+.lfstats span { font-size:.75rem; color:var(--muted); } .lfstats b { font-size:1.4rem; } .lfstats small { font-size:.72rem; color:var(--muted); }
+@media (max-width:760px) { .lfcard { overflow-x:auto; -webkit-overflow-scrolling:touch; } .lfsvg { min-width:760px; } .lfstats { grid-template-columns:repeat(2, minmax(0, 1fr)); } .lfrange { overflow-x:auto; max-width:100%; flex-wrap:nowrap; } }
