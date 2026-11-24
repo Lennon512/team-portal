@@ -223,7 +223,7 @@ function dlPlan(sid, from, to) {
         `At this month's rates (close ${pctf(close)}, show ${pctf(show)}, booking ${pctf(l2d)}) that's about <b>${pd(held)} demos held → ${pd(booked)} booked → ${pd(leads)} leads a day</b>.`;
     } else if (need !== null) P.plan = `Already at the month's ${salesGoal !== null ? 'sales' : 'net member'} goal. Keep the pace and protect retention.`;
   }
-  P.head = P.steps.length ? `${P.steps.length} to work on` : 'On track';
+  P.head = P.steps.length ? (P.steps.length === 1 ? '1 to focus on' : 'Top 2 to focus on') : 'On track';   // the top 2 show; any others sit under "more"
   return P;
 }
 function dlAnalysis(from, to, title) {
@@ -233,7 +233,7 @@ function dlAnalysis(from, to, title) {
   return `<section class="scsec dlai"><h3>${title} <details class="dlinfo"><summary aria-label="How this is worked out">ⓘ</summary><div>Worked out from the same numbers as the review above and each studio's Targets: what fell short of its target and by how many, the revenue pace for the month, and the leads, bookings, demos and sales a day it takes to reach the goal at the studio's own rates this month.</div></details></h3>` +
     st.map(({ l, p }) => `<details class="pcard dlplan"${l.id === openOne ? ' open' : ''}><summary><b>${esc(l.name)}</b> <span class="rkb ${p.steps.length ? 'low' : 'top'}">${p.head}</span></summary>
       ${p.pace ? `<p class="dlpace">${p.pace}</p>` : ''}
-      ${p.steps.length ? `<ol>${p.steps.slice(0, 4).map(x => `<li>${x}</li>`).join('')}</ol>` : '<p>Every funnel number hit its target. Keep the process tight and rebook every member.</p>'}
+      ${p.steps.length ? `<ol>${p.steps.slice(0, 2).map(x => `<li>${x}</li>`).join('')}</ol>${p.steps.length > 2 ? `<details class="dlmore"><summary>${p.steps.length - 2} more below target</summary><ol start="3">${p.steps.slice(2).map(x => `<li>${x}</li>`).join('')}</ol></details>` : ''}` : '<p>Every funnel number hit its target. Keep the process tight and rebook every member.</p>'}
       ${p.plan ? `<p class="dlgoal">${p.plan}</p>` : ''}
       ${p.wins.length ? `<p class="dlwins">✓ On target: ${p.wins.join(', ')}</p>` : ''}</details>`).join('') + '</section>';
 }
