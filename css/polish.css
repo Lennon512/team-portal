@@ -286,6 +286,7 @@ html.dark .dlflag.retention { background:rgba(255,255,255,.12); color:#b9d4f2; }
 html.dark .dlflag.monitor { background:rgba(255,255,255,.12); color:#8fe0b5; }
 html.dark .dlnotes li { background:rgba(255,255,255,0.10); }
 html.dark .dlact { color:#b9d4f2; }
+html.dark .dlplan .dlgoal { background:rgba(185,212,242,.12); }
 html.dark .dlcta { background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,.12); }
 html.dark .hrt tr.hrgrp td { background:rgba(255,255,255,0.10); }
 html.dark .hrt td.hr-over { color:#ff9f8c; }

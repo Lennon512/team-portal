@@ -103,7 +103,8 @@ async function loadDpr() {
   if (!DL.studio) DL.studio = ME.role === 'owner' ? ((locs[0] || {}).id || '') : (ME.location_id || '');
   if (!DL.anchor) DL.anchor = DL.day;
   const weekly = REP.sub === 'weekly' || dlMonthly(), r = weekly ? dlRange() : null;
-  await dlFetch(weekly ? dAdd(r.pFrom, 0) : dAdd(DL.day, -1), weekly ? r.to : DL.day);
+  const endDay = weekly ? r.to : DL.day, startDay = weekly ? r.pFrom : dAdd(DL.day, -1), mStart = endDay.slice(0, 8) + '01';
+  await dlFetch(mStart < startDay ? mStart : startDay, endDay);   // from the 1st of the month too, for the month pace in Analysis & next steps
   if (DL.missing) { host.innerHTML = dlSetupCard(); return; }
   if (DL.err) { host.innerHTML = `<p class="err">Could not load the daily log: ${esc(DL.err)}</p>`; return; }
   weekly ? drawWeekly() : drawDaily();
@@ -175,6 +176,68 @@ function dlReview(items, from, to, period) {
     `</tbody><tfoot>${totRow}</tfoot></table></div>`;
 }
 
+// ----- Analysis & next steps: for each studio, from the same numbers as the review -----
+// Month pace vs the revenue goal, what missed its target (and by how many), and what it takes to reach the goal this month.
+const okGoal = g => g !== null && g !== undefined && g !== '' && !isNaN(g) && +g > 0;
+const ceilPos = x => Math.max(0, Math.ceil(x - 1e-9));
+function dlPlan(sid, from, to) {
+  const t = tgtOf(sid), a = agg(sid, from, to);
+  if (!a.entries) return null;
+  const yest = dAdd(todayStr(), -1), mTo = to > yest ? yest : to;   // a week that isn't over yet counts only the days so far
+  const mFrom = mTo.slice(0, 8) + '01', last = ymd(new Date(+mTo.slice(0, 4), +mTo.slice(5, 7), 0)), m = agg(sid, mFrom, mTo);
+  const total = +last.slice(8, 10), elapsed = Math.round((new Date(mTo + 'T00:00') - new Date(mFrom + 'T00:00')) / DAY) + 1, left = total - elapsed;
+  const P = { pace: '', steps: [], wins: [], plan: '' };
+  // Month pace
+  const goal = okGoal(t.revenue_goal) ? +t.revenue_goal : 0;
+  if (goal && m.revenue) {
+    const proj = m.revenue / elapsed * total, need = left > 0 ? (goal - m.revenue) / left : 0;
+    P.pace = `Month to date: <b>${money(m.revenue)}</b> of ${money(goal)} (${pctf(m.revenue / goal)}). At this pace the month ends near <b>${money(proj)}</b>` +
+      (proj >= goal ? `, <span class="up">on track</span>.` : `, <span class="dn">${money(goal - proj)} short</span>.`) +
+      (left > 0 && m.revenue < goal && proj < goal ? ` It takes about <b>${money(need)} a day</b> for the last ${left} day${left === 1 ? '' : 's'} to hit the goal.` : '');
+  }
+  // What missed (funnel order), with the shortfall and what to do
+  const miss = (n, txt) => P.steps.push(txt), win = n => P.wins.push(n);
+  if (a.open && okGoal(t.contacts_target)) (a.cpd < t.contacts_target ? miss : () => win('Contacts'))('contacts',
+    `<b>Contacts ${numf(a.cpd, 1)}/day</b> vs ${t.contacts_target}. Block two calling sessions a day: fresh leads first, then no-shows and leads who never booked.`);
+  if (a.leads >= 3) (a.l2d < t.l2d_target ? miss : () => win('Lead→demo'))('l2d',
+    `<b>Booked ${a.demos_booked} of ${a.leads} leads</b> (${pctf(a.l2d)} vs ${pctf(t.l2d_target)}): <b>${ceilPos(t.l2d_target * a.leads - a.demos_booked)} more booking${ceilPos(t.l2d_target * a.leads - a.demos_booked) === 1 ? '' : 's'}</b> would have hit it. Reach new leads within minutes and offer two set times instead of asking when works.`);
+  if (a.demos_booked >= 2) (a.show < t.show_target ? miss : () => win('Show %'))('show',
+    `<b>${a.demos_held} of ${a.demos_booked} booked demos showed</b> (${pctf(a.show)} vs ${pctf(t.show_target)}): <b>${ceilPos(t.show_target * a.demos_booked - a.demos_held)} more</b> needed to show. Confirm by text the day before, call the morning of, and rebook every no-show the same day.`);
+  if (a.demos_held >= 2) (a.close < t.close_target ? miss : () => win('Close %'))('close',
+    `<b>Closed ${a.demo_sales} of ${a.demos_held} demos</b> (${pctf(a.close)} vs ${pctf(t.close_target)}): <b>${ceilPos(t.close_target * a.demos_held - a.demo_sales)} more sale${ceilPos(t.close_target * a.demos_held - a.demo_sales) === 1 ? '' : 's'}</b> would have hit it. Run the full consult, tie the package to their goal, ask for the sale, and follow up every didn't-buy within a day.`);
+  if (a.cancellations && (a.nmg < 0 || (a.attrition !== null && a.attrition > t.attrition_max))) miss('retention',
+    `<b>${a.cancellations} cancellation${a.cancellations === 1 ? '' : 's'}</b> vs ${a.agreements + a.reactivations} new or returning (NMG ${a.nmg > 0 ? '+' : ''}${a.nmg}). Call at-risk members and anyone with no next booking; offer a freeze before a cancel.`);
+  else if (a.agreements + a.reactivations) win('Net members');
+  if (a.util !== null && okGoal(t.util_target)) (a.util < t.util_target ? miss : () => win('Utilization'))('util',
+    `<b>Utilization ${pctf(a.util)}</b> vs ${pctf(t.util_target)}. Rebook every member before they leave and fill the next day's open slots from the at-risk and no-next-booking lists.`);
+  if (payOk(sid) && a.labor !== null && okGoal(t.labor_max) && a.labor > t.labor_max) miss('labor',
+    `<b>Labor ${pctf(a.labor)}</b> of revenue vs ${pctf(t.labor_max)} max. Match staffing to booked hours and trim open shifts with no bookings.`);
+  // Rest of the month: sales needed, then the funnel per day at this month's own rates
+  if (left > 0) {
+    const salesGoal = okGoal(t.sales_target) ? Math.round(t.sales_target * total) : null;
+    const need = salesGoal !== null ? salesGoal - m.agreements : okGoal(t.nmg_target) ? +t.nmg_target - m.nmg : null;
+    if (need !== null && need > 0) {
+      const rate = (v, g) => v && v > 0 ? v : +g, close = rate(m.close, t.close_target), show = rate(m.show, t.show_target), l2d = rate(m.l2d, t.l2d_target);
+      const held = need / close, booked = held / show, leads = booked / l2d, pd = v => numf(v / left, v / left < 10 ? 1 : 0);
+      P.plan = `To reach ${salesGoal !== null ? `<b>${salesGoal} sales</b>` : `<b>+${t.nmg_target} net members</b>`} this month: <b>${need} more</b> in ${left} day${left === 1 ? '' : 's'} ≈ <b>${pd(need)} a day</b>. ` +
+        `At this month's rates (close ${pctf(close)}, show ${pctf(show)}, booking ${pctf(l2d)}) that's about <b>${pd(held)} demos held → ${pd(booked)} booked → ${pd(leads)} leads a day</b>.`;
+    } else if (need !== null) P.plan = `Already at the month's ${salesGoal !== null ? 'sales' : 'net member'} goal. Keep the pace and protect retention.`;
+  }
+  P.head = P.steps.length ? `${P.steps.length} to work on` : 'On track';
+  return P;
+}
+function dlAnalysis(from, to, title) {
+  const st = dlStudios().map(l => ({ l, p: dlPlan(l.id, from, to) })).filter(x => x.p);
+  if (!st.length) return '';
+  const openOne = st.some(x => x.l.id === ME.location_id) ? ME.location_id : (st.length === 1 ? st[0].l.id : null);
+  return `<section class="scsec dlai"><h3>${title} <details class="dlinfo"><summary aria-label="How this is worked out">ⓘ</summary><div>Worked out from the same numbers as the review above and each studio's Targets: what fell short of its target and by how many, the revenue pace for the month, and the leads, bookings, demos and sales a day it takes to reach the goal at the studio's own rates this month.</div></details></h3>` +
+    st.map(({ l, p }) => `<details class="pcard dlplan"${l.id === openOne ? ' open' : ''}><summary><b>${esc(l.name)}</b> <span class="rkb ${p.steps.length ? 'low' : 'top'}">${p.head}</span></summary>
+      ${p.pace ? `<p class="dlpace">${p.pace}</p>` : ''}
+      ${p.steps.length ? `<ol>${p.steps.slice(0, 4).map(x => `<li>${x}</li>`).join('')}</ol>` : '<p>Every funnel number hit its target. Keep the process tight and rebook every member.</p>'}
+      ${p.plan ? `<p class="dlgoal">${p.plan}</p>` : ''}
+      ${p.wins.length ? `<p class="dlwins">✓ On target: ${p.wins.join(', ')}</p>` : ''}</details>`).join('') + '</section>';
+}
+
 function drawDaily() {
   const d = DL.day, yest = dAdd(todayStr(), -1), sid = DL.studio, wr = canWrite(sid), r = rowOf(sid, d) || {}, t = tgtOf(sid);
   const editable = dlStudios().filter(l => canWrite(l.id));
@@ -200,7 +263,7 @@ function drawDaily() {
   const done = rv.filter(x => entered(x.row)).length;
   $('dlBody').innerHTML = `<div class="dlnav"><button class="quiet" data-dlday="-1" aria-label="Previous day">‹</button><label class="tk-daylbl"><b>${d === yest ? 'Yesterday' : d === todayStr() ? 'Today' : ''} <small>${dLong(d)}</small></b><input type="date" id="dlDate" value="${d}" max="${todayStr()}"></label><button class="quiet" data-dlday="1" aria-label="Next day" ${d >= todayStr() ? 'disabled' : ''}>›</button>${d !== yest ? '<button class="quiet sm" data-dlday="y">Back to yesterday</button>' : ''}
       ${ME.role === 'owner' && REP.sub === 'enter' ? '<span class="dltools"><button class="quiet sm" id="dlTargets">Targets</button><button class="quiet sm" id="dlImport">Import from spreadsheet</button></span>' : ''}</div>` +
-    (REP.sub === 'enter' ? (form || '<div class="pcard"><p>Only managers and the owner can enter numbers.</p></div>') + (form ? `<p class="dlgo"><button class="quiet" data-dlgo="dpr">See the daily review →</button></p>` : '') : (editable.length ? `<div class="dlcta"><span>${done} of ${rv.length} studios entered for ${dLong(d)}</span><button data-dlgo="enter">Enter numbers</button></div>` : '') + `<section class="scsec"><h3>Morning review • ${dLong(d)} <span class="hcount">${done} of ${rv.length} entered</span></h3>${table}</section>`);
+    (REP.sub === 'enter' ? (form || '<div class="pcard"><p>Only managers and the owner can enter numbers.</p></div>') + (form ? `<p class="dlgo"><button class="quiet" data-dlgo="dpr">See the daily review →</button></p>` : '') : (editable.length ? `<div class="dlcta"><span>${done} of ${rv.length} studios entered for ${dLong(d)}</span><button data-dlgo="enter">Enter numbers</button></div>` : '') + `<section class="scsec"><h3>Morning review • ${dLong(d)} <span class="hcount">${done} of ${rv.length} entered</span></h3>${table}</section>` + dlAnalysis(d, d, `Analysis & next steps • ${dLong(d)}`));
 }
 
 async function dlSave() {
@@ -273,6 +336,7 @@ function drawWeekly() {
       <span class="dltools">${dlMonthly() && canPage('performance') ? '<button class="quiet sm" data-dlsheet title="Your uploaded monthly sheets, corporate scorecard numbers and network ranks">Monthly sheet view</button>' : ''}${ME.role === 'owner' ? '<button class="quiet sm" id="dlTargets">Targets</button>' : ''}</span></div>` +
     `<section class="scsec"><h3>Region snapshot <span class="muted" style="font-weight:400;font-size:.85rem">vs ${R.plabel}</span></h3>${snap}</section>` +
     `<section class="scsec"><h3>Studio scorecard <details class="dlinfo"><summary aria-label="How this table works">ⓘ</summary><div>Green hit the goal, red missed it; hover a number to see its goal. Count goals are the daily goal times the days each studio has numbers for; revenue and NMG goals are the monthly goal spread over the days (a whole month uses it as is). Contacts/day, Lead→demo, Show %, Close % and Util. are compared to the goal as is. The tag under each studio is its biggest miss vs goal. Click a studio to see it day by day.</div></details></h3>${score}</section>` +
+    dlAnalysis(R.from, R.to, `Analysis & next steps • ${dlMonthly() ? 'this month' : dlPer() === 'week' ? 'this week' : 'last 30 days'}`) +
     `<section class="scsec"><h3>Notes & manager actions</h3>${nlist}</section>`;
 }
 
