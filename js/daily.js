@@ -198,7 +198,7 @@ function dlPlan(sid, from, to) {
   // What missed (funnel order), with the shortfall and what to do
   const miss = (n, txt) => P.steps.push(txt), win = n => P.wins.push(n);
   if (a.open && okGoal(t.contacts_target)) (a.cpd < t.contacts_target ? miss : () => win('Contacts'))('contacts',
-    `<b>Contacts ${numf(a.cpd, 1)}/day</b> vs ${t.contacts_target}. Block two calling sessions a day: fresh leads first, then no-shows and leads who never booked.`);
+    `<b>Contacts ${numf(a.cpd, 1)}/day</b> vs ${t.contacts_target}. Use the white space between sessions for calls and texts: fresh leads first, then no-shows and leads who never booked.`);
   if (a.leads >= 3) (a.l2d < t.l2d_target ? miss : () => win('Lead→demo'))('l2d',
     `<b>Booked ${a.demos_booked} of ${a.leads} leads</b> (${pctf(a.l2d)} vs ${pctf(t.l2d_target)}): <b>${ceilPos(t.l2d_target * a.leads - a.demos_booked)} more booking${ceilPos(t.l2d_target * a.leads - a.demos_booked) === 1 ? '' : 's'}</b> would have hit it. Reach new leads within minutes and offer two set times instead of asking when works.`);
   if (a.demos_booked >= 2) (a.show < t.show_target ? miss : () => win('Show %'))('show',
