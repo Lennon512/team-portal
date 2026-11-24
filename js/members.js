@@ -548,6 +548,8 @@ $('dlgBody').addEventListener('click', async e => {
       const r2 = await db.rpc('replace_new_members', { p_studio: mem.studio, p_rows: imp.newRows });
       if (r2.error) { e.target.disabled = false; e.target.textContent = 'Import'; return fail('New member import failed. ' + r2.error.message); }
     }
+    // Per-person contact counts (My performance); never blocks the rest of the import
+    if (imp.data.contacts) { const se = await saveStaffContacts().catch(e => e); if (se) console.warn('Staff contact counts not saved:', se.message || se); }
     // Last, so a missing setup here never blocks the member and lead lists
     if (imp.data.cancels) {
       const ce = await saveCx();
