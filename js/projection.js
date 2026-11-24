@@ -151,7 +151,7 @@ function fmtNet(v, f) {
 }
 
 async function loadMaster() {
-  if (!netOk()) { $('pfBody').innerHTML = '<p class="lead">Only owners and general managers can see the full Stretch Zone network.</p>'; return; }
+  if (!netOk()) { $('pfBody').innerHTML = '<p class="lead">Sign in to see the full Stretch Zone network.</p>'; return; }
   if (!PF.netAll[PF.month]) {
     $('pfBody').innerHTML = '<p class="lead loading">Loading the network...</p>';
     const { data, error } = await db.from('kpi_network_all').select('*').eq('month', PF.month).limit(1000);
