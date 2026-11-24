@@ -1212,5 +1212,7 @@ dialog.lbwide { max-width:1000px; width:calc(100% - 2rem); max-height:92vh; }
 /* My performance */
 .mplead { margin:.2rem 0 .6rem; }
 .kt.mpok { border-color:rgba(31,157,106,.45); }
-.mpchart { padding:.8rem 1rem; height:260px; }
+.mpchart { padding:.8rem 1rem; }
+.mpchart .mpct { margin:.2rem 0 .3rem; font-size:.85rem; font-weight:600; }
+.mpcv { position:relative; height:200px; } .mpcv2 { height:150px; margin-bottom:.2rem; }
 .mpt td, .mpt th { white-space:nowrap; }
