@@ -174,6 +174,21 @@ function buildLeads() {
     staff: `${x['Staff First Name'] || ''} ${x['Staff Last Name'] || ''}`.trim() || null, kind: x['Contact Type'] || null, made: /^y/i.test(String(x['Contact Made'] || '')), outcome: x['Outcome'] || null }; }).filter(Boolean);
   return { rows, cs };
 }
+// Per-person contact counts for My performance: every Contact Log entry (leads and members), counted by staff, day and type.
+// Replaces that studio's counts from the earliest day in this upload on. Missing table (sql/staff_daily.sql) = skipped quietly.
+async function saveStaffContacts() {
+  const by = {};
+  (imp.data.contacts || []).forEach(x => { const t = toDT(x['Contact Date']); if (!t) return;
+    const staff = `${x['Staff First Name'] || ''} ${x['Staff Last Name'] || ''}`.replace(/\s+/g, ' ').trim(); if (!staff) return;
+    const day = ymd(t), kind = howOf(x['Contact Type']) || 'Other', k = day + '|' + staff + '|' + kind;
+    const o = by[k] = by[k] || { studio_id: mem.studio, day, staff_name: staff, kind, n: 0, made: 0 }; o.n++; if (/^y/i.test(String(x['Contact Made'] || ''))) o.made++; });
+  const rows = Object.values(by); if (!rows.length) return null;
+  const from = rows.reduce((m, r) => r.day < m ? r.day : m, rows[0].day);
+  let r = await db.from('staff_contacts_daily').delete().eq('studio_id', mem.studio).gte('day', from);
+  if (r.error) return /relation|does not exist|schema cache/i.test(r.error.message) ? null : r.error;
+  for (let i = 0; i < rows.length; i += 500) { r = await db.from('staff_contacts_daily').insert(rows.slice(i, i + 500)); if (r.error) return r.error; }
+  return null;
+}
 async function saveLeads() {
   const { rows, cs } = buildLeads();
   // Before sql/leads_bought.sql is run there are no bought_on / lead_status columns: save the rest
