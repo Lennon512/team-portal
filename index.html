@@ -90,18 +90,12 @@
   </section>
   <main>
     <p class="lead" id="note" hidden></p>
-    <p class="mpgo"><a class="btn" href="#myperf">📈 My performance</a></p>
     <div class="hgrid" id="alertCards"></div>
     <div class="skel hgrid status" id="myCards"></div>
     <section id="annCards" aria-label="Announcements"></section>
 
   </main>
   </div>
-  <main id="mpView" hidden>
-    <div class="thead"><div><h2>My performance</h2><p class="lead">Your time clocked in, how much of it was stretching, contacts in your open time, and your daily tasks. Only you and your managers can see this.</p></div></div>
-    <div class="bar" id="mpBar"></div>
-    <div id="mpBody"></div>
-  </main>
   <main id="teamView" hidden>
     <h2>Meet the team</h2>
     <p class="lead">Faces, roles, and a little about each of us. Tap someone to read more.</p>
@@ -180,6 +174,7 @@
   <main id="repView" hidden>
     <h2>Performance</h2>
     <div class="tabs" id="repTabs">
+      <button data-t="mine">My performance</button>
       <button data-t="dpr">Daily</button>
       <button data-t="weekly">Weekly</button>
       <button data-t="monthly">Monthly</button>
@@ -190,6 +185,7 @@
       <button data-t="enter">Enter numbers</button>
     </div>
   <div id="repDpr"><div id="dlBody"></div></div>
+  <div id="repMine" hidden><p class="lead mplead">Your time clocked in, how much of it was stretching, contacts in your open time, and your daily tasks. Only you and your managers can see this.</p><div class="bar" id="mpBar"></div><div id="mpBody"></div></div>
   <div id="repFlow" hidden><div class="bar lfbar" id="lfBar"></div><div id="lfBody" class="skel"></div></div>
   <div id="repPerf">
     <div class="bar">
@@ -238,7 +234,7 @@
 
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
 
-<script src="js/core.js?v=20261124a"></script>
+<script src="js/core.js?v=20261124b"></script>
 <script src="js/calendar.js?v=20261123a"></script>
 <script src="js/tasks.js?v=20261120r"></script>
 <script src="js/members.js?v=20261124h"></script>
@@ -248,7 +244,7 @@
 <script src="js/timeoff.js?v=20261120r"></script>
 <script src="js/mypage.js?v=20261120r"></script>
 <script src="js/studio.js?v=20261120r"></script>
-<script src="js/performance.js?v=20261124a"></script>
+<script src="js/performance.js?v=20261124b"></script>
 <script src="js/leadflow.js?v=20261123a"></script>
 <script src="js/compare.js?v=20261120r"></script>
 <script src="js/projection.js?v=20261124a"></script>
@@ -262,7 +258,7 @@
 <script src="js/access.js?v=20261124a"></script>
 <script src="js/invite.js?v=20261120r"></script>
 <script src="js/payroll.js?v=20261120r"></script>
-<script src="js/myperf.js?v=20261124a"></script>
+<script src="js/myperf.js?v=20261124b"></script>
 <script src="js/start.js?v=20261120r"></script>
 </body>
 </html>

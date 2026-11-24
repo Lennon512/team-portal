@@ -1210,8 +1210,7 @@ dialog.lbwide { max-width:1000px; width:calc(100% - 2rem); max-height:92vh; }
 .lbrowacts .lbfbtn { background:rgba(255,255,255,.45); }
 
 /* My performance */
-.mpgo { margin:0 0 1rem; } .mpgo .btn { display:inline-flex; align-items:center; gap:.4rem; text-decoration:none; padding:.6rem 1.1rem; border-radius:999px; background:var(--dark); color:#fbf6ee; font-weight:500; transition:transform .15s, background .2s; }
-.mpgo .btn:hover { background:#3a332b; } .mpgo .btn:active { transform:scale(.97); }
+.mplead { margin:.2rem 0 .6rem; }
 .kt.mpok { border-color:rgba(31,157,106,.45); }
 .mpchart { padding:.8rem 1rem; height:260px; }
 .mpt td, .mpt th { white-space:nowrap; }
