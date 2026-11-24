@@ -40,7 +40,7 @@ const slimName = ({ r, c }) => `<td><b>${esc(r.name)}</b>${r.frozen ? '<span cla
 const nameCell = ({ r, c }) => `<td><b>${esc(r.name)}</b>${r.frozen ? '<span class="pill ice">Frozen</span>' : ''}${c.attn ? '<span class="pill warn">Needs attention</span><div class="why">' + esc(c.why) + '</div>' : ''}</td>`;
 // ----- Priority: who to contact first (the default order on every Members & prospects list) -----
 // lv 2 = call first, 1 = due / soon, 0 = can wait. "why" is the short reason shown under the pill.
-const priCell = p => `<td class="pricell"><span class="pill ${p.lv === 2 ? 'warn' : p.lv === 1 ? 'due' : 'later'}">${p.lv === 2 ? 'Call first' : p.lv === 1 ? 'Soon' : 'Can wait'}</span>${p.why ? `<small class="nm-sub">${esc(p.why)}</small>` : ''}</td>`;
+const priCell = p => `<td class="pricell"><span class="pill ${p.lv === 2 ? 'warn' : p.lv === 1 ? 'due' : 'later'}"${p.why ? ` title="${esc(p.why)}"` : ''}>${p.lv === 2 ? 'Call first' : p.lv === 1 ? 'Soon' : 'Can wait'}</span></td>`;   // the reason shows only on hover
 function memPri(r, c) {
   let s = 0; const why = [], k = r.next_due ? -daysAgo(r.next_due) : null, cr = r.credits || 0;
   if (c.dc !== null && c.dc <= 3) { s -= 4; why.push(c.dc === 0 ? 'contacted today' : `contacted ${c.dc}d ago`); }   // just talked to them: let it rest
