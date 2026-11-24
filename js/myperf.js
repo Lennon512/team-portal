@@ -82,7 +82,7 @@ function drawMyPerf() {
   const util = clock ? stretch / clock : null, cpct = goal ? contacts / goal : null, tpct = assigned ? Math.min(1, tasks / assigned) : null;
   const tile = (label, big, sub, cls) => `<div class="kt dlk ${cls || ''}"><span class="kn">${label}</span><b>${big}</b><span class="kdl">${sub}</span></div>`;
   const first = String(p.full_name || '').split(' ')[0], you = p.id === ME.id;
-  const note = !matched ? `<p class="lead">No ClubReady hours found for ${you ? 'you' : esc(first)} in this time frame yet.${ME.role === 'owner' ? ` If ${you ? 'your' : 'their'} name is different in ClubReady (for example "${esc(first)} ${esc(String(p.full_name || '').split(' ').pop()[0] || '')}"), set it as their ClubReady name on the People page.` : ''} Hours and stretching come in each morning for the day before.</p>` : '';
+  const note = !matched ? `<p class="lead">No ClubReady hours found for ${you ? 'you' : esc(first)} in this time frame yet.${ME.role === 'owner' ? ` If ${you ? 'your' : 'their'} name is spelled differently in ClubReady, it needs to be linked once (profiles.clubready_name in Supabase).` : ''} Hours and stretching come in each morning for the day before.</p>` : '';
   const head = `<p class="lead mem-lead"><b>${esc(p.full_name || '')}</b> • ${S.label} (${fmt(S.from)} – ${fmt(S.to)}) • ${W.length} day${W.length === 1 ? '' : 's'} worked</p>`;
   const tiles = `<div class="kgrid kg4">` +
     tile('Clocked in', `${mpH(clock)} hrs`, `${W.length} day${W.length === 1 ? '' : 's'}`) +
