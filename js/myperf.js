@@ -89,7 +89,7 @@ function drawMyPerf() {
     tile('Stretching', `${mpH(stretch)} hrs`, util !== null ? `<b>${Math.round(util * 100)}%</b> utilization` : 'utilization –') +
     tile('Contacts', `${contacts}`, goal ? `goal ~${goal} for ${mpH(open)} open hrs${cpct !== null ? ` • <b>${Math.round(cpct * 100)}%</b>` : ''}` : 'no open time on record', goal && contacts >= goal ? 'mpok' : '') +
     tile('Daily tasks', tpct !== null ? `${Math.round(tpct * 100)}%` : '–', assigned ? `${tasks} of ${assigned} done${nTasks ? ` • ${nTasks} a day` : ''}` : nTasks ? 'no work days yet' : 'no daily tasks assigned', tpct === 1 ? 'mpok' : '') + '</div>';
-  const shown = days.filter(x => x.worked || x.clock !== null || x.contacts);
+  const shown = days.filter(x => x.worked || x.contacts);   // days with no time, contacts or tasks are left out
   const rows = shown.length ? `<div class="table-wrap"><table class="mt mpt"><thead><tr><th>Day</th><th>Clocked in</th><th>Stretching</th><th>Open time</th><th>Contacts</th><th>Daily tasks</th></tr></thead><tbody>${shown.map(x => {
       const lbl = new Date(x.d + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       const c = x.goal ? `<span class="${x.contacts >= x.goal ? 'up' : 'dn'}">${x.contacts}</span> <span class="muted">of ~${x.goal}</span>` : `${x.contacts}`;
