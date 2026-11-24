@@ -1,8 +1,8 @@
 // ---------- Page access ----------
 const PAGES = [['team', 'Team', 'Team cards and bios'], ['studio', 'Studio', 'Studio pages and rosters'], ['calendar', 'Calendar', 'Events, time off, celebrations'], ['tasks', 'Tasks', 'Daily task checklists'],
   ['members', 'Members & prospects', 'Member lists, at-risk and new members'], ['timeoff', 'Time off', 'Request and approve time off'], ['dpr', 'Daily & weekly', 'Daily review, weekly review, and entering numbers'], ['supplies', 'Supplies', 'Supply counts and requests'],
-  ['performance', 'Performance', 'KPI scorecards (their own studio only)'], ['leadership', 'Directory', 'Pay, reviews, and discipline for everyone'], ['leadership_studio', 'Directory (own studio)', 'Pay, reviews, and discipline for their own studio only'], ['payroll', 'Payroll', 'Hours, stretch pay, and commission for every pay period'], ['people', 'People', 'Names, roles, and studios (only the owner can change them)']];
-const DEFPAGES = { staff: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies'], manager: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies', 'performance', 'people'] };
+  ['performance', 'Performance', 'Monthly, All Stretch Zone, Compare, Projection and Lead flow (everyone has this)'], ['leadership', 'Directory', 'Pay, reviews, and discipline for everyone'], ['leadership_studio', 'Directory (own studio)', 'Pay, reviews, and discipline for their own studio only'], ['payroll', 'Payroll', 'Hours, stretch pay, and commission for every pay period'], ['people', 'People', 'Names, roles, and studios (only the owner can change them)']];
+const DEFPAGES = { staff: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies', 'performance'], manager: ['team', 'studio', 'calendar', 'tasks', 'members', 'timeoff', 'dpr', 'supplies', 'performance', 'people'] };
 const NAVID = { team: 'navTeam', studio: 'navStudio', calendar: 'navCal', tasks: 'navTasks', members: 'navMem', timeoff: 'navOff', supplies: 'navSup', leadership: 'navHr', payroll: 'navPay', people: 'navPeople' };
 const canPage = k => !!ME && (ME.role === 'owner' || (ME.pages || []).includes(k) || (k === 'leadership' && (ME.pages || []).includes('leadership_studio')));
 // Leadership limited to their own studio (no full Leadership access)
@@ -15,6 +15,8 @@ async function loadPages() {
   // The database decides. If that is not set up yet, fall back to what each role could always see.
   const { data, error } = await db.rpc('my_pages');
   ME.pages = !error && Array.isArray(data) ? data : [...(DEFPAGES[ME.role] || DEFPAGES.staff)].concat(ME.hr_access ? ['leadership'] : []);
+  // Everyone gets the Daily, Weekly and Performance tabs (Monthly, All Stretch Zone, Compare, Projection, Lead flow)
+  ['dpr', 'performance'].forEach(k => { if (!ME.pages.includes(k)) ME.pages.push(k); });
 }
 function applyNav() {
   Object.entries(NAVID).forEach(([k, id]) => { $(id).hidden = !canPage(k); });

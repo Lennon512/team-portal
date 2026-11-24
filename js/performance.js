@@ -25,8 +25,8 @@ const CORP = [['revenue', 'Revenue', 'usd'], ['eft', 'EFT collected', 'usd'], ['
 const RAW = [['gross_revenue', 'Gross revenue ($)'], ['draft', 'Draft ($)'], ['refunds', 'Refunds ($)'], ['leads', 'Leads'], ['scheduled', 'Demos scheduled'], ['demos', 'Demos completed'], ['agreements', 'Agreements'],
   ['cash_sales', 'Cash sales ($)'], ['eft_sales', 'EFT sales ($)'], ['avg_eft', 'Average EFT ($)'], ['staff_util', 'Staff utilization'], ['calls_per_day', 'Calls per day'], ['cancellations', 'Cancellations'], ['active_members', 'Active members']];
 const COLORS = ['#d9573f', '#2f5f8f', '#1f9d6a', '#b0683a', '#7a4fb3', '#c49a1a'];
-// Owners and general managers can see every studio, the All Stretch Zone tab and the Compare tab
-const netOk = () => ME.role === 'owner' || ME.role === 'manager';
+// Everyone can see every studio, the All Stretch Zone tab and the Compare tab (read only; uploading stays owner-only)
+const netOk = () => !!ME;
 const PF = { rows: [], net: {}, corp: {}, netAll: {}, netStore: null, netChart: null, cmpIndex: null, cmp: { a: null, b: null, kpi: 'revenue', find: { a: '', b: '' } }, cmpChart: null, tab: 'score', studio: '', month: '', range: 12, kpi: 'gross_revenue', chart: null, mSort: 'kpis->revenue', mDir: -1, mFind: '', projData: null, projScenario: null, projDom: null };
 
 const fv = (x, f) => x === null || x === undefined || isNaN(x) ? '-' : f === 'usd' ? '$' + Math.round(x).toLocaleString() : f === 'usd2' ? '$' + x.toFixed(2) : f === 'pct' ? (x * 100).toFixed(0) + '%' : f === 'dec' ? x.toFixed(1) : Math.round(x).toLocaleString();
