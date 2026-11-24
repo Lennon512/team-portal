@@ -41,15 +41,23 @@ function leadCalc(l) {
   const due = every !== null && (dc === null || dc >= every), fresh = age === null || age <= 30;
   return { fresh, n, made, last, first, age, dc, firstGap, every, step, due, booked, urgency: !n ? 1e6 - (age || 0) : every ? dc / every : 0 };
 }
+// Who to contact first: never contacted (newest first), then no-shows to reschedule, first-week leads, then the most overdue; leads not due yet by how soon they are
+function leadPri(l, c) {
+  if (c.every === null) return { s: -1e9, lv: 0, why: c.step };
+  if (!c.due) { const inD = Math.max(1, c.every - (c.dc || 0)); return { s: -inD, lv: 0, why: `${c.step} • next in ${inD}d` }; }
+  const st = (l.stage || '').toLowerCase(), noshow = /no ?show/.test(st) && c.age <= 30;
+  const s = !c.n ? 3e6 - (c.age || 0) : noshow ? 2e6 + c.dc : c.age <= 7 ? 1.5e6 + c.dc : 1e6 + c.urgency * 1000;
+  return { s, lv: !c.n || noshow || c.age <= 7 || c.urgency >= 2 ? 2 : 1, why: c.step + (c.n && c.dc ? ` • last ${c.dc}d ago` : '') };
+}
 
 // Lead age groups shown as filter chips
 const LD_AGES = [['all', 'All', () => true], ['1', 'New (0–1 day)', a => a <= 1], ['7', '2–7 days', a => a >= 2 && a <= 7], ['30', '8–30 days', a => a >= 8 && a <= 30], ['60', '31–60 days', a => a >= 31 && a <= 60], ['old', '60+ days', a => a > 60]];
 const LD_SORTS = { new: 'Newest first', old: 'Oldest first', quiet: 'Longest since last contact', most: 'Most contacts', least: 'Fewest contacts' };
 // Column header sorting. dir 1 = the natural first click (newest, A–Z, most contacts, longest since contact)
-const LD_COLS = [['name', 'Lead', 'A\u2013Z', 'Z\u2013A'], ['contacts', 'Contacts', 'most first', 'fewest first'], ['added', 'Added', 'newest first', 'oldest first'],
+const LD_COLS = [['pri', 'Priority', 'who to contact first', 'who can wait first'], ['name', 'Lead', 'A\u2013Z', 'Z\u2013A'], ['contacts', 'Contacts', 'most first', 'fewest first'], ['added', 'Added', 'newest first', 'oldest first'],
   ['last', 'Last contact', 'longest since contact first', 'most recent contact first'], ['how', 'How', 'A\u2013Z', 'Z\u2013A'], ['by', 'By', 'A\u2013Z', 'Z\u2013A']];
-const LD_OLD = { new: ['added', 1], old: ['added', -1], quiet: ['last', 1], most: ['contacts', 1], least: ['contacts', -1] };
-Object.assign(LD, { age: 'all', sort: 'new', dueOnly: false, never: false });
+const LD_OLD = { pri: ['pri', 1], new: ['added', 1], old: ['added', -1], quiet: ['last', 1], most: ['contacts', 1], least: ['contacts', -1] };
+Object.assign(LD, { age: 'all', sort: 'pri', dueOnly: false, never: false });
 
 function sumLeads() {
   if (LD.missing || !LD.rows.length) { $('memSum').innerHTML = ''; return; }
@@ -66,7 +74,7 @@ function sumLeads() {
 }
 // Clicking a tile sets the filters below it
 function leadTile(q) {
-  Object.assign(LD, { age: 'all', dueOnly: false, never: false, sort: 'new', dir: 1, grp: 'all', src: '' });
+  Object.assign(LD, { age: 'all', dueOnly: false, never: false, sort: 'pri', dir: 1, grp: 'all', src: '' });
   if (q === 'due') Object.assign(LD, { dueOnly: true, sort: 'quiet', age: '30w' });
   if (q === 'week') LD.age = '7w';
   if (q === 'speed' || q === 'month') LD.age = '30w';
@@ -105,10 +113,10 @@ function drawLeads() {
   const grpOk = x => LD.grp === 'all' || leadGrp(x.l.stage) === LD.grp;
   const rows = base.filter(x => grpOk(x) && ageOk(x.c.age ?? 0) && (!LD.dueOnly || x.c.due) && (!LD.never || !x.c.n));
   if (LD_OLD[LD.sort]) [LD.sort, LD.dir] = LD_OLD[LD.sort];   // shortcuts from the summary tiles
-  if (!LD_COLS.some(x => x[0] === LD.sort)) { LD.sort = 'added'; LD.dir = 1; }
+  if (!LD_COLS.some(x => x[0] === LD.sort)) { LD.sort = 'pri'; LD.dir = 1; }
   LD.dir = LD.dir || 1;
   const txt = v => String(v || '\uffff').toLowerCase(), newest = (a, b) => (b.l.added_on || '') < (a.l.added_on || '') ? -1 : (b.l.added_on || '') > (a.l.added_on || '') ? 1 : 0;
-  const S = { added: newest, name: (a, b) => txt(a.l.name).localeCompare(txt(b.l.name)), contacts: (a, b) => b.c.n - a.c.n,
+  const S = { pri: (a, b) => leadPri(b.l, b.c).s - leadPri(a.l, a.c).s, added: newest, name: (a, b) => txt(a.l.name).localeCompare(txt(b.l.name)), contacts: (a, b) => b.c.n - a.c.n,
     last: (a, b) => (b.c.dc ?? 1e9) - (a.c.dc ?? 1e9), how: (a, b) => txt(a.c.last && howOf(a.c.last.kind)).localeCompare(txt(b.c.last && howOf(b.c.last.kind))),
     by: (a, b) => txt(a.c.last && a.c.last.staff).localeCompare(txt(b.c.last && b.c.last.staff)) };
   rows.sort((a, b) => LD.dir * S[LD.sort](a, b) || newest(a, b));
@@ -129,7 +137,7 @@ function drawLeads() {
     <p class="lead mem-lead">Showing <b>${rows.length}</b> of <b>${base.length}</b> leads${span ? ' added ' + span : ''}${LD.dueOnly ? ', only those due for a call or text' : ''}${LD.never ? ', only never contacted' : ''}, ${sortTxt}.${filtered ? ' <button class="linkish" data-ldreset="1">Clear filters</button>' : ''} Click a lead for their full history.</p>` +
     (rows.length ? speedStrip(rows) : '') +
     (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr>${LD_COLS.map(th).join('')}</tr></thead><tbody>` +
-      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}"><td>${leadName(l)}</td><td>${attCell(c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>${detailCells(c)}</tr>`).join('') + '</tbody></table></div>' : '<p class="lead empty">No leads match these filters.</p>') +
+      rows.map(({ l, c }) => `<tr data-lead="${l.club_id}" class="${c.due ? 'lddue' : ''}">${priCell(leadPri(l, c))}<td>${leadName(l)}</td><td>${attCell(c)}</td><td>${ageCell(l, c)}</td><td>${lastCell(c)}</td>${detailCells(c)}</tr>`).join('') + '</tbody></table></div>' : '<p class="lead empty">No leads match these filters.</p>') +
     `<p class="legend nb-legend"><span><i class="hchip h0"></i>Today / 1 day</span><span><i class="hchip h1"></i>2–3 days</span><span><i class="hchip h2"></i>4–7</span><span><i class="hchip h3"></i>8–14</span><span><i class="hchip h4"></i>15+ or never</span><span class="muted">(last contact). Added: 1 / 7 / 30 / 60 days..</span></p>`;
 }
 
