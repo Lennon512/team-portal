@@ -110,7 +110,6 @@ html.dark .shero { background:rgba(255,255,255,0.05); }
 html.dark input, html.dark select, html.dark textarea, html.dark dialog textarea { border-color:rgba(255,255,255,.12); }
 html.dark input:focus, html.dark select:focus, html.dark textarea:focus { border-color:rgba(255,255,255,.12); background:rgba(255,255,255,0.14); }
 html.dark button { color:#1f1a14; }
-html.dark .mpgo .btn { color:#1f1a14; }
 html.dark button.quiet { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,.12); }
 html.dark button.quiet:hover { background:rgba(255,255,255,0.13); }
 html.dark input.cellin:hover, html.dark select.cellin:hover, html.dark input.cellin:focus, html.dark select.cellin:focus { background:rgba(255,255,255,0.14); border-color:rgba(255,255,255,.12); }
