@@ -49,7 +49,7 @@ const FZ_VIEWS = [['now', 'On freeze now', r => r.kind === 'frozen'], ['back', '
 const CX_VIEWS = [['open', 'Following up', r => r.kind === 'cancelled' && daysAgo(r.event_on) <= 90], ['30', 'Cancelled 0–30 days', r => r.kind === 'cancelled' && daysAgo(r.event_on) <= 30], ['60', '31–60 days', r => r.kind === 'cancelled' && daysAgo(r.event_on) > 30 && daysAgo(r.event_on) <= 60],
   ['90', '61–90 days', r => r.kind === 'cancelled' && daysAgo(r.event_on) > 60 && daysAgo(r.event_on) <= 90], ['old', '90+ days', r => r.kind === 'cancelled' && daysAgo(r.event_on) > 90],
   ['month', 'Cancelled this month', r => r.kind === 'cancelled' && (r.event_on || '').slice(0, 7) === todayStr().slice(0, 7)]];
-const CX_SORTS = { pri: 'Who to contact first', new: 'Most recent first', old: 'Oldest first', money: 'Biggest plan first', quiet: 'Longest since last contact' };
+const CX_SORTS = { pri: 'Most important first', new: 'Most recent first', old: 'Oldest first', money: 'Biggest plan first', quiet: 'Longest since last contact' };
 
 function sumCx() {
   if (CX.missing || !CX.rows.length) { $('memSum').innerHTML = ''; return; }
@@ -111,7 +111,7 @@ function drawCx() {
   const cnt = f => base.filter(x => f(x.r) && extra(x)).length, first = VS[0][0];
   const shown = VS.filter(([k, , f]) => k !== 'month' || st.view === 'month').filter(([k, , f]) => k === first || k === st.view || cnt(f));
   const money = rows.reduce((s, x) => s + (+x.r.amount || 0), 0), filtered = st.view !== first || st.dueOnly || (!F && CX.never);
-  const sorts = F ? { pri: 'Who to contact first', new: 'Most recent first', old: 'Oldest first', money: 'Biggest plan first', quiet: 'Longest since last contact' } : CX_SORTS;
+  const sorts = F ? { pri: 'Most important first', new: 'Most recent first', old: 'Oldest first', money: 'Biggest plan first', quiet: 'Longest since last contact' } : CX_SORTS;
   const blurb = F ? 'Check in once a month while they are frozen, and get them booked as soon as they are back.' : 'Follow-up: exit call within 3 days, a check-in at 30 days, a win-back offer at 60.';
   const dateHead = F ? (st.view === 'now' ? 'Froze' : 'Back on') : 'Cancelled';
   $('memBody').innerHTML = `<div class="ldbar"><span class="tabs ldages">${shown.map(([k, t, f]) => `<button type="button" data-cxv="${k}" class="${st.view === k ? 'on' : ''}">${t} <small>${cnt(f)}</small></button>`).join('')}</span></div>
@@ -120,7 +120,7 @@ function drawCx() {
     <p class="lead mem-lead">Showing <b>${rows.length}</b> member${rows.length === 1 ? '' : 's'}${money ? ` • $${Math.round(money).toLocaleString()}/mo in plans` : ''}${st.dueOnly ? ', only those due' : ''}.${filtered ? ' <button class="linkish" data-cxreset="1">Clear filters</button>' : ''} ${blurb} Click a name to add a note or see their history.</p>` +
     (rows.length ? `<div class="table-wrap"><table class="mt ldt"><thead><tr><th>Member</th><th>${dateHead}</th>${F && st.view !== 'now' ? '<th>Frozen</th>' : ''}${F && st.view === 'now' ? '<th>Ends</th>' : ''}<th>Last visit</th>${F ? '<th>Next booking</th>' : ''}<th>Contacts since</th><th>Last contact</th>${F ? '' : '<th>How</th><th>By</th>'}</tr></thead><tbody>` +
       rows.map(({ r, c }) => { const note = (mem.notes[r.club_id] || {}).note, fo = r.kind === 'unfrozen' ? frozeOn(r) : null;
-        return `<tr data-cx="${r.club_id}" class="${c.due ? 'lddue' : ''}"><td><b>${esc(r.name || 'Unknown')}</b>${cxKind(r)}${c.late ? ' <span class="pill warn">Overdue</span>' : c.due ? ' <span class="pill due">Due</span>' : ''}<small class="nm-sub">${esc([r.plan, r.amount ? '$' + Math.round(r.amount) + '/mo' : ''].filter(Boolean).join(' • '))}</small>${note ? `<small class="nm-sub cxwhy">${esc(note)}</small>` : ''}</td>
+        return `<tr data-cx="${r.club_id}" class="${c.due ? 'lddue' : ''}"><td><b>${esc(r.name || 'Unknown')}</b>${cxKind(r)}<small class="nm-sub">${esc([r.plan, r.amount ? '$' + Math.round(r.amount) + '/mo' : ''].filter(Boolean).join(' • '))}</small>${note ? `<small class="nm-sub cxwhy">${esc(note)}</small>` : ''}</td>
         <td>${r.event_on ? `<span class="hchip ${F ? heat(c.d, r.kind === 'frozen' ? [7, 30, 60, 90] : [1, 7, 14, 30]) : heat(c.d, [3, 30, 60, 90])}"><b>${fmt(r.event_on)}</b> ${ago(c.d)}</span>` : '-'}</td>
         ${F && st.view === 'now' ? (fe => `<td>${fe ? `<b>${fmt(fe)}</b> <span class="muted">${-daysAgo(fe) <= 0 ? 'today' : 'in ' + (-daysAgo(fe)) + ' day' + (-daysAgo(fe) === 1 ? '' : 's')}</span>` : '<span class="muted">Not listed</span>'}</td>`)(freezeEnd(r)) : ''}
         ${F && st.view !== 'now' ? `<td>${fo ? `${fmt(fo)} <span class="muted">• ${daysAgo(fo) - c.d} days</span>` : '<span class="muted">-</span>'}</td>` : ''}

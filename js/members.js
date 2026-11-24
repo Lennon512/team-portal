@@ -40,7 +40,8 @@ const slimName = ({ r, c }) => `<td><b>${esc(r.name)}</b>${r.frozen ? '<span cla
 const nameCell = ({ r, c }) => `<td><b>${esc(r.name)}</b>${r.frozen ? '<span class="pill ice">Frozen</span>' : ''}${c.attn ? '<span class="pill warn">Needs attention</span><div class="why">' + esc(c.why) + '</div>' : ''}</td>`;
 // ----- Priority: who to contact first (the default order on every Members & prospects list) -----
 // lv 2 = call first, 1 = due / soon, 0 = can wait. "why" is the short reason shown under the pill.
-const priCell = p => `<td class="pricell"><span class="pill ${p.lv === 2 ? 'warn' : p.lv === 1 ? 'due' : 'later'}"${p.why ? ` title="${esc(p.why)}"` : ''}>${p.lv === 2 ? 'Call first' : p.lv === 1 ? 'Soon' : 'Can wait'}</span></td>`;   // the reason shows only on hover
+// Lists open sorted by who's most important to contact; after clicking a heading, this link puts that order back
+const priBack = (key, k) => key === 'pri' ? '' : `<p class="prinote"><button class="linkish" data-pri="${k}">↺ Back to most important first</button></p>`;
 function memPri(r, c) {
   let s = 0; const why = [], k = r.next_due ? -daysAgo(r.next_due) : null, cr = r.credits || 0;
   if (c.dc !== null && c.dc <= 3) { s -= 4; why.push(c.dc === 0 ? 'contacted today' : `contacted ${c.dc}d ago`); }   // just talked to them: let it rest
@@ -60,9 +61,9 @@ function renewPri(r, c) {
   if (c.dc === null || c.dc > 14) { s += 1; why.push(c.dc === null ? 'never contacted' : `no contact in ${c.dc}d`); }
   return { s, lv: s >= 5 ? 2 : s >= 3 ? 1 : 0, why: why.slice(0, 3).join(' • ') };
 }
-const SORTABLE = { 'Priority': 'pri', 'Member': 'name', 'Credits': 'credits', 'Next invoice': 'due', 'Last visit': 'last', 'Last contact': 'contact' };
+const SORTABLE = { 'Member': 'name', 'Credits': 'credits', 'Next invoice': 'due', 'Last visit': 'last', 'Last contact': 'contact' };
 const COLS = {
-  member: [['Priority', ({ r, c }) => priCell(memPri(r, c))], ['Member', slimName], ['Credits', ({ r }) => `<td>${r.credits ?? 0}</td>`], ['Next invoice', invCell], ['Last visit', visitCell],
+  member: [['Member', slimName], ['Credits', ({ r }) => `<td>${r.credits ?? 0}</td>`], ['Next invoice', invCell], ['Last visit', visitCell],
     ['Pace', ({ r, c }) => `<td>${c.label ? `<span class="pace ${c.label === 'Behind' ? 'pace-bad' : c.label === 'Ahead' ? 'pace-good' : ''}">${c.label}</span> <span class="muted">${r.sessions_30d || 0}/${r.plan_sessions}</span>` : '<span class="muted">-</span>'}</td>`],
     ['Last contact', ({ c }) => `<td>${c.dc === null ? '<span class="muted">Never</span>' : ago(c.dc)}</td>`], ['Assigned', ({ r }) => `<td>${asg(r) || '<span class="muted">-</span>'}</td>`]],
   check: [['Member', nameCell], ['Signed up', ({ r }) => dcell(r.signed_on)], ['What we saw', ({ r }) => `<td>${esc(r.detail)}</td>`],
@@ -152,7 +153,7 @@ function drawMem() {
     check: `${all.length} recent signups with monthly billing but no invoice coming due. Worth a look in ClubReady.`,
     package: `${all.length} people on packages instead of memberships, fewest credits first. They need a nudge to join.` }[g];
   const cols = g === 'member' && !hasInv() ? COLS.member.filter(c => c[0] !== 'Next invoice' && c[0] !== 'Pace') : COLS[g];
-  $('memBody').innerHTML = mem.meta ? `<p class="lead">${blurb}</p>` + (rows.length ? `<div class="table-wrap"><table class="mt"><thead><tr>${cols.map(c => { const k = g === 'member' && SORTABLE[c[0]]; return k ? `<th data-sort=\"${k}\" class=\"${mem.sort === k ? 'on' : ''}\" title=\"Sort by ${c[0].toLowerCase()}\">${c[0]}${mem.sort === k ? (mem.dir > 0 ? ' \u25BE' : ' \u25B4') : ''}</th>` : `<th>${c[0]}</th>`; }).join('')}</tr></thead><tbody>${rows.map(x => `<tr data-m="${x.r.club_id}">${cols.map(c => c[1](x)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="lead empty">Nothing here.</p>')
+  $('memBody').innerHTML = mem.meta ? `<p class="lead">${blurb}</p>` + (rows.length ? (g === 'member' ? priBack(mem.sort, 'mem') : '') + `<div class="table-wrap"><table class="mt"><thead><tr>${cols.map(c => { const k = g === 'member' && SORTABLE[c[0]]; return k ? `<th data-sort=\"${k}\" class=\"${mem.sort === k ? 'on' : ''}\" title=\"Sort by ${c[0].toLowerCase()}\">${c[0]}${mem.sort === k ? (mem.dir > 0 ? ' \u25BE' : ' \u25B4') : ''}</th>` : `<th>${c[0]}</th>`; }).join('')}</tr></thead><tbody>${rows.map(x => `<tr data-m="${x.r.club_id}">${cols.map(c => c[1](x)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="lead empty">Nothing here.</p>')
     : '<p class="lead empty none">No reports uploaded for this studio yet.' + (ME.role === 'staff' ? '' : ' Click Upload reports to start.') + '</p>';
 }
 
@@ -193,8 +194,8 @@ function drawRenew() {
   const qt = { low: 'running low', out: 'out of credits', nobook: 'with nothing booked' }[quick];
   $('memBody').innerHTML = `<p class="lead mem-lead"><b>${list.length}</b> ${list.length === 1 ? 'person' : 'people'} with no recurring billing who came in during the last ${RN_ACTIVE} days or are booked in the next ${RN_ACTIVE}, and ${quick === 'out' ? 'are out of credits' : quick === 'low' ? 'are running low on credits' : 'are low on or out of credits'}${quick === 'nobook' ? ', with nothing booked' : ''}. ` +
       (qt ? '<button class="linkish" data-quick="">Show all</button> ' : '') + 'Good people to offer a membership or a new package. Click someone to add a note or assign them.</p>' +
-    (list.length ? `<div class="table-wrap"><table class="mt nb"><thead><tr>${th('Priority', 'pri')}${th('Member', 'name')}${th('Credits', 'credits')}${th('Left at their pace', 'left')}${th('Last visit', 'last')}${th('Visits (30 days)', 'visits')}${th('Next booked', 'next')}${th('Last contact', 'contact')}<th>Assigned</th></tr></thead><tbody>` +
-      list.map(({ r, c }) => `<tr data-m="${r.club_id}">${priCell(renewPri(r, c))}<td><b>${esc(r.name)}</b>${r.detail && r.detail !== 'No recurring billing' ? `<div class="why">${esc(r.detail)}</div>` : ''}</td>
+    (list.length ? priBack(key, 'ren') + `<div class="table-wrap"><table class="mt nb"><thead><tr>${th('Member', 'name')}${th('Credits', 'credits')}${th('Left at their pace', 'left')}${th('Last visit', 'last')}${th('Visits (30 days)', 'visits')}${th('Next booked', 'next')}${th('Last contact', 'contact')}<th>Assigned</th></tr></thead><tbody>` +
+      list.map(({ r, c }) => `<tr data-m="${r.club_id}"><td><b>${esc(r.name)}</b>${r.detail && r.detail !== 'No recurring billing' ? `<div class="why">${esc(r.detail)}</div>` : ''}</td>
         <td class="num${c.cr <= 1 ? ' lowc' : ''}">${c.cr}</td><td>${leftTxt(c)}</td>
         <td>${dateChip(r.last_session, c.dl, [7, 30, 60, 90], 'None on record')}</td><td class="num">${r.sessions_30d || 0}</td>
         <td>${r.next_booking ? fmt(r.next_booking) : '<span class="muted">Nothing booked</span>'}</td>
@@ -219,9 +220,9 @@ function drawAttn(pool) {
   const quickTxt = { due7: 'billing within 7 days', cold: 'with no session in 30+ days', nocon: 'with no contact in 30+ days' }[mem.quick];
   $('memBody').innerHTML = `<p class="lead mem-lead"><b>${list.length}</b> member${list.length === 1 ? '' : 's'} ${what} with nothing booked${quickTxt ? ', ' + quickTxt + ` <button class="linkish" data-quick="">Show all</button>` : ''}.` +
       (inv ? '' : ' <b>Add the Invoices Coming Due report</b> to limit this to people about to be charged and show due dates.') + '</p>' +
-    (list.length ? `<div class="table-wrap"><table class="mt nb"><thead><tr>${th('Priority', 'pri')}${th('Member', 'name')}${th('Credits', 'credits')}${inv ? th('Next due', 'due') + th('Amount') : ''}${th('Last session', 'last')}${th('Last contact', 'contact')}</tr></thead><tbody>` +
+    (list.length ? priBack(key, 'mem') + `<div class="table-wrap"><table class="mt nb"><thead><tr>${th('Member', 'name')}${th('Credits', 'credits')}${inv ? th('Next due', 'due') + th('Amount') : ''}${th('Last session', 'last')}${th('Last contact', 'contact')}</tr></thead><tbody>` +
       list.map(({ r, c }) => { const k = r.next_due ? -daysAgo(r.next_due) : null; return `<tr>
-        ${priCell(memPri(r, c))}<td><b>${esc(r.name)}</b></td>
+        <td><b>${esc(r.name)}</b></td>
         <td class="num${(r.credits || 0) >= 10 ? ' strong' : ''}">${r.credits ?? 0}</td>
         ${inv ? `<td class="${k !== null && k <= 7 ? 'due-soon' : ''}">${r.next_due ? `${fmt(r.next_due)} <span class="muted">${dueIn(r.next_due)}</span>` : '-'}</td><td class="num">${r.amount != null ? '$' + Number(r.amount).toFixed(2) : '-'}</td>` : ''}
         <td>${dateChip(r.last_session, c.dl, [7, 30, 60, 90], 'None on record')}</td>
@@ -509,6 +510,7 @@ $('memStudio').onchange = e => { mem.studio = e.target.value; loadMem(); };
 $('memUp').onclick = upForm;
 $('memBody').onclick = e => {
   const at = s => e.target.closest(s);
+  const pb = at('[data-pri]'); if (pb) { const k = pb.dataset.pri; if (k === 'lead') Object.assign(LD, { sort: 'pri', dir: 1 }); else if (k === 'ren') Object.assign(mem, { rsort: 'pri', rdir: 1 }); else Object.assign(mem, { sort: 'pri', dir: 1 }); drawMem(); return; }
   const rs = at('th[data-rsort]'); if (rs) { if (mem.rsort === rs.dataset.rsort) mem.rdir = -(mem.rdir || 1); else { mem.rsort = rs.dataset.rsort; mem.rdir = 1; } drawMem(); return; }
   const th = at('th[data-sort]'); if (th) { if (mem.sort === th.dataset.sort) mem.dir = -mem.dir; else { mem.sort = th.dataset.sort; mem.dir = 1; } drawMem(); return; }
   const qk = at('[data-quick]'); if (qk) { mem.quick = qk.dataset.quick || null; drawMem(); return; }
