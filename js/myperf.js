@@ -2,7 +2,7 @@
 // Data: staff_daily (ClubReady Staff Utilization + Time Clock Payroll, one row per person per day, loaded by the bot),
 // staff_contacts_daily (Contact Log counts per person per day) and the portal's own task checklists.
 // Everyone sees their own; owners can pick anyone, managers anyone at their studio. No ratings or rankings.
-const MP = { range: 'week', uid: null, people: null, chart: null };
+const MP = { range: 'week', uid: null, people: null, charts: [] };
 const MP_RATE = 5;   // contacts expected per open hour (clocked in but not stretching)
 const MP_RANGES = [['week', 'This week'], ['lastweek', 'Last week'], ['month', 'This month'], ['lastmonth', 'Last month']];
 const mpDay = d => ymd(d), mpAdd = (d, n) => { const x = new Date(d + 'T00:00'); x.setDate(x.getDate() + n); return ymd(x); };
@@ -96,18 +96,24 @@ function drawMyPerf() {
       const t = x.assigned ? `<span class="${x.tasks >= x.assigned ? 'up' : 'dn'}">${Math.min(x.tasks, x.assigned)} of ${x.assigned}</span>` : x.tasks ? `${x.tasks}` : '<span class="muted">–</span>';
       return `<tr><td><b>${lbl}</b></td><td>${x.clock !== null ? mpH(x.clock) + ' hrs' : '<span class="muted">–</span>'}</td><td>${x.stretch !== null ? mpH(x.stretch) + ' hrs' : '<span class="muted">–</span>'}${x.clock ? ` <span class="muted">${Math.round((x.stretch || 0) / x.clock * 100)}%</span>` : ''}</td><td>${x.open !== null ? mpH(x.open) + ' hrs' : '<span class="muted">–</span>'}</td><td>${c}</td><td>${t}</td></tr>`; }).join('')}</tbody></table></div>`
     : '<p class="lead empty">Nothing on record for this time frame yet.</p>';
-  const chart = shown.length ? `<section class="scsec"><h3>Day by day <details class="dlinfo"><summary aria-label="How this works">ⓘ</summary><div>Each bar is the time clocked in that day, split into stretching (sessions given) and open time. The dots are contacts logged, next to a goal of about ${MP_RATE} for every open hour. Hours and contacts come from ClubReady each morning; daily tasks from the portal's checklists.</div></details></h3><div class="pcard mpchart"><canvas id="mpCanvas" height="220"></canvas></div></section>` : '';
+  const chart = shown.length ? `<section class="scsec"><h3>Day by day <details class="dlinfo"><summary aria-label="How this works">ⓘ</summary><div>Top: each day's time clocked in, split into stretching (sessions given) and open time. Bottom: contacts logged that day, green when they reach the goal (about ${MP_RATE} for every open hour) and orange when under; the gray tick is that day's goal. Hours and contacts come from ClubReady each morning.</div></details></h3>
+    <div class="pcard mpchart"><p class="mpct">Time clocked in</p><div class="mpcv"><canvas id="mpHours"></canvas></div><p class="mpct">Contacts <span class="muted">vs goal</span></p><div class="mpcv mpcv2"><canvas id="mpContacts"></canvas></div></div></section>` : '';
   $('mpBody').innerHTML = head + note + tiles + chart + `<section class="scsec"><h3>Each day</h3>${rows}</section>`;
-  if (MP.chart) { MP.chart.destroy(); MP.chart = null; }
+  (MP.charts || []).forEach(c => c.destroy()); MP.charts = [];
   if (shown.length && typeof Chart !== 'undefined') {
     const L = shown.map(x => new Date(x.d + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })), h = m => m === null ? null : Math.round(m / 6) / 10;
-    MP.chart = new Chart($('mpCanvas'), { data: { labels: L, datasets: [
-      { type: 'bar', label: 'Stretching (hrs)', data: shown.map(x => h(x.stretch || 0)), backgroundColor: '#2f5f8f', stack: 'h', yAxisID: 'y' },
-      { type: 'bar', label: 'Open time (hrs)', data: shown.map(x => h(x.open || 0)), backgroundColor: 'rgba(47,95,143,.28)', stack: 'h', yAxisID: 'y' },
-      { type: 'line', label: 'Contacts', data: shown.map(x => x.contacts), borderColor: '#d9573f', backgroundColor: '#d9573f', showLine: false, pointRadius: 5, yAxisID: 'y2' },
-      { type: 'line', label: 'Contact goal', data: shown.map(x => x.goal), borderColor: 'rgba(217,87,63,.55)', borderDash: [5, 4], pointRadius: 0, fill: false, yAxisID: 'y2' }] },
-      options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom' } },
-        scales: { y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Hours' } }, y2: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Contacts' } }, x: { stacked: true } } } });
+    const base = { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } };
+    MP.charts.push(new Chart($('mpHours'), { type: 'bar', data: { labels: L, datasets: [
+      { label: 'Stretching', data: shown.map(x => x.clock === null ? null : h(x.stretch || 0)), backgroundColor: '#2f5f8f', borderRadius: 4, stack: 'h' },
+      { label: 'Open time', data: shown.map(x => x.clock === null ? null : h(x.open || 0)), backgroundColor: 'rgba(47,95,143,.28)', borderRadius: 4, stack: 'h' }] },
+      options: { ...base, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw ?? '–'} hrs` } } },
+        scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { callback: v => v + 'h' } } } } }));
+    MP.charts.push(new Chart($('mpContacts'), { data: { labels: L, datasets: [
+      { type: 'bar', label: 'Contacts', data: shown.map(x => x.contacts), borderRadius: 4,
+        backgroundColor: shown.map(x => !x.goal ? 'rgba(120,120,120,.45)' : x.contacts >= x.goal ? '#1f9d6a' : '#e08a3c') },
+      { type: 'line', label: 'Goal', data: shown.map(x => x.goal || null), showLine: false, pointStyle: 'line', pointRadius: 14, pointBorderWidth: 3, borderColor: 'rgba(110,100,90,.95)', backgroundColor: 'rgba(110,100,90,.95)' }] },
+      options: { ...base, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.dataset.label === 'Goal' ? `Goal: ~${c.raw ?? '–'}` : `Contacts: ${c.raw}` } } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } } } }));
   }
 }
 
